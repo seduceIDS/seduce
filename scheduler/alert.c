@@ -419,8 +419,16 @@ int push_alert(struct tuple4 *addr, IPProtocol proto, char *data, int length)
 	
 	new_alert->addr = *addr;
 	new_alert->proto = proto;
-	new_alert->data = (data)?strdup(data):NULL;
-	new_alert->length = length;
+
+	if(data) {
+		new_alert->data = malloc(length);
+		if(new_alert->data)
+			memcpy(new_alert->data, data, length);
+		else errno_cont("malloc");
+	} else
+		new_alert->data = NULL;
+
+	new_alert->length = (new_alert->data) ? length : 0;
 	new_alert->next = NULL;
 
 	/* Now add it in the alert list */
