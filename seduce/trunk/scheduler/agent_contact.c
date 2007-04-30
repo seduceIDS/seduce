@@ -316,31 +316,20 @@ static int send_offset_work(AgentInfo *agent, int data_id_offset)
 		return 0;
 	
 	/* find the work */
-	status = pthread_mutex_lock(&sensorlist.mutex);
-	if (status != 0)
-		err_abort(status, "Lock mutex");
+	mutex_lock(&sensorlist.mutex);
 
 	sensor = hash_sensor_lookup(sensorlist.hash, sensor_id);
 	if (!sensor) {
-		status = pthread_mutex_unlock(&sensorlist.mutex);
-		if (status != 0)
-			err_abort(status, "Unlock mutex");
+		mutex_unlock(&sensorlist.mutex);
 		return 0;
 	}
 
-	status = pthread_mutex_lock(&sensor->mutex);
-	if (status != 0)
-		err_abort(status, "Lock mutex");
-
-	status = pthread_mutex_unlock(&sensorlist.mutex);
-	if (status != 0)
-		err_abort(status, "Unlock mutex");
+	mutex_lock(&sensor->mutex);
+	mutex_unlock(&sensorlist.mutex);
 
 	session = hash_session_lookup(sensor->hash, session_id);
 	if (!session) {
-		status = pthread_mutex_unlock(&sensor->mutex);
-		if (status != 0)
-			err_abort(status, "Unlock mutex");
+		mutex_unlock(&sensor->mutex);
 		return 0;
 	}
 
@@ -351,9 +340,7 @@ static int send_offset_work(AgentInfo *agent, int data_id_offset)
 		send_work(agent, &work);
 	}
 
-	status = pthread_mutex_unlock(&sensor->mutex);
-	if (status != 0)
-		err_abort(status, "Unlock mutex");
+	mutex_unlock(&sensor->mutex);
 
 	return (data)?1:0;
 }
