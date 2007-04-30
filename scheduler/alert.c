@@ -54,7 +54,6 @@ static int fill_threat_impact(idmef_alert_t *alert)
         return 0;
 }
 
-#define PROTO_NUMBER(proto) (proto == TCP)? IPPROTO_TCP: IPPROTO_UDP
 static int fill_source_target(AlertNode *p, idmef_alert_t *alert)
 {
         int ret;
@@ -81,7 +80,7 @@ static int fill_source_target(AlertNode *p, idmef_alert_t *alert)
         idmef_service_set_port(service, p->addr.s_port);
         
 /*        idmef_service_set_ip_version(service, IP_VER(p->iph)); */
-        idmef_service_set_iana_protocol_number(service, PROTO_NUMBER(p->proto));
+        idmef_service_set_iana_protocol_number(service, p->proto);
         
         ret = idmef_source_new_node(source, &node);
         if ( ret < 0 )
@@ -109,7 +108,7 @@ static int fill_source_target(AlertNode *p, idmef_alert_t *alert)
         idmef_service_set_port(service, p->addr.d_port);
         
 /*        idmef_service_set_ip_version(service, IP_VER(p->iph)); */
-        idmef_service_set_iana_protocol_number(service,PROTO_NUMBER(p->proto));
+        idmef_service_set_iana_protocol_number(service,p->proto);
         
         ret = idmef_target_new_node(target, &node);
         if ( ret < 0 )
@@ -204,11 +203,11 @@ static int fill_data(AlertNode *p, idmef_alert_t *alert)
         if ( !p )
             return 0;
         
-        add_int_data(alert, "ip_proto", PROTO_NUMBER(p->proto));
+        add_int_data(alert, "ip_proto", p->proto);
 #if 0
-        if ( p->proto == TCP )
+        if ( p->proto == IPPROTO_TCP )
                 add_int_data(alert, "tcp_len", p->length);
-        else /* p->proto == UDP */
+        else /* p->proto == IPPROTO_UDP */
                 add_int_data(alert, "udp_len", p->length);
 #endif
         add_byte_data(alert, "payload", p->data, p->length);
@@ -407,7 +406,7 @@ void pop_alert(void)
 	free(alert_to_send);
 }
 
-int push_alert(struct tuple4 *addr, IPProtocol proto, char *data, int length)
+int push_alert(struct tuple4 *addr, int proto, char *data, int length)
 {
 	AlertNode *new_alert;
 

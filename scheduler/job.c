@@ -53,7 +53,7 @@ int execute_job(int (*func)(), void *params)
 	DPRINTF("Job executed\n");
 
 	/* if it's a UDP packet destroy the session */
-	if (job_to_remove->data_info.session->proto == UDP)
+	if (job_to_remove->data_info.session->proto == IPPROTO_UDP)
 		destroy_session(job_to_remove->data_info.sensor,
 			         	job_to_remove->data_info.session->id);
 
@@ -77,7 +77,7 @@ int add_job(Sensor *this_sensor, Session *this_session, void *data)
 
 	job_to_add->data_info.session = this_session;
 
-	if (this_session->proto == TCP)
+	if (this_session->proto == IPPROTO_TCP)
 		job_to_add->data_info.data.tcp = data;
 	else job_to_add->data_info.data.udp = data;
 

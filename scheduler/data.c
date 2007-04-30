@@ -49,7 +49,7 @@ Session *find_session(Sensor *this_sensor, unsigned int id)
 Session *add_session(Sensor *this_sensor,
 		     unsigned int id,
 		     struct tuple4 *addr,
-		     IPProtocol proto)
+		     int proto)
 {
 	Session *new_session;
 	unsigned int correct_id; 
@@ -120,7 +120,7 @@ static void close_all_sessions(Sensor *this_sensor)
  */
 static void destroy_session_data(Session *this_session) 
 {
-	if (this_session->proto == TCP) {
+	if (this_session->proto == IPPROTO_TCP) {
 		TCPData *data; 
 		TCPData *next_data;
 
@@ -221,7 +221,7 @@ static UDPData *add_udpdata(Session *this_session, char *data, int length)
 
 void *add_data(Sensor *this_sensor,
 		unsigned int id,
-		IPProtocol proto,
+		int proto,
 		char *data,
 		int length)
 {
@@ -238,9 +238,9 @@ void *add_data(Sensor *this_sensor,
 		return NULL;
 
 	switch (proto) {
-		case TCP:
+		case IPPROTO_TCP:
 			return add_tcpdata(this_session, data, length);
-		case UDP:
+		case IPPROTO_UDP:
 			return add_udpdata(this_session, data, length);
 	}
 	
@@ -254,7 +254,7 @@ TCPData * find_data(Session *this_session, const unsigned int id)
 	if(this_session == NULL)
 		return NULL;
 
-	if(this_session->proto == UDP)
+	if(this_session->proto == IPPROTO_UDP)
 		return NULL;
 
 	data = this_session->data_head.tcp;
