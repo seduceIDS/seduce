@@ -4,7 +4,7 @@
 typedef struct _AlertNode {
 	struct _AlertNode *next;
 	struct tuple4 addr;
-	IPProtocol proto;
+	int proto;
 	char *data;
 	int length;
 } AlertNode;
@@ -18,7 +18,7 @@ typedef struct _AlertList {
 } AlertList;
 
 void init_alertlist(void);
-int push_alert(struct tuple4 *, IPProtocol, char *, int);
+int push_alert(struct tuple4 *, int, char *, int);
 void pop_alert(void);
 void *alert_thread(void *);
 #endif /* _ALERT_H */

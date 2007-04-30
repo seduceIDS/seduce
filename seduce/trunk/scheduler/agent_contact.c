@@ -237,7 +237,7 @@ int send_work(AgentInfo *agent, DataInfo *work)
 	unsigned int type;
 
 	DPRINTF("\n");
-	if (work->session->proto == TCP) {
+	if (work->session->proto == IPPROTO_TCP) {
 		payload =        work->data.tcp->payload;
 		payload_length = work->data.tcp->length;
 	} else {
@@ -274,7 +274,7 @@ int send_work(AgentInfo *agent, DataInfo *work)
 	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->sec,ntohl(type),agent->id);
 
 	/* update the "sent data history" */
-	if (work->session->proto == TCP) {
+	if (work->session->proto == IPPROTO_TCP) {
 		agent->history.sensor = work->sensor->id;
 		agent->history.session = work->session->id;
 		agent->history.data = work->data.tcp->id;
@@ -545,7 +545,7 @@ static char *recv_alert_data(int socket, unsigned int *data_size)
 static void process_alert_data(char *data, int data_len)
 {
 	struct tuple4 connection;
-	IPProtocol proto;
+	int proto;
 	char *payload;
 	int payload_len;
 	unsigned int size;

@@ -4,13 +4,12 @@
 #include <time.h>
 #include <arpa/inet.h>
 #include <glib.h>
+#include <netinet/in.h>
 
 #include "thread.h"
 
 #define MAXSENSORS 256
 
-enum _IPProtocol {TCP, UDP};
-typedef enum _IPProtocol IPProtocol;
 
 struct tuple4 { /* Don't ask about the name, it's from libnids... */
 	u_int16_t s_port,d_port;	/* source and destination port */
@@ -40,7 +39,7 @@ typedef struct _Session {
 
 	int is_active;			/* Is the session still open? */
 	struct tuple4 addr;		/* Session Address Info */
-	IPProtocol proto;		/* UDP or TCP */
+	int proto;			/* UDP or TCP */
 
 	union {
 		UDPData *udp;
@@ -88,13 +87,13 @@ int  add_sensor     (struct in_addr, unsigned short, Sensor **);
 void close_sensor   (Sensor *);
 void destroy_sensor (Sensor *);
 
-Session * add_session (Sensor *, unsigned int, struct tuple4 *, IPProtocol);
+Session * add_session (Sensor *, unsigned int, struct tuple4 *, int);
 Session * find_session (Sensor *, unsigned int);
 int close_session   (Sensor *, unsigned int);
 int destroy_session (Sensor *, unsigned int);
 
 /* returns a TCPData or UDPData pointer */ 
-void *add_data (Sensor *, unsigned int, IPProtocol, char *, int);
+void *add_data (Sensor *, unsigned int, int, char *, int);
 TCPData *find_data(Session *, unsigned int);
 
 #endif /* _DATA_H */

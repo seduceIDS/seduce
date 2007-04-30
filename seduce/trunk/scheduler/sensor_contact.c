@@ -253,7 +253,7 @@ static int new_tcp(SensorPacket *p)
 	
 	mutex_lock(&p->my_sensor->mutex);
 
-	new_session = add_session(p->my_sensor, id, &addr, TCP);
+	new_session = add_session(p->my_sensor, id, &addr, IPPROTO_TCP);
 	
 	mutex_unlock(&p->my_sensor->mutex);
 
@@ -295,7 +295,7 @@ static int tcp_data(SensorPacket *p)
 
 	this_session = find_session(p->my_sensor,stream_id);
 	if (this_session != NULL)
-		new_data = add_data(p->my_sensor, stream_id, TCP, 
+		new_data = add_data(p->my_sensor, stream_id, IPPROTO_TCP, 
 			            p->data, p->data_len);
 			
 	mutex_unlock(&p->my_sensor->mutex);
@@ -329,12 +329,12 @@ static int udp_data(SensorPacket *p)
 
 	/* Open a new session */
 	DPRINTF("Adding a new Session...\n");
-	new_session = add_session (p->my_sensor, id, &addr, UDP);
+	new_session = add_session (p->my_sensor, id, &addr, IPPROTO_UDP);
 	
 	/* Add the data */
 	if (new_session != NULL) {
 		DPRINTF("Session added, adding new Data...\n");
-		new_data = add_data (p->my_sensor, id, UDP,
+		new_data = add_data (p->my_sensor, id, IPPROTO_UDP,
 				     p->data, p->data_len);
 	}
 
