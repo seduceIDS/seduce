@@ -24,6 +24,11 @@ void sigalrm_handler(int s)
 	return;
 }
 
+static inline void copy_password(char *buf)
+{
+	strncpy(buf, PASSWORD, UDP_SIZE);
+}
+
 static int send_msg(int type)
 {
 	char buf[UDP_SIZE];
@@ -31,14 +36,18 @@ static int send_msg(int type)
 	size_t len;
 	ssize_t numbytes;
 
-	len = UDP_SIZE;
-	addr_len = sizeof(struct sockaddr);
+	if((type == UDP_NEW_AGENT) || (type == UDP_QUIT)) {
+		len = 2*UDP_SIZE;
+		copy_password(buf + UDP_SIZE);
+	} else	len = UDP_SIZE;
+
 	
 	*(u_int32_t *)(buf +  0) = htonl(len);
 	*(u_int32_t *)(buf +  4) = htonl(session.sec);
 	*(u_int32_t *)(buf +  8) = type;
 	*(u_int32_t *)(buf + 12) = htonl(session.id);
 
+	addr_len = sizeof(struct sockaddr);
 	numbytes = sendto(session.fd, buf, len, 0,
 			(struct sockaddr *)session.addr, addr_len);
 	if(numbytes == -1) {
@@ -356,6 +365,12 @@ int main(int argc, char *argv[])
 
 	/* Now initialize the session */
 	init_session(sockfd, &their_addr);
+
+	/* Check the password */
+	if (strlen(PASSWORD) >= UDP_SIZE) {
+		fprintf(stderr, "Password too long\n");
+		exit(1);
+	}
 
 	/* Try to connect to the sceduler */
 	if(!scheduler_connect()) {
