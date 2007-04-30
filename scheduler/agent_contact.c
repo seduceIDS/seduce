@@ -9,10 +9,11 @@
 #include <time.h>
 
 #include "agent_contact.h"
+#include "utils.h"
 #include "errors.h"
 #include "hash.h"
 #include "job.h"
-#include "utils.h"
+#include "alert.h"
 
 
 extern  SensorList sensorlist;
@@ -140,6 +141,7 @@ static void remove_agent(Agents *agents, unsigned int id)
 	this_agent = agents->table + *index;
 	memset(this_agent, '\0', sizeof(AgentInfo));
 
+	/* Update the bit map */
 	mask = ~(1 << (*index % 8));
 	i = *index / 8;
 	agents->map[i] = agents->map[i] & mask;
@@ -428,9 +430,10 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 	unsigned short *index;
 
 	if (pck->type == UDP_NEW_AGENT) {
-		if(!check_password(pck->pwd)) /* Check the Password */
+		if(!check_password(pck->pwd)) { /* Check the Password */
+			DPRINTF("Wrong Password\n");
 			return;
-
+		}
 		this_agent = add_agent(agents, &pck->addr);
 		if(this_agent)
 			send_msg(this_agent, UDP_CONNECTED);
@@ -457,6 +460,8 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 	}
 	else if(pck->sec > this_agent->sec) { /* new_request */
 
+		/* Update sequence */
+		this_agent->sec = pck->sec;
 		switch(pck->type) {
 			case UDP_NEW_WORK:
 				send_new_work(this_agent);
@@ -473,9 +478,8 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 				else return;
 				break;
 		}
-		/* Update sequence and timestamp */
+		/* Update timestamp */
 		this_agent->timestamp = time(NULL);
-		this_agent->sec = pck->sec;
 	}
 	return;
 }
@@ -488,22 +492,85 @@ static void udp_request(Agents *agents)
 	UDPPacket pck;
 	int ret;
 
-		ret = recv_udp_packet(&pck);
-		if(ret == 1)
-			process_udp_packet(agents, &pck);
+	ret = recv_udp_packet(&pck);
+	if(ret == 1)
+		process_udp_packet(agents, &pck);
 
 	return;
 }
 
-
-static int recv_tcp_data(int socket, char * buf)
+/* 
+ * Receives the alert data from a TCP connection.
+ * Returns the data size received on success, 0 if an error occurs
+ */ 
+static int recv_alert_data(int socket, char *alert_data)
 {
+	u_int32_t size;
+	ssize_t numbytes;
+	int flags = 0;
+
+	flags = MSG_PEEK | MSG_WAITALL;
+	numbytes = recv(socket, &size, sizeof(u_int32_t), flags);
+	if (numbytes == -1) {
+		errno_cont("recv");
+		return 0;
+	}
+	if (numbytes != sizeof(u_int32_t)) {
+		DPRINTF("Error in receiving the size\n");
+		return 0;
+	}
+
+	/* we allow zero payload */
+	if (size < UDP_PCK_SIZE + sizeof(u_int32_t)) { 
+		DPRINTF("The alert message size is not sane\n");
+		return 0;
+	}
+	/* TODO: Check about the MAX UDP packet size */
+
+	alert_data = malloc(size);
+	if (alert_data == NULL) {
+		errno_cont("malloc");
+		return 0;
+	}
+
+	flags = MSG_WAITALL;
+	numbytes = recv(socket, alert_data, size, flags);
+	if (numbytes == -1)
+		errno_cont("recv");
+	else if(numbytes != size)
+		DPRINTF("Error in receiving the alert_data\n");
+	else
+		return (int)size;
+
+	/* On error */
+	free(alert_data);
 	return 0;
 }
 
-static void process_tcp_data(char *data, int data_len)
-{
 
+static void process_alert_data(char *data, int data_len)
+{
+	struct tuple4 connection;
+	IPProtocol proto;
+	char *payload;
+	int payload_len;
+
+	unsigned int size = *(u_int32_t *)data;
+
+	/* payload_len = SIZE - CONNECTION_SIZE - SIZE_FIELD_SIZE */
+	payload_len = size - UDP_PCK_SIZE -sizeof(u_int32_t);
+
+	proto = ntohl(*(u_int32_t *)(data + 4));
+	connection.s_port = *(u_int16_t *)(data + 8);
+	connection.d_port = *(u_int16_t *)(data + 10);
+	connection.s_addr = *(u_int32_t *)(data + 12);
+	connection.d_addr = *(u_int32_t *)(data + 16);
+	payload = (payload_len)? data + UDP_PCK_SIZE + sizeof(u_int32_t) : NULL;
+
+	/* send the alert */
+	push_alert(&connection, proto, payload, payload_len);
+
+	return;
 }
 
 typedef struct {
@@ -512,12 +579,15 @@ typedef struct {
 	unsigned short port;
 } TCPConData;
 
+/* 
+ * Serve a TCP connection.
+ */
 static void *tcp_connection(TCPConData *data)
 {
 	struct timeval wait;
 	int ret;
 	fd_set readset;
-	char pwd[16];
+	char pwd[UDP_PCK_SIZE];
 	char *buf = NULL;
 	int buf_len;
 	ssize_t numbytes;
@@ -542,22 +612,22 @@ select_again:
 		goto end;
 	}
 
-	numbytes = recv(data->socket, pwd, 16, 0);
+	numbytes = recv(data->socket, pwd, UDP_PCK_SIZE, 0);
 	if (numbytes == -1) {
 		errno_cont("recv");
 		goto end;
-	} else if (numbytes != 16)
+	} else if (numbytes != UDP_PCK_SIZE)
 		goto end;
 
-	pwd[15] = '\0';
+	pwd[UDP_PCK_SIZE - 1] = '\0';
 	if(!check_password(pwd)) {
 		DPRINTF("Wrong Password\n");
 		goto end;
 	}
-
-	buf_len = recv_tcp_data(data->socket, buf);
-	if (ret > 0) {
-		process_tcp_data(buf,buf_len);
+	/* password is OK, now receive the alert */
+	buf_len = recv_alert_data(data->socket, buf);
+	if (buf_len > 0) {
+		process_alert_data(buf,buf_len);
 		free(buf);
 	}
 
