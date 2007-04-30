@@ -14,4 +14,7 @@
 /* tme to wait before retying */
 #define RETRY_WAIT	5
 
+/* password */
+#define PASSWORD "password"
+
 #endif /* _CONFIG_H */ 
