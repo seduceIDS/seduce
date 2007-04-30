@@ -301,7 +301,6 @@ static int send_offset_work(AgentInfo *agent, int data_id_offset)
 	Session *session;
 	TCPData *data;
 	DataInfo work;
-	int status;
 
 	DPRINTF("\n");
 	sensor_id = agent->history.sensor;
