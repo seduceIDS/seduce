@@ -31,7 +31,7 @@ static inline void copy_password(char *buf)
 
 static int send_msg(int type)
 {
-	char buf[UDP_SIZE];
+	char buf[2*UDP_SIZE];
 	socklen_t addr_len;
 	size_t len;
 	ssize_t numbytes;
