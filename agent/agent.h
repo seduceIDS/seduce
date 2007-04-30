@@ -43,4 +43,6 @@ typedef struct _Session {
 } Session;
 
 
+void copy_password(char *);
+
 #endif /* _AGENT_H */

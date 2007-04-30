@@ -24,7 +24,7 @@ void sigalrm_handler(int s)
 	return;
 }
 
-static inline void copy_password(char *buf)
+inline void copy_password(char *buf)
 {
 	strncpy(buf, PASSWORD, UDP_SIZE);
 }

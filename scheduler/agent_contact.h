@@ -90,6 +90,7 @@ typedef struct _UDPPacket {
  */
 
 #define UDP_PCK_SIZE 16
+#define TCP_PCK_SIZE 20
 #define PASSWORD "password"
 #define MAX_WAIT 5
 

@@ -1,12 +1,14 @@
 #include "detect_engine.h"
 
-char *threat_payload = NULL;
-size_t threat_length = 0;
+char *threat_payload = "Example threat";
+size_t threat_length = 15;
 
 int execute_work(char *data, size_t len)
 {
 	static int times = 0;
 
+	if((data == NULL) || (len == 0))
+		return WORK_DONE;
 	times++;
 
 	if(times < 10) {

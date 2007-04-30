@@ -9,6 +9,7 @@
 
 #include "alert.h"
 #include "config.h"
+#include "agent.h"
 
 /* from agent.c */
 extern Session session;
@@ -38,27 +39,30 @@ static int tcp_connect(struct sockaddr_in *addr)
 
 static int send_alert(int socket, Work *work)
 {
+	char pwd[16];
 	char buf[TCP_SIZE];
 	size_t size;
 	ssize_t numbytes;
 	int iovcnt;
-	struct iovec iov[2];
+	struct iovec iov[3];
 
+	copy_password(pwd);
 	size = TCP_SIZE + threat_length;
 	*(u_int32_t *)(buf +  0) = htonl(size);
-	*(u_int32_t *)(buf +  4) = htonl(session.id);
-	*(u_int32_t *)(buf +  8) = htonl(work->proto);
-	*(u_int16_t *)(buf + 10) = htonl(work->s_port);
-	*(u_int16_t *)(buf + 12) = htonl(work->d_port);
-	*(u_int32_t *)(buf + 16) = htonl(work->s_addr);
-	*(u_int32_t *)(buf + 20) = htonl(work->d_addr);
+	*(u_int32_t *)(buf +  4) = htonl(work->proto);
+	*(u_int16_t *)(buf +  8) = work->s_port;
+	*(u_int16_t *)(buf + 10) = work->d_port;
+	*(u_int32_t *)(buf + 12) = work->s_addr;
+	*(u_int32_t *)(buf + 16) = work->d_addr;
 
-	iov[0].iov_base = buf;
-	iov[0].iov_len = TCP_SIZE;
-	iov[1].iov_base = threat_payload;
-	iov[1].iov_len = threat_length;
+	iov[0].iov_base = pwd;
+	iov[0].iov_len = 16;
+	iov[1].iov_base = buf;
+	iov[1].iov_len = TCP_SIZE;
+	iov[2].iov_base = threat_payload;
+	iov[2].iov_len = threat_length;
 
-	iovcnt = 2;
+	iovcnt = 3;
 
 	numbytes = writev(socket,iov,iovcnt);
 	if (numbytes == -1) {
@@ -66,7 +70,7 @@ static int send_alert(int socket, Work *work)
 		return 0;
 	}
 
-	if (numbytes != size)
+	if (numbytes != size + 16)
 		return 0;
 
 	return 1;
@@ -75,24 +79,15 @@ static int send_alert(int socket, Work *work)
 int alert_scheduler(Work *work)
 {
 	int socket;
-	int i;
 
 	printf("Connecting to the Scheduler...");
 
-	for(i = 0; i <  RETRY_TIMES; i++) {
 		socket = tcp_connect(session.addr);
-
 		if(!socket) {
-			fprintf(stderr, "Can't connect...");
-			sleep(RETRY_WAIT);
-		} else break;
-		fprintf(stderr, "Trying...\n");
-	}
-
-	if(i == RETRY_TIMES) {
-		fprintf(stderr, "Connecting to the scheduler failed\n");
-		return 0;
-	}
+			fprintf(stderr, "Connecting to the scheduler failed\n");
+			return 0;
+		}
+	
 	printf("done\n");
 
 	printf("Sending the alert...");

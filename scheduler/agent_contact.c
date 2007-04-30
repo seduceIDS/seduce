@@ -261,7 +261,7 @@ int send_work(AgentInfo *agent, DataInfo *work)
 	*(u_int16_t *)(buf + 20) = work->session->addr.s_port;
 	*(u_int16_t *)(buf + 22) = work->session->addr.d_port;
 	*(u_int32_t *)(buf + 24) = work->session->addr.s_addr;
-	*(u_int32_t *)(buf + 32) = work->session->addr.d_addr;
+	*(u_int32_t *)(buf + 28) = work->session->addr.d_addr;
 	memcpy(buf + 2*UDP_PCK_SIZE, payload, payload_length);
 	addr_len =  sizeof(struct sockaddr);
 	if(sendto(udp_socket, buf, length, 0,
@@ -487,36 +487,42 @@ static void udp_request(Agents *agents)
 
 /* 
  * Receives the alert data from a TCP connection.
- * Returns the data size received on success, 0 if an error occurs
+ * Returns the data received on success, NULL if an error occurs.
+ * It also updates the data_size argument.
  */ 
-static int recv_alert_data(int socket, char *alert_data)
+static char *recv_alert_data(int socket, unsigned int *data_size)
 {
 	u_int32_t size;
+	char *alert_data;
 	ssize_t numbytes;
 	int flags = 0;
 
+	DPRINTF("\n");
 	flags = MSG_PEEK | MSG_WAITALL;
 	numbytes = recv(socket, &size, sizeof(u_int32_t), flags);
 	if (numbytes == -1) {
 		errno_cont("recv");
-		return 0;
+		return NULL;
 	}
 	if (numbytes != sizeof(u_int32_t)) {
 		DPRINTF("Error in receiving the size\n");
-		return 0;
+		return NULL;
 	}
+
+	size = ntohl(size);
+	DPRINTF("size is %u\n",size);
 
 	/* we allow zero payload */
 	if (size < UDP_PCK_SIZE + sizeof(u_int32_t)) { 
 		DPRINTF("The alert message size is not sane\n");
-		return 0;
+		return NULL;
 	}
 	/* TODO: Check about the MAX UDP packet size */
 
 	alert_data = malloc(size);
 	if (alert_data == NULL) {
 		errno_cont("malloc");
-		return 0;
+		return NULL;
 	}
 
 	flags = MSG_WAITALL;
@@ -525,12 +531,14 @@ static int recv_alert_data(int socket, char *alert_data)
 		errno_cont("recv");
 	else if(numbytes != size)
 		DPRINTF("Error in receiving the alert_data\n");
-	else
-		return (int)size;
+	else { 
+		*data_size = size;
+		return alert_data;
+	}
 
 	/* On error */
 	free(alert_data);
-	return 0;
+	return NULL;
 }
 
 
@@ -540,20 +548,23 @@ static void process_alert_data(char *data, int data_len)
 	IPProtocol proto;
 	char *payload;
 	int payload_len;
+	unsigned int size;
 
-	unsigned int size = *(u_int32_t *)data;
+	DPRINTF("\n");
+	size = ntohl(*(u_int32_t *)data);
 
-	/* payload_len = SIZE - CONNECTION_SIZE - SIZE_FIELD_SIZE */
-	payload_len = size - UDP_PCK_SIZE -sizeof(u_int32_t);
+	payload_len = size - TCP_PCK_SIZE;
 
+	DPRINTF("size is %u, payload is %u\n",size, payload_len);
 	proto = ntohl(*(u_int32_t *)(data + 4));
-	connection.s_port = *(u_int16_t *)(data + 8);
-	connection.d_port = *(u_int16_t *)(data + 10);
-	connection.s_addr = *(u_int32_t *)(data + 12);
-	connection.d_addr = *(u_int32_t *)(data + 16);
+	connection.s_port = ntohs(*(u_int16_t *)(data + 8));
+	connection.d_port = ntohs(*(u_int16_t *)(data + 10));
+	connection.s_addr = ntohl(*(u_int32_t *)(data + 12));
+	connection.d_addr = ntohl(*(u_int32_t *)(data + 16));
 	payload = (payload_len)? data + UDP_PCK_SIZE + sizeof(u_int32_t) : NULL;
 
 	/* send the alert */
+	DPRINTF("push alert");
 	push_alert(&connection, proto, payload, payload_len);
 
 	return;
@@ -578,13 +589,14 @@ static void *tcp_connection(TCPConData *data)
 	int buf_len;
 	ssize_t numbytes;
 
+	DPRINTF("\n");
 	FD_ZERO(&readset);
 	FD_SET(data->socket, &readset);
 	wait.tv_sec = 5;
 	wait.tv_usec = 0;
 
 select_again:
-	ret = select(data->socket, &readset, NULL, NULL, &wait);
+	ret = select(data->socket + 1, &readset, NULL, NULL, &wait);
 	if (ret == -1) {
 		if (errno == EBADF) {
 			wait.tv_sec = 5;
@@ -611,8 +623,9 @@ select_again:
 		goto end;
 	}
 	/* password is OK, now receive the alert */
-	buf_len = recv_alert_data(data->socket, buf);
-	if (buf_len > 0) {
+	buf = recv_alert_data(data->socket, &buf_len);
+	if (buf) {
+		DPRINTF("buf_len %u\n",buf_len);
 		process_alert_data(buf,buf_len);
 		free(buf);
 	}
