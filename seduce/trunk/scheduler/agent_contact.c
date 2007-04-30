@@ -736,7 +736,7 @@ select_restart:
 					 * TCP connection.
 					 */
 					create_thread((void *)tcp_connection,
-								&t_data);
+								t_data);
 				}
 			}
 			if(--nready <= 0)
