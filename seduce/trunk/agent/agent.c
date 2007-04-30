@@ -297,9 +297,11 @@ static void main_loop(void)
 			case THREAT_DETECTED:
 				alert_scheduler(&work);
 				ret = get_work(&work, UDP_NEW_WORK);
+				break;
 
 			default:
 				ret = 0;
+				break;
 		}
 		if(ret)
 			result = execute_work(work.payload, work.payload_len);
