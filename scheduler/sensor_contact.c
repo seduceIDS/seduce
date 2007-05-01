@@ -23,7 +23,7 @@ typedef struct {
 	int data_len;			/* Data Lenght 			*/
 	int socket;			/* Sensor's Socket		*/
 	struct in_addr ip;		/* Sensor's IP Address		*/
-	u_int16_t port;			/* Sensor's Port		*/
+	unsigned short port;		/* Sensor's Port		*/
 	Sensor *my_sensor;		/* Pointer to the Sensor struct	*/
 } SensorPacket;
 
@@ -195,9 +195,9 @@ static int sensor_connect(SensorPacket *p)
 	};
 
 	DPRINTF("\n");
+	/* trying to add the sensor */
 	mutex_lock(&sensorlist.mutex);
 
-	/* trying to add the sensor */
 	reply = add_sensor(p->ip, p->port, &p->my_sensor);
 
 	mutex_unlock(&sensorlist.mutex);
@@ -351,112 +351,3 @@ static int udp_data(SensorPacket *p)
 	else return 0;
 }
 
-
-#if 0
-static void size_error(Packet *p)
-{
-	fprintf(stderr, "Package Size Error\n");
-	sensor_disconnect(p);
-}
-
-void *serve_the_client(struct client_thread_data *c_data)
-{
-	enum {  BEGINNING,
-		STARTING_HEADER,
-		MAIN_HEADER,
-		DATA
-	} part;
-
-	/* The Starting Header */
-	struct {
-		unsigned int size;
-		unsigned int type;
-	} s_hdr;
-
-	
-	char buffer[MAXBUFFERSIZE];
-	Packet p;
-	char *buf_ptr = NULL,*section_end = NULL;
-	int bytes_left, bytes_needed = 0;
-
-	part = BEGINNING;
-
-	p.socket = c_data->connfd;
-	p.sensor_ip = c_data->sensor_ip;
-	p.sensor_port = c_data->sensor_port;
-	p.my_sensor = NULL;
-	free(c_data);
-
-	while ((bytes_left = recv(p.socket, buffer, MAXBUFFERSIZE, 0)) != -1) {
-
-		if (bytes_left == 0) 
-			sensor_disconnect(&p); /* Connection has closed */
-		
-		DPRINTF("I just received %d bytes\n",bytes_left);
-		buf_ptr = buffer;
-
-		again:
-		switch(part) {
-			case BEGINNING:
-				part = STARTING_HEADER;
-
-				bytes_needed = sizeof(s_hdr);
-				section_end = ((char *)&s_hdr) + bytes_needed;
-
-			case STARTING_HEADER:
-				for(; (bytes_needed > 0) && (bytes_left > 0); bytes_left--)
-					*(section_end - bytes_needed--) = *buf_ptr++;
-				if(bytes_needed)
-					continue;
-				part = MAIN_HEADER;
-
-				s_hdr.size = ntohl(s_hdr.size);
-				s_hdr.type = ntohl(s_hdr.type);
-
-				/* Size Sanity check */
-				if (pt_tbl[s_hdr.type].data) {
-					if (s_hdr.size <= pt_tbl[s_hdr.type].header_size)
-						size_error(&p);
-				} else if (s_hdr.size != pt_tbl[s_hdr.type].header_size)
-					size_error(&p);
-
-				bytes_needed = pt_tbl[s_hdr.type].header_size - sizeof(s_hdr);
-				section_end = p.header + bytes_needed;
-
-			case MAIN_HEADER:
-				for(; (bytes_needed > 0) && (bytes_left > 0); bytes_left--)
-					*(section_end - bytes_needed--) = *buf_ptr++;
-				if(bytes_needed)
-					continue;
-				part = DATA;
-
-				if (pt_tbl[s_hdr.type].data) {
-					bytes_needed = s_hdr.size - pt_tbl[s_hdr.type].header_size;
-					p.data_length = bytes_needed;
-					if((p.data = malloc(p.data_length)) == NULL) {
-						perror("malloc");
-						sensor_disconnect(&p);
-					}
-					section_end = p.data + bytes_needed;
-				}
-
-			case DATA:
-				for(; (bytes_needed > 0) && (bytes_left > 0); bytes_left--)
-					*(section_end - bytes_needed--) = *buf_ptr++;
-				if(bytes_needed)
-					continue;
-				part = BEGINNING;
-
-				/* We got the Packet, now call the proper function */
-				if (pt_tbl[s_hdr.type].function(&p) == 0)
-					sensor_disconnect(&p);
-		}
-		goto again;
-	}
-	perror("recv");
-	sensor_disconnect(&p);
-
-	/* Never Called */
-	return NULL;
-}
-#endif
