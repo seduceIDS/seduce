@@ -561,7 +561,7 @@ static void process_alert_data(char *data, int data_len)
 	connection.d_port = ntohs(*(u_int16_t *)(data + 10));
 	connection.s_addr = ntohl(*(u_int32_t *)(data + 12));
 	connection.d_addr = ntohl(*(u_int32_t *)(data + 16));
-	payload = (payload_len)? data + UDP_PCK_SIZE + sizeof(u_int32_t) : NULL;
+	payload = (payload_len)? (data + 20) : NULL;
 
 	/* send the alert */
 	DPRINTF("push alert");
