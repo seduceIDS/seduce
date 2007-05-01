@@ -29,7 +29,6 @@ void init_sensorlist(void)
 		fprintf(stderr,"Can't create sensorlist hash table\n");
 		abort();
 	}
-		
 }
 
 
@@ -73,7 +72,8 @@ Session *add_session(Sensor *this_sensor,
 	new_session->next_data_id = 1;
 
 	if (this_sensor->sessionlist_head == NULL) {
-		this_sensor->sessionlist_head = this_sensor->sessionlist_tail = new_session;
+		this_sensor->sessionlist_head = new_session;
+		this_sensor->sessionlist_tail = new_session;
 		new_session->prev = NULL;
 	} else {
 		this_sensor->sessionlist_tail->next = new_session;
@@ -84,8 +84,7 @@ Session *add_session(Sensor *this_sensor,
 }
 
 /* 
- * This function closes a session (turns the is_active flag to NO)
- * but does not deallocate the space.
+ * This function closes a session (turns the is_active flag to NO).
  */
 int close_session(Sensor *this_sensor, unsigned int id)
 {
@@ -170,6 +169,7 @@ int destroy_session(Sensor *this_sensor, unsigned int id)
 	else 
 		this_sensor->sessionlist_tail = this_session->prev;
 
+	/* destroy the session */
 	destroy_session_data(this_session);
 	return hash_session_remove(this_sensor->hash, id);
 }
