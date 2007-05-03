@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <nids.h>
-#include "errors.h"
 
 
 /* The Socket File Descriptor for the communication */
