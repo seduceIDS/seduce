@@ -1,9 +1,3 @@
-#
-# Makefile for libnids samples.
-#
-
-srcdir		= .
-
 
 CC		= gcc
 CFLAGS		= -g -O2 -D_BSD_SOURCE -D_DEBUG -Wall
@@ -12,11 +6,11 @@ LDFLAGS		=
 PCAP_CFLAGS	= 
 PCAPLIB		= -lpcap
 
-LNET_CFLAGS	= 
-LNETLIB		= 
+LIBS_CFLAGS	= $(PCAP_CFLAGS)
+LIBS		= -lnids $(PCAPLIB) -lgthread-2.0 -lnsl -lconfuse
 
-LIBS_CFLAGS	= $(PCAP_CFLAGS) $(LNET_CFLAGS)
-LIBS		= -lnids $(PCAPLIB) $(LNETLIB) -lgthread-2.0 -lnsl 
+OBGS		= sensor.o chksum_ctl.o server_contact.o parser.o
+HDRS		= sensor.h server_contact.h
 
 .c.o:
 	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $<
@@ -24,9 +18,8 @@ LIBS		= -lnids $(PCAPLIB) $(LNETLIB) -lgthread-2.0 -lnsl
 all: sensor
 static shared: all
 
-sensor: sensor.o chksum_ctl.o server_contact.o server_contact.h
-	$(CC) -o $@ sensor.o chksum_ctl.o server_contact.o $(LDFLAGS) $(LIBS)
-
+sensor: $(OBGS) $(HDRS)
+	$(CC) -o $@  $(OBGS) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f *.o *~ sensor
