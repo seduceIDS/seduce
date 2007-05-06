@@ -32,6 +32,7 @@ static int sensor_disconnect(SensorPacket *);
 static int new_tcp(SensorPacket *);
 static int tcp_close(SensorPacket *);
 static int tcp_data(SensorPacket *);
+static int tcp_break(SensorPacket *);
 static int udp_data(SensorPacket *);
 
 /* Protocol Table */
@@ -48,11 +49,12 @@ proto_tbl[] = {
 /*   2   */	24,		NO,		new_tcp,
 /*   3   */	12,		NO,		tcp_close,
 /*   4   */	12,		YES,		tcp_data,
-/*   5   */	24,		YES,		udp_data,
+/*   5   */	12,		NO,		tcp_break,
+/*   6   */	24,		YES,		udp_data,
 /*-----------------------------------------------------------------*/
 };
+#define MAX_TYPE 6
 
-#define MAX_TYPE 5
 /* 
  * Sensor Packet:
  *
@@ -267,7 +269,7 @@ static int tcp_close(SensorPacket *p)
 	unsigned int id; 
 
 	DPRINTF("\n");	
-	id = htonl(*((unsigned int *)(*p).header));
+	id = htonl(*((u_int32_t *)(*p).header));
 	DPRINTF("TCP Connection with stream ID %u has Closed\n", id);
 	
 	mutex_lock(&p->my_sensor->mutex);
@@ -285,9 +287,10 @@ static int tcp_data(SensorPacket *p)
 	Session *this_session;
 	TCPData *new_data = NULL;
 	unsigned int stream_id;
+	int add_in_joblist = 1; /* Do we add the new data in the joblist? */	
 
 	DPRINTF("\n");
-	stream_id = ntohl(*((unsigned int *)(*p).header));
+	stream_id = ntohl(*((u_int32_t *)(*p).header));
 	DPRINTF("DATA for TCP with stream ID %u\n",stream_id);
 	DPRINTF("DATA length is %u\n", p->data_len);
 	
@@ -296,13 +299,48 @@ static int tcp_data(SensorPacket *p)
 	this_session = find_session(p->my_sensor,stream_id);
 	if (this_session != NULL)
 		new_data = add_data(p->my_sensor, stream_id, IPPROTO_TCP, 
-			            p->data, p->data_len);
+							p->data, p->data_len);
+	
+	if(new_data)
+		if(new_data->prev)
+			if(new_data->id == (new_data->prev->id + 1))
+				add_in_joblist = 0;
 			
 	mutex_unlock(&p->my_sensor->mutex);
 
-	if (new_data != NULL)
-		return add_job(p->my_sensor, this_session, new_data);
+	if (new_data) {
+		if(add_in_joblist)
+			return add_job(p->my_sensor, this_session, new_data);
+		else return 1;
+	}
 	else return 0;
+}
+
+static int tcp_break(SensorPacket *p)
+{
+	Session *this_session;
+	unsigned int stream_id;
+
+
+	DPRINTF("\n");	
+	stream_id = htonl(*((u_int32_t *)(*p).header));
+	DPRINTF("TCP Connection with Stream ID %u had a break\n", stream_id);
+
+	this_session = find_session(p->my_sensor,stream_id);
+	if (this_session != NULL)
+		return 0;
+	
+	mutex_lock(&p->my_sensor->mutex);
+
+	/* 
+	 * Increase data id counter. This way we can assure 
+	 * that the next data will not be continuous with the last.
+	 */
+	this_session->next_data_id++;
+
+	mutex_unlock(&p->my_sensor->mutex);
+
+	return 1;
 }
 
 

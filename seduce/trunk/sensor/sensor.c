@@ -15,6 +15,9 @@
 #include "server_contact.h"
 #include "debug.h"
 
+#define YES (1 == 1)
+#define NO  (!YES)
+
 extern int all_local_ipaddrs_chksum_disable(void);
 extern int parse_options(CommandLineOptions *);
 
@@ -163,7 +166,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 		case NIDS_JUST_EST:
 			if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
 				if ((*stream_id = init_stream())) {
-					a_tcp->server.collect++;
+					a_tcp->server.collect = YES;
 					new_tcp_connection(**stream_id,
 							&a_tcp->addr);
 					DPRINTF("Established a Connection:%s\n",
@@ -175,6 +178,23 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 			return;
 	
 		case NIDS_DATA:
+			/* 
+			 * I play with the client.collect value, so I can get
+			 * informed by libnids when the server data I collect
+			 * are not continuous any more. I don't want to collect
+			 * client data but I want to know when client data start
+			 * comming. When this happens, I stop collecting client
+			 * data.
+			 */
+			if(a_tcp->client.count_new) {
+				DPRINTF("Sending Break for Stream:%u\n",
+								**stream_id);
+				tcp_data_break(**stream_id);
+				a_tcp->client.collect = NO;
+				return;
+			}
+			/* data sent to the server */
+			a_tcp->client.collect = YES;
 			hlf = &a_tcp->server;
 			send_tcp_data(**stream_id, hlf->data,
 					hlf->count - hlf->offset);
@@ -191,7 +211,6 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 			close_tcp_connection(**stream_id);
 			free(*stream_id);
 			return;
-
 	}
 }
 

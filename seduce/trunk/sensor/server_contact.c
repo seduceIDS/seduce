@@ -48,6 +48,7 @@ enum {
        PT_NEW_TCP,
        PT_TCP_CLOSE,
        PT_TCP_DATA,
+       PT_TCP_BREAK,
        PT_UDP_DATA
 };
 
@@ -268,6 +269,38 @@ int send_tcp_data(unsigned int stream_id, u_char *data, int datalen)
 	/* then send the data... */
 	if (sendall(sockfd, data, datalen) == -1) {
 		fprintf(stderr,"Error in sendall\n");
+		return 0;
+	}
+
+	return 1;
+}
+
+/*
+ * Informs the Sceduler that the next data belong to a new group
+ * returns 1 on success, 0 on failure
+ *
+ * packet structure:
+ * 0________4________8________12
+ * |  size  | packet | stream |
+ * |________|__type__|___ID___|
+ *
+ */
+
+int tcp_data_break(unsigned int stream_id)
+{
+	unsigned int msglen;
+	char buf[12];
+
+
+	/* Fill the packet buffer with data in Network Byte Order */
+	msglen = 12;
+	*(u_int32_t *)(buf + 0) = htonl(msglen);
+	*(u_int32_t *)(buf + 4) = htonl(PT_TCP_BREAK);
+	*(u_int32_t *)(buf + 8) = htonl(stream_id);
+
+	/* Send the Data */
+	if (sendall(sockfd, buf, msglen) == -1) {
+		perror("sendall");
 		return 0;
 	}
 
