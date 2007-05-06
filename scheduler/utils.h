@@ -14,7 +14,7 @@
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 
 #define YES (1==1)
-#define NO (!TRUE)
+#define NO (!YES)
 
 /* Functions Declaration */
 unsigned short find_first_zero(u_int8_t);
