@@ -24,6 +24,21 @@ extern int parse_options(CommandLineOptions *);
 /* GLOBALS */
 PV pv;
 
+static void printusage(int rc)
+{
+	fprintf(stderr, 
+		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
+		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
+		"  c : Specify a config file. `E.g. sensor.conf'.\n"
+		"  h : Print this help message.\n"
+		"  i : Network interface. E.g. `eth0', `eth1'.\n"
+		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
+		"  s : Server Address in IP:Port format. E.g. `12.0.0.1:3540'.\n"
+		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
+		pv.prog_name);
+	exit(rc);
+}
+
 
 /*
  * Get the command line options
@@ -42,7 +57,7 @@ static int get_clo(int argc, char *argv[], CommandLineOptions *clo)
 	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
 		switch(c) {
 			case 'h':
-				return 0;
+				printusage(0);
 
 			case 'c':
 				if (c_arg) {
@@ -95,21 +110,6 @@ static int get_clo(int argc, char *argv[], CommandLineOptions *clo)
 	}
 
 	return 1;
-}
-
-
-static void printusage(int rc)
-{
-	fprintf(stderr, 
-		"usage: sensor [-c <config_file>] [-h] [-i<interface>] "
-		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  c : Specify a config file. `E.g. sensor.conf'.\n"
-		"  h : Print this help message.\n"
-		"  i : Network interface. E.g. `eth0', `eth1'.\n"
-		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
-		"  s : Server Address in IP:Port format. E.g. `12.0.0.1:3540'.\n"
-		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n");
-	exit(rc);
 }
 
 
@@ -231,6 +231,7 @@ int main(int argc, char *argv[])
 
 	/* Clear the program variable struct */
 	memset(&pv, '\0', sizeof(pv));
+	pv.prog_name = argv[0];
 
 	clo = calloc(1, sizeof(CommandLineOptions));
 	if(clo == NULL) {

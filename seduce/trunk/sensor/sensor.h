@@ -12,6 +12,7 @@ typedef struct _CommandLineOptions {
 
 /* Program variables */
 typedef struct _progvars {
+	char *prog_name;
 	in_addr_t server_addr;
 	unsigned short server_port;
 	u_int8_t port_table[65536];
