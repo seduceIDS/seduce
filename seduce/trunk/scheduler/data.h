@@ -71,6 +71,15 @@ typedef struct _Sensor {
 	pthread_mutex_t mutex;
 } Sensor;
 
+typedef struct _DataInfo {	/* A triplet that defines a unite of data */
+	Sensor  *sensor;
+	Session *session;
+	union {
+		UDPData *udp;
+		TCPData *tcp;
+	} data;
+} DataInfo;
+
 typedef struct _SensorList {
 	Sensor *head;
 	Sensor *tail;
@@ -83,17 +92,20 @@ typedef struct _SensorList {
 /* Functions */
 void init_sensorlist (void);
 
-int  add_sensor     (struct in_addr, unsigned short, Sensor **);
-void close_sensor   (Sensor *);
-void destroy_sensor (Sensor *);
+int  add_sensor    (struct in_addr, unsigned short port, Sensor **);
+int close_sensor  (Sensor *);
+int destroy_sensor (Sensor *);
 
-Session * add_session (Sensor *, unsigned int, struct tuple4 *, int);
-Session * find_session (Sensor *, unsigned int);
-int close_session   (Sensor *, unsigned int);
-int destroy_session (Sensor *, unsigned int);
+Session * add_session (Sensor *, unsigned int, struct tuple4 *, int proto);
+Session * find_session (Sensor *, unsigned int stream_id);
+int close_session (Sensor *, unsigned int stream_id);
 
 /* returns a TCPData or UDPData pointer */ 
-void *add_data (Sensor *, unsigned int, int, char *, int);
-TCPData *find_data(Session *, unsigned int);
+void *add_data (Session *, char * payload, int length);
+
+TCPData *get_next_data (TCPData *);
+
+int destroy_data (DataInfo *);
+int destroy_datagroup (DataInfo *);
 
 #endif /* _DATA_H */

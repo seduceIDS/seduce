@@ -13,7 +13,7 @@ void init_joblist(void)
 }
 
 /*
- *  Removes the head of the job list and exetute the
+ *  Removes the head of the job list (the oldest job) and exetute the
  *  function passed as argument on the Data of the job just removed.
  *  Returns whatever the function returns. 
  */
@@ -28,7 +28,7 @@ int execute_job(int (*func)(), void *params)
 	while (joblist.cnt == 0) {
 		DPRINTF("No Jobs available...\n");
 		mutex_unlock (&joblist.mutex);
-		return 0;
+		return -1;
 	}
 
 	/* Remove the Job from the list...*/
@@ -51,11 +51,6 @@ int execute_job(int (*func)(), void *params)
 	/* Execute the function on this job */
 	ret = (*func) (params, &job_to_remove->data_info);
 	DPRINTF("Job executed\n");
-
-	/* if it's a UDP packet destroy the session */
-	if (job_to_remove->data_info.session->proto == IPPROTO_UDP)
-		destroy_session(job_to_remove->data_info.sensor,
-			         	job_to_remove->data_info.session->id);
 
 
 	mutex_unlock(&job_to_remove->data_info.sensor->mutex);

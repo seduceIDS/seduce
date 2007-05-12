@@ -7,8 +7,7 @@
 #define UDP_NEW_AGENT htonl(1)
 #define UDP_NEW_WORK  htonl(2)
 #define UDP_GET_NEXT  htonl(3)
-#define UDP_GET_PREV  htonl(4)
-#define UDP_QUIT      htonl(5)
+#define UDP_QUIT      htonl(4)
 
 /* receive */
 #define UDP_CONNECTED htonl(1)

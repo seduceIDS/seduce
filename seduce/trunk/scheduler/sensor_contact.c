@@ -217,15 +217,26 @@ static int sensor_connect(SensorPacket *p)
 
 static int sensor_disconnect(SensorPacket *p)
 {
+	int ret = 0;
+
 	DPRINTF(("\n"));
 	close(p->socket);
 	if (p->my_sensor != NULL) {
 		mutex_lock(&p->my_sensor->mutex);
-
-		close_sensor(p->my_sensor);
+		
+		ret = close_sensor(p->my_sensor);
 
 		mutex_unlock(&p->my_sensor->mutex);
 	}
+
+	if (ret == 2) {/* sensor should be destroyed */
+		mutex_lock(&sensorlist.mutex);
+
+		destroy_sensor(p->my_sensor);
+
+		mutex_unlock(&sensorlist.mutex);
+	}
+
 
 	/* terminate the thread */
 	pthread_exit(NULL);
@@ -286,25 +297,28 @@ static int tcp_data(SensorPacket *p)
 {
 	Session *this_session;
 	TCPData *new_data = NULL;
+	TCPData *last_data = NULL;
 	unsigned int stream_id;
 	int add_in_joblist = 1; /* Do we add the new data in the joblist? */	
 
 	DPRINTF("\n");
 	stream_id = ntohl(*((u_int32_t *)(*p).header));
-	DPRINTF("DATA for TCP with stream ID %u\n",stream_id);
+	DPRINTF("DATA for TCP with stream ID %u\n", stream_id);
 	DPRINTF("DATA length is %u\n", p->data_len);
 	
 	mutex_lock(&p->my_sensor->mutex);
 
-	this_session = find_session(p->my_sensor,stream_id);
-	if (this_session != NULL)
-		new_data = add_data(p->my_sensor, stream_id, IPPROTO_TCP, 
-							p->data, p->data_len);
-	
+	this_session = find_session(p->my_sensor, stream_id);
+	if (this_session)
+		new_data = add_data(this_session, p->data, p->data_len);
+
+	/* If the new data have an ID that is equal to previous data ID + 1
+	 * we don't add them in the joblist.*/	
 	if(new_data)
-		if(new_data->prev)
-			if(new_data->id == (new_data->prev->id + 1))
-				add_in_joblist = 0;
+		last_data = new_data->prev; 
+	if(last_data)
+		if(new_data->id == (last_data->id + 1))
+			add_in_joblist = 0;
 			
 	mutex_unlock(&p->my_sensor->mutex);
 
@@ -327,9 +341,9 @@ static int tcp_break(SensorPacket *p)
 	DPRINTF("TCP Connection with Stream ID %u had a break\n", stream_id);
 
 	this_session = find_session(p->my_sensor,stream_id);
-	if (this_session != NULL)
+	if (!this_session)
 		return 0;
-	
+
 	mutex_lock(&p->my_sensor->mutex);
 
 	/* 
@@ -370,10 +384,9 @@ static int udp_data(SensorPacket *p)
 	new_session = add_session (p->my_sensor, id, &addr, IPPROTO_UDP);
 	
 	/* Add the data */
-	if (new_session != NULL) {
+	if (new_session) {
 		DPRINTF("Session added, adding new Data...\n");
-		new_data = add_data (p->my_sensor, id, IPPROTO_UDP,
-				     p->data, p->data_len);
+		new_data = add_data (new_session, p->data, p->data_len);
 	}
 
 	/* Close the session */

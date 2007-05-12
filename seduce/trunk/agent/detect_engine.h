@@ -5,8 +5,7 @@
 
 #define WORK_DONE 1
 #define NEED_NEXT 2
-#define NEED_PREV 3
-#define THREAT_DETECTED 4
+#define THREAT_DETECTED 3
 
 int execute_work(char *data, size_t len);
 #endif /* _DETECT_ENGINE_H */

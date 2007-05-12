@@ -1,7 +1,7 @@
 /*
- * This file contains the functions for accessing the data stored in the
- * scheduler.
+ * Functions for manipulating and accessing the data stored in the scheduler.
  */
+
 #include <strings.h>
 
 #include "data.h"
@@ -14,7 +14,9 @@
 SensorList sensorlist;
 
 /*
- * Clears the Sensors Table
+ * Function: init_sensorlist()
+ *
+ * Purpose: Initialize the sensorlist struct
  */
 void init_sensorlist(void)
 {
@@ -31,250 +33,18 @@ void init_sensorlist(void)
 	}
 }
 
-
-Session *find_session(Sensor *this_sensor, unsigned int id)
-{
-	unsigned int correct_id;
-
-	correct_id = id + this_sensor->id_start;
-	return hash_session_lookup(this_sensor->hash, correct_id);
-}
-
-
-/* 
- * This function adds a new session detected by a sensor
- * Returns the new session on success and NULL if an error occurs
- */
-Session *add_session(Sensor *this_sensor,
-		     unsigned int id,
-		     struct tuple4 *addr,
-		     int proto)
-{
-	Session *new_session;
-	unsigned int correct_id; 
-	
-	correct_id = id + this_sensor->id_start;
-	new_session = hash_session_insert(this_sensor->hash, correct_id);
-
-	if (new_session == NULL) {
-		fprintf(stderr, "Can't add the new session\n");
-		return NULL;
-	}
-
-	/* Fill the Data */
-	new_session->addr = *addr;
-	new_session->proto = proto;
-	new_session->data_head.udp = NULL; /* same as new_session.tcp */
-	new_session->data_tail.udp = NULL;
-	new_session->next = NULL;
-	new_session->id = correct_id;
-	new_session->is_active = YES;
-	new_session->next_data_id = 1;
-
-	if (this_sensor->sessionlist_head == NULL) {
-		this_sensor->sessionlist_head = new_session;
-		this_sensor->sessionlist_tail = new_session;
-		new_session->prev = NULL;
-	} else {
-		this_sensor->sessionlist_tail->next = new_session;
-		new_session->prev = this_sensor->sessionlist_tail;
-		this_sensor->sessionlist_tail = new_session;
-	}
-	return new_session ;
-}
-
-/* 
- * This function closes a session (turns the is_active flag to NO).
- */
-int close_session(Sensor *this_sensor, unsigned int id)
-{
-	Session *this_session;
-
-	this_session = find_session(this_sensor, id);
-	if (this_session == NULL)
-		return 0;
-
-	this_session->is_active = NO;
-	return 1;
-}
-
-static void close_all_sessions(Sensor *this_sensor)
-{
-	Session *current_session;
-
-	current_session = this_sensor->sessionlist_head;
-
-	while(current_session) {
-		current_session->is_active = NO;
-
-		current_session = current_session->next;
-	}
-}
-
-/* 
- * Carefull when destroying a session with this function.
- * Don't forget to remove the hash entry too. We do not free
- * the allocated Session space. It's done automatically when
- * removing the hash entry.
- */
-static void destroy_session_data(Session *this_session) 
-{
-	if (this_session->proto == IPPROTO_TCP) {
-		TCPData *data; 
-		TCPData *next_data;
-
-		data = this_session->data_head.tcp;
-		while (data != NULL) {
-			next_data = data->next;
-
-			free(data->payload);
-			free(data);
-
-			data = next_data;
-		}
-
-	} else { /* UDP */
-		UDPData * data = this_session->data_head.udp;
-
-		if(data) {
-			free(data->payload);
-			free(data);
-		}
-	}
-
-}
-
 /*
- * Destroy a sessions, frees the memory of the data
- * by calling destroy_session_data and removes the hash entry
- * returns 1 on sucess, 0 if an error occurs
- */
-
-int destroy_session(Sensor *this_sensor, unsigned int id)
-{
-	Session *this_session;
-
-	this_session = find_session(this_sensor, id);
-	if (this_session == NULL)
-		return 0;
-
-	/* fix the broken link in the list */
-	if (this_sensor->sessionlist_head != this_session)
-		this_session->prev->next = this_session->next;
-	else
-		this_sensor->sessionlist_head = this_session->next;
-
-	if (this_sensor->sessionlist_tail != this_session)
-		this_session->next->prev = this_session->prev;
-	else 
-		this_sensor->sessionlist_tail = this_session->prev;
-
-	/* destroy the session */
-	destroy_session_data(this_session);
-	return hash_session_remove(this_sensor->hash, id);
-}
-
-
-static TCPData *add_tcpdata(Session *this_session, char *data, int length)
-{
-	TCPData *data_struct;
-
-	data_struct = malloc(sizeof(TCPData));
-	if (data_struct == NULL) {
-		errno_cont("Error in malloc");
-		return NULL;
-	}
-
-	if (this_session->data_head.tcp == NULL) {
-		this_session->data_head.tcp = data_struct;
-		data_struct->prev = NULL;
-	} else {
-		this_session->data_tail.tcp->next = data_struct;
-		data_struct->prev = this_session->data_tail.tcp;
-	}
-
-	data_struct->next = NULL;
-	data_struct->id = this_session->next_data_id++;
-	data_struct->length = length;
-	data_struct->payload = data;
-	this_session->data_tail.tcp = data_struct;
-
-	return data_struct;
-}
-
-static UDPData *add_udpdata(Session *this_session, char *data, int length)
-{
-	UDPData *data_struct;
-
-	data_struct = malloc(sizeof(UDPData));
-	if (data_struct == NULL) {
-		errno_cont("Error in malloc");
-		return NULL;
-	}
-
-	this_session->data_head.udp = this_session->data_tail.udp = data_struct;
-	data_struct->payload = data;
-	data_struct->length = length;
-
-	return data_struct;
-}
-
-void *add_data(Sensor *this_sensor,
-		unsigned int id,
-		int proto,
-		char *data,
-		int length)
-{
-	Session *this_session;
-
-	this_session = find_session(this_sensor, id);
-	if (this_session == NULL)
-		return NULL;
-
-	/* sanity check */
-	if (proto != this_session->proto)
-		return NULL;
-	if (this_session->is_active == NO)
-		return NULL;
-
-	switch (proto) {
-		case IPPROTO_TCP:
-			return add_tcpdata(this_session, data, length);
-		case IPPROTO_UDP:
-			return add_udpdata(this_session, data, length);
-	}
-	
-	return NULL;
-}
-
-TCPData * find_data(Session *this_session, const unsigned int id)
-{
-	TCPData *data;
-
-	if(this_session == NULL)
-		return NULL;
-
-	if(this_session->proto == IPPROTO_UDP)
-		return NULL;
-
-	data = this_session->data_head.tcp;
-	while (data != NULL && data->id < id)
-		data = data->next;
-
-	if (!data)
-		return NULL;
-
-	return (data->id == id)?data:NULL;
-}
-
-
-
-/*
- *  Adds a new Sensor in the sensor table.
- *  Returns:
- *  0 if everything is OK
- *  1 if MAXSENSORS value is reached
- *  2 if another error occured
+ * Function: add_sensor(struct in_addr, unsigned short, Sensor **)
+ *
+ * Purpose: Add a new sensor in the sensors table
+ *
+ * Arguments:  ip=> IP address of the new sensor
+ *             port=> Port number of the new sensor
+ *             sensor_ptr=> pointer to the newly added sensor
+ *
+ * Returns: 0=> Sensor successfully added
+ *          1=> Sensor not added because MAXSENSORS value is reached
+ *          2=> Sensor not added because of error occurance 
  */
 int add_sensor (struct in_addr ip,
 		u_int16_t port,
@@ -326,53 +96,442 @@ int add_sensor (struct in_addr ip,
 	return 0;
 }
 
-/*
- * Closes the sensor but does not deallocate the space.
- * We may need the sensor info to alert if we find something
- */ 
-void close_sensor(Sensor *this_sensor)
-{
-	this_sensor->is_connected = NO;
-	this_sensor->stop = time(NULL);
 
-	close_all_sessions(this_sensor);
+/*
+ * Function: close_sensor(Sensor *)
+ *
+ * Purpose: Set the "is_connected" flag of a sensor to NO
+ *          and then close all sessions added by this sensor
+ *
+ * Arguments:  sensor=> pointer to a Sensor struct
+ *
+ * Returns: 1=> Sensor closed
+ *          2=> Sensor closed and should be removed because it is empty
+ */
+int close_sensor(Sensor *sensor)
+{
+	/* the body of this function is down there somewhere :-) */
+	static void close_all_sessions(Sensor *);
+
+	close_all_sessions(sensor);
+
+	/* 
+	 * This is critical I think. We must first close the sessions
+	 * and then close the sensor. 
+	 */ 
+	sensor->is_connected = NO;
+	sensor->stop = time(NULL);
+
+	if (!sensor->sessionlist_head) 
+		/* Sensor is empty and should be destroyed */
+		return 2;
+
+	return 1;
 }
 
-/* 
- * Deallocates the memory reserved for the sensor info
- * All sernsor info is lost
- */ 
-void destroy_sensor(Sensor *this_sensor)
+
+/*
+ * Function: destroy_sensor(Sensor *)
+ *
+ * Purpose: Deallocate the memory reserved for a sensor and
+ *          remove the sensor from the sersorlist
+ *
+ * Arguments:  this_sensor=> Pointer to a sensor struct
+ *
+ * Returns: 1=> Sensor successfully removed
+ *          0=> An error occured while removing the sensor
+ */
+int destroy_sensor(Sensor *this_sensor)
 {
-	unsigned int session_id;
-	Sensor *prev = NULL;
-	Session *this_session = NULL;
+	Sensor *prev_sensor = NULL;
+
+	/* I need to check. This may happen in a really rare condition */
+	if(this_sensor->is_connected == YES)
+		return 0;
 
 	if (sensorlist.head == this_sensor)
 		sensorlist.head = this_sensor->next;
 	else {
-		for(prev = sensorlist.head; prev->next != this_sensor; prev = prev->next)
-			;
-		prev->next = this_sensor->next;
+		for(prev_sensor = sensorlist.head;
+		    		prev_sensor->next != this_sensor;
+						prev_sensor = prev_sensor->next)
+			/* empty body */;
+		prev_sensor->next = this_sensor->next;
 	}
 
 	if (sensorlist.tail == this_sensor)
-		sensorlist.tail = prev;
+		sensorlist.tail = prev_sensor;
 
 	sensorlist.cnt--;
 
 	mutex_destroy (&this_sensor->mutex);
+		
+	destroy_hash_table(this_sensor->hash);
+	return	hash_sensor_remove(sensorlist.hash, this_sensor->id);
+}
 
 
-	/* If I destroy a sensor, I need to destroy the sessions too */
-	this_session = this_sensor->sessionlist_head;
-	while (this_session != NULL) {
-		session_id = this_session->id;
-		destroy_session_data(this_session);
-		this_session = this_session->next;
-		hash_session_remove(this_sensor->hash, session_id);
+/*
+ * Function: find_session(Sensor *, unsigned int)
+ *
+ * Purpose: Find a sensor session identified by a stream_id.
+ * 	ATTENTION: The stream_id is not the same as the session_id. This
+ * 	function is supposed to be used only by the sensor_contact threads. If
+ * 	you know the session_id just use hash_session_lookup to find a session.
+ *
+ * Arguments:  this_sensor=> Pointer to a sensor struct
+ *
+ * Returns: Pointer to a session on success, NULL on error
+ */
+Session *find_session(Sensor *sensor, unsigned int stream_id)
+{
+	unsigned int correct_id;
+
+	correct_id = stream_id + sensor->id_start;
+	return hash_session_lookup(sensor->hash, correct_id);
+}
+
+
+/*
+ * Function: add_session(Sensor *, unsigned int, struct tuple4 *, int)
+ *
+ * Purpose: Add a new session to a sensor's sessions list.
+ *
+ * Arguments: sensor=> Pointer to a sensor struct
+ *            stream_id=> stream ID of the session we are about to add
+ *            addr=> sessions address info (server's and client's IP and ports)
+ *            proto=> IP protocol IPPROTO_TCP for TCP and IPPROTO_UDP for UDP
+ *
+ * Returns: Pointer to the newly added session on success, NULL on error
+ */
+Session *add_session(Sensor *sensor, unsigned int stream_id,
+		     		struct tuple4 *addr, int proto)
+{
+	Session *new_session;
+	unsigned int correct_id; 
+	
+	correct_id = stream_id + sensor->id_start;
+	new_session = hash_session_insert(sensor->hash, correct_id);
+
+	if (new_session == NULL) {
+		fprintf(stderr, "Can't add the new session\n");
+		return NULL;
+	}
+
+	/* Fill the Data */
+	new_session->addr = *addr;
+	new_session->proto = proto;
+	new_session->data_head.udp = NULL; /* same as new_session.tcp */
+	new_session->data_tail.udp = NULL;
+	new_session->next = NULL;
+	new_session->id = correct_id;
+	new_session->is_active = YES;
+	new_session->next_data_id = 1;
+
+	if (sensor->sessionlist_head == NULL) {
+		sensor->sessionlist_head = new_session;
+		sensor->sessionlist_tail = new_session;
+		new_session->prev = NULL;
+	} else {
+		sensor->sessionlist_tail->next = new_session;
+		new_session->prev = sensor->sessionlist_tail;
+		sensor->sessionlist_tail = new_session;
+	}
+	return new_session ;
+}
+
+
+/*
+ * Function: destroy_session(Sensor *, Session *)
+ *
+ * Purpose: destroy a session by removing it from the hash table (which also
+ *          frees the allocated memory for the session) and removing it from
+ *          the session list it belongs to. 
+ *
+ * Arguments: sensor=> Pointer to a sensor struct
+ *            session=> Pointer to a session struct 
+ *
+ * Returns: 0=> An error occured
+ *          1=> Session is removed
+ *          2=> Session is removed but it's also safe to remove the sensor too
+ */
+int destroy_session(Sensor *sensor, Session *session)
+{
+	int ret;
+	if (sensor->sessionlist_head != session)
+		session->prev->next = session->next;
+	else
+		sensor->sessionlist_head = session->next;
+
+	if (sensor->sessionlist_tail != session)
+		session->next->prev = session->prev;
+	else 
+		sensor->sessionlist_tail = session->prev;
+
+
+	ret = hash_session_remove(sensor->hash, session->id);
+	if(!ret)
+		return 0;
+
+	/* Do we need to remove the sensor too? */
+	if((!sensor->sessionlist_head) && (sensor->is_connected == NO))
+		return 2;
+
+	return 1;
+}
+
+
+/*
+ * Function: close_session(Sensor *, unsigned int)
+ *
+ * Purpose: closes a session (turns sessions is_active flag to NO)
+ *
+ * Arguments: sensor=> Pointer to a sensor struct
+ *            stream_id=> stream ID of the session we are about to add
+ *
+ * Returns: 1=> exit on success, 0=>exit on error
+ */
+int close_session(Sensor *sensor, unsigned int stream_id)
+{
+	Session *session;
+
+	session = find_session(sensor, stream_id);
+	if (!session)
+		return 0;
+
+	session->is_active = NO;
+
+	if (!session->data_head.tcp) /* session is empty. Remove it */
+		destroy_session(sensor, session);
+	return 1;
+}
+
+
+/*
+ * closes all sessions of a sensor
+ */
+static void close_all_sessions(Sensor *sensor)
+{
+	Session *this_session;
+	Session *next_session;
+
+	this_session = sensor->sessionlist_head;
+
+	while(this_session) {
+		this_session->is_active = NO;
+		next_session = this_session->next;
+		if (!this_session->data_head.tcp) /* session is empty*/
+				destroy_session(sensor, this_session);
+		this_session = next_session;
+	}
+}
+
+
+static TCPData *add_tcpdata(Session *session, char *data, int length)
+{
+	TCPData *data_struct;
+
+	data_struct = malloc(sizeof(TCPData));
+	if (data_struct == NULL) {
+		errno_cont("Error in malloc");
+		return NULL;
+	}
+
+	if (!session->data_head.tcp) {
+		session->data_head.tcp = data_struct;
+		data_struct->prev = NULL;
+	} else {
+		session->data_tail.tcp->next = data_struct;
+		data_struct->prev = session->data_tail.tcp;
+	}
+
+	data_struct->next = NULL;
+	data_struct->id = session->next_data_id++;
+	data_struct->length = length;
+	data_struct->payload = data;
+	session->data_tail.tcp = data_struct;
+
+	return data_struct;
+}
+
+
+static UDPData *add_udpdata(Session *session, char *data, int length)
+{
+	UDPData *data_struct;
+
+	data_struct = malloc(sizeof(UDPData));
+	if (data_struct == NULL) {
+		errno_cont("Error in malloc");
+		return NULL;
+	}
+
+	session->data_head.udp = session->data_tail.udp = data_struct;
+	data_struct->payload = data;
+	data_struct->length = length;
+
+	return data_struct;
+}
+
+
+/*
+ * Function: add_data(Session *, char *, int)
+ *
+ * Purpose: Add new data under a session
+ *
+ * Arguments: session=> Pointer to a session struct
+ *            data=> Pointer to data's payload
+ *            length=> Payload's length
+ *
+ * Returns: Pointer to newly added data on success, NULL on error
+ */
+void *add_data(Session *session, char *data, int length)
+{
+	if (!session)
+		return NULL;
+
+	/* sanity check */
+	if (session->is_active == NO)
+		return NULL;
+
+	switch (session->proto) {
+		case IPPROTO_TCP:
+			return add_tcpdata(session, data, length);
+		case IPPROTO_UDP:
+			return add_udpdata(session, data, length);
 	}
 	
-	destroy_hash_table(this_sensor->hash);
-	hash_sensor_remove(sensorlist.hash, this_sensor->id);
+	return NULL;
+}
+
+inline TCPData *get_next_data(TCPData *data)
+{
+	if(!data->next)
+		return NULL;
+
+	return (data->next->id == (data->id + 1)) ? data->next : NULL;
+}
+
+/*
+ * Function: destroy_data(Sensor *, unsigned int, unsigned int)
+ *
+ * Purpose: Deallocates the memory allocated for the data, removes data from the
+ *          session's data list, and calls remove_session if it's safe.
+ *
+ * Arguments: d=> Pointer to the struct containing info 
+ *                about the data we want to remove
+ *
+ * Returns: 0=> An error occured
+ *          1=> Data have been removed, maybe session too
+ *          2=> Data have been removed, session too and it's safe to remove the
+ *              the sensor too.
+ */
+int destroy_data(DataInfo *d)
+{
+	TCPData *data;
+
+
+	DPRINTF("\n");
+	/* UDP Data */
+	if(d->session->proto == IPPROTO_UDP) {
+		free(d->data.udp->payload);
+		free(d->data.udp);
+		return destroy_session(d->sensor, d->session);
+	}
+
+
+	/* TCP Data */
+	data = d->data.tcp;
+
+	/* remove data from the list */
+	if(data->prev)
+		data->prev->next = data->next;
+	else
+		d->session->data_head.tcp = data->next;
+
+	if(data->next)
+		data->next->prev = data->prev;
+	else
+		d->session->data_tail.tcp = data->prev;
+
+	/* free data */
+	free(data->payload);
+	free(data);
+
+	/* destroy session if needed */
+	if ((!d->session->data_head.tcp) && (d->session->is_active == NO))
+		return destroy_session(d->sensor, d->session);
+
+	return 1;
+}
+
+
+/*
+ * Function: destroy_data(Sensor *, unsigned int, unsigned int)
+ *
+ * Purpose: Destroy a whole group of data.
+ *
+ * Arguments: d=> Pointer to the struct containing info about
+ *                the heading data of the datagroup we want to remove
+ *
+ * Returns: 0=> An error occured
+ *          1=> Group of data have been removed, maybe session too
+ *          2=> Group of data have been removed, session too and it's safe to
+ *          remove the the sensor too.
+ */
+int destroy_datagroup(DataInfo *d)
+{
+	TCPData *grp_start;
+	TCPData *grp_end;
+		
+	DPRINTF("\n");
+	if(!d)
+		return 0;
+
+	/* UDP Data */
+	if(d->session->proto == IPPROTO_UDP) {
+		free(d->session->data_head.udp->payload);
+		free(d->session->data_head.udp);
+		return destroy_session(d->sensor, d->session);
+	}
+
+	/* TCP Data */
+	grp_start = d->data.tcp;
+
+	/* find the group end */
+	grp_end = d->data.tcp;
+	while(grp_end->next) {
+		if(grp_end->next->id == (grp_end->id + 1)) {
+			grp_end = grp_end->next;
+			continue;
+		}
+		break;
+	}
+
+	/* remove group from the list */
+	if(grp_start->prev)
+		grp_start->prev->next = grp_end->next;
+	else
+		d->session->data_head.tcp = grp_end->next;
+
+	if(grp_end->next)
+		grp_end->next->prev = grp_start->prev;
+	else
+		d->session->data_tail.tcp = grp_start->prev;
+
+
+	/* free group data */
+	while(grp_start != grp_end) {
+		grp_start = grp_start->next;
+		free(grp_start->prev->payload);
+		free(grp_start->prev);
+	}
+
+	free(grp_end->payload);
+	free(grp_end);
+
+	/* destroy session if needed */
+	if((!d->session->data_head.tcp) && (d->session->is_active == NO))
+		return destroy_session(d->sensor, d->session);
+
+	return 1;
 }

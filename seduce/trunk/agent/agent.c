@@ -290,10 +290,6 @@ static void main_loop(void)
 				ret = get_work(&work, UDP_GET_NEXT);
 				break;
 
-			case NEED_PREV:
-				ret = get_work(&work, UDP_GET_PREV);
-				break;
-
 			case THREAT_DETECTED:
 				alert_scheduler(&work);
 				ret = get_work(&work, UDP_NEW_WORK);
