@@ -3,6 +3,7 @@
 
 #include <glib.h>
 #include <stdlib.h>
+#include "data.h"
 
 typedef struct _AgentsContactData {
 	unsigned short port;
@@ -19,15 +20,8 @@ typedef struct _AgentInfo {
 
 	struct sockaddr_in addr; /* Agent's address info	*/
 
-	int tcp_socket;	 /* Agent's TCP communication socket */
+	DataInfo history; /* Struct with info about the last data sent */
 
-	struct { /* Struct with info about the last data send. This
-		  * is usefull only if the data where from TCP
-		  * session */
-		unsigned int sensor;/* Sensor  ID */
-		unsigned int session;/* Session ID */
-		unsigned int data;/* Data    ID */
-	} history;
 	time_t timestamp;
 } AgentInfo;
 
@@ -44,29 +38,29 @@ typedef struct _Agents {
 			   * entries */
 } Agents;
 
+#define PWD_SIZE 16
 typedef struct _UDPPacket {
 	unsigned int size;
 	unsigned int sec;
 	unsigned int type;
 	unsigned int id;
 	struct sockaddr_in addr;
-	char pwd[16];
+	char pwd[PWD_SIZE];
 } UDPPacket;
 
 		/* UDP Communication */
 /* receive */
-#define UDP_NEW_AGENT 1
-#define UDP_NEW_WORK  2
-#define UDP_GET_NEXT  3
-#define UDP_GET_PREV  4
-#define UDP_QUIT      5
+#define UDP_NEW_AGENT	1
+#define UDP_NEW_WORK	2
+#define UDP_GET_NEXT	3
+#define UDP_QUIT	4
 
 
 /* send */
-#define UDP_CONNECTED 1
-#define UDP_NOT_CONN  2
-#define UDP_DATA      3
-#define UDP_NOT_FOUND 4
+#define UDP_CONNECTED		1
+#define UDP_NOT_CONNECTED	2
+#define UDP_DATA		3
+#define UDP_NOT_FOUND		4
 
 /*
  * RECV PACKET:

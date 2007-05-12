@@ -10,8 +10,8 @@
 
 #include "agent_contact.h"
 #include "utils.h"
-#include "errors.h"
 #include "hash.h"
+#include "errors.h"
 #include "job.h"
 #include "alert.h"
 
@@ -21,52 +21,81 @@ extern  SensorList sensorlist;
 static int udp_socket; /* The UDP Socket */
 static int tcp_socket; /* The TCP Socket listening for incoming connections */
 
-
 /*
- * This function finds the first unused entry in the Agents table
+ * Function: get_new_client_pos(u_int8_t *, size_t)
+ *
+ * Purpose: Find the first unused entry in the Agents table 
+ *
+ * Arguments:  map=> pointer to the map array
+ *             map_size=> Size of the map array in 8 bit (1 byte) units;
+ *
+ * Returns: the index of the first unused size on success
+ *          map_size * 8  on error
  */
 static unsigned short get_new_client_pos(u_int8_t *map, size_t map_size)
 {
 	int i;
-	unsigned short tmp;
+	unsigned short offset;
 
 	DPRINTF("\n");
 	for (i = 0; i < map_size; i++) {
-		tmp = find_first_zero(map[i]);
-		if (tmp < 8)
-			return i*8 + tmp;
+		offset = find_first_zero(map[i]);
+		if (offset < 8)
+			return i*8 + offset;
 	}
 	return map_size*8;
 }
 
-int cleanup_map(Agents *agents)
+/*
+ * Function: cleanup_map(Agents *)
+ *
+ * Purpose: Removes the agents that haven't communicated for a long time  
+ *
+ * Arguments:  agents=> The agents struct 
+ *
+ * Returns: 1=> Some agents have been removed
+ *          0=> No agent has beed removed
+ */
+static int cleanup_map(Agents *agents)
 {
 	int i;
 	int cleared = 0;
 	time_t current_time;
 	AgentInfo *this_agent;
 
+	/* Press PageDown, you'll find the body of this function ;-) */ 
+	static void remove_agent(Agents *, unsigned int);
+
 	current_time = time(NULL);
+
 	for(i = 0; i < agents->max; i++) {
 		this_agent = agents->table + i;
 		if(this_agent->id) /* agent exists */
 			if(current_time - this_agent->timestamp > MAX_WAIT) {
 				cleared = 1;
-				/*remove agent*/
+				remove_agent(agents, this_agent->id);
 			}
 	}
-	return 0;
+
+	return cleared;
 }
 
-inline int check_password(char *pwd)
+/* just check the password and return TRUE if it matches */
+static inline int check_password(char *pwd)
 {
-	return (strncmp(pwd, PASSWORD, UDP_PCK_SIZE -1))?0:1;
+	return (strncmp(pwd, PASSWORD, PWD_SIZE))?0:1;
 }
 
 
 /*
- * Adds a new agent in the Agent table
- * Returns the AgentInfo pointer on success, NULL on failure
+ * Function: add_agent(Agents *, struct sockaddr_in *)
+ *
+ * Purpose:  Adds a new agent in the Agent table
+ *
+ * Arguments:  agents=> struct with info about all the agents
+ *             addr=> The IP address of the agent we want to add;
+ *
+ * Returns: Pointer to the newly added agent on success, NULL on error
  */
 static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 {
@@ -79,15 +108,17 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 	DPRINTF("\n");
 	index = get_new_client_pos(agents->map, agents->map_size);
 	if (index >= agents->max) {
-		/* the client map is full,
-		 * let's try to remove absolute agents */
+		/* 
+		 * the client map is full, let's try to
+		 * remove obsolete agents
+		 */
 		if(cleanup_map(agents))
 			index = get_new_client_pos(agents->map,
 							agents->map_size);
 		else return NULL;
 	}
 
-	/* Create an ID */
+	/* Create a unique ID */
 	do {
 		id = (u_int32_t)get_rand();
 		if(id == 0)
@@ -111,7 +142,6 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 	this_agent = agents->table + index;
 	this_agent->id = id;
 	this_agent->addr = *addr;
-	this_agent->tcp_socket = -1;
 	this_agent->sec = 1;
 	this_agent->timestamp = time(NULL);
 
@@ -119,13 +149,19 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 }
 
 /*
- * Removes an agent from the Agent table
+ * Function: remove_agent(Agents *, unsigned int *)
+ *
+ * Purpose:  Remove an agent from the Agent table
+ *
+ * Arguments:  agents=> struct with info about all the agents
+ *             id => Agent's ID;
  */
 static void remove_agent(Agents *agents, unsigned int id)
 {
 	AgentInfo *this_agent;
 	u_int8_t mask;
 	int i;
+	int ret;
 	unsigned short *index;
 
 	DPRINTF("\n");
@@ -139,6 +175,22 @@ static void remove_agent(Agents *agents, unsigned int id)
 	DPRINTF("Remove agent ID:%u Index:%u\n",id,*index);
 
 	this_agent = agents->table + *index;
+
+	/* if we have data in the history left, destroy the group */
+	if(this_agent->history.data.tcp) {
+
+		mutex_lock(&this_agent->history.sensor->mutex);
+		ret = destroy_datagroup(&this_agent->history);
+		mutex_unlock(&this_agent->history.sensor->mutex);
+
+		if(ret == 2) {
+			mutex_lock(&sensorlist.mutex);
+			destroy_sensor(this_agent->history.sensor);
+			mutex_unlock(&sensorlist.mutex);
+		}
+
+	}
+
 	memset(this_agent, '\0', sizeof(AgentInfo));
 
 	/* Update the bit map */
@@ -147,10 +199,15 @@ static void remove_agent(Agents *agents, unsigned int id)
 	agents->map[i] = agents->map[i] & mask;
 }
 
-
 /*
- * Sends a UDP message of type "type" to an agent.
- * Returns 1 on success, 0 on failure
+ * Function: send_msg(AgentInfo *, int *)
+ *
+ * Purpose: send a UDP message to an agent
+ *
+ * Arguments:  agent=> struct with info about an agent
+ *             type=> The type of the message we want to send;
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure
  */
 static int send_msg(AgentInfo *agent, int type)
 {
@@ -182,52 +239,18 @@ static int send_msg(AgentInfo *agent, int type)
 	return 0;
 }
 
-/*
- * Receives a UDP packet and fills the pck struct
- * Returns 1 on success, 0 if no packets are available
- */
-static int recv_udp_packet(UDPPacket *pck)
-{
-	char buf[2*UDP_PCK_SIZE +1];
-	ssize_t numbytes;
-	socklen_t addr_len;
-
-	DPRINTF("\n");
-	addr_len = sizeof(struct sockaddr);
-	numbytes = recvfrom(udp_socket, buf, 2*UDP_PCK_SIZE+1, MSG_DONTWAIT,
-		      (struct sockaddr *) &pck->addr, &addr_len);
-	if (numbytes == -1) {
-		if(errno == EAGAIN)
-			return 0; /* no data available */
-		errno_abort("recvfrom");
-	}
-
-
-	DPRINTF("I got %d bytes\n", numbytes);
-	if((numbytes != UDP_PCK_SIZE) && (numbytes != 2*UDP_PCK_SIZE))
-		return -1;
-
-	pck->size = ntohl(*(u_int32_t *) (buf +  0));
-	if(pck->size != numbytes)
-		return -1;
-	pck->sec  = ntohl(*(u_int32_t *) (buf +  4));
-	pck->type = ntohl(*(u_int32_t *) (buf +  8));
-	pck->id   = ntohl(*(u_int32_t *) (buf + 12));
-
-	if(numbytes == 2*UDP_PCK_SIZE)
-		strncpy(pck->pwd,buf + UDP_PCK_SIZE, UDP_PCK_SIZE - 1);
-
-	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->sec,
-				ntohl(pck->type), pck->id);
-
-	return 1;
-}
-
 
 /*
- * Send work to an agent.
+ * Function: send_work(AgentInfo *, DataInfo *)
+ *
+ * Purpose: Send work to process to an agent
+ *
+ * Arguments:  agent=> struct with info about an agent
+ *             work=> struct with info about the work we want to send
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure
  */
-int send_work(AgentInfo *agent, DataInfo *work)
+static int send_work(AgentInfo *agent, DataInfo *work)
 {
 	char *buf;
 	socklen_t addr_len = sizeof(struct sockaddr);
@@ -273,148 +296,199 @@ int send_work(AgentInfo *agent, DataInfo *work)
 
 	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->sec,ntohl(type),agent->id);
 
-	/* update the "sent data history" */
-	if (work->session->proto == IPPROTO_TCP) {
-		agent->history.sensor = work->sensor->id;
-		agent->history.session = work->session->id;
-		agent->history.data = work->data.tcp->id;
-	} else {
-		agent->history.sensor = 0;
-		agent->history.session = 0;
-		agent->history.data = 0;
-	}
+	/* update history */
+	agent->history = *work;
 
 	free(buf);
 	return 1;
 }
 
+
 /*
- * Reads the agents history of the data send and sends previous,
- * same or next data according to the data_id_offset
+ * Function: send_new_work(AgentInfo *)
+ *
+ * Purpose: send new work to an agent, by removing it from the joblist
+ *
+ * Arguments:  agent=> struct with info about an agent
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure		
  */
-static int send_offset_work(AgentInfo *agent, int data_id_offset)
+static int send_new_work(AgentInfo *agent)
 {
-	unsigned int sensor_id;
-	unsigned int session_id;
-	unsigned int data_id;
-	Sensor  *sensor;
-	Session *session;
-	TCPData *data;
+	int ret;
+
+	DPRINTF("\n");
+	if(agent->history.data.tcp) { /* doesn't matter, could be udp too */
+
+		/* 
+		 * Destroy the old data group,
+		 * we are about to start with a new one...
+		 */
+		mutex_lock(&agent->history.sensor->mutex);
+
+		ret = destroy_datagroup(&agent->history);
+
+		mutex_unlock(&agent->history.sensor->mutex);
+
+
+		/* If safe, destroy the sensor too */
+		if(ret == 2) {
+
+			mutex_lock(&sensorlist.mutex);
+
+			destroy_sensor(agent->history.sensor);
+
+			mutex_unlock(&sensorlist.mutex);
+		}
+	}
+
+	ret = execute_job(send_work, agent);
+	if (ret != -1)  /* a job was executed */
+		return ret;
+
+	/* Clear the history */
+	agent->history.data.tcp = NULL;
+	ret = send_msg(agent, UDP_NOT_FOUND);
+	return ret;
+}
+
+
+/*
+ * Function: send_next_work(AgentInfo *)
+ *
+ * Purpose: Send next data from a continuous group of data to an agent
+ *          by checking the last sent data
+ *
+ * Arguments:  agent=> struct with info about an agent
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure
+ */
+static int send_next_work(AgentInfo *agent)
+{
+	int ret = -1;
 	DataInfo work;
 
 	DPRINTF("\n");
-	sensor_id = agent->history.sensor;
-	session_id = agent->history.session;
-	data_id = agent->history.data;
+	if(agent->history.data.tcp) { /* doesn't matter, could be udp too */
 
-	if (!sensor_id || !session_id || !data_id)
-	       return 0;
+		work = agent->history;
 
-	data_id += data_id_offset;
-	if (data_id <= 0)
-		return 0;
+		mutex_lock(&work.sensor->mutex);
+
+		if(work.session->proto == IPPROTO_TCP)
+			work.data.tcp = get_next_data(work.data.tcp);
+		else 	
+			work.data.udp = NULL;
+
+		/* 
+		 * Now we know what we want to send,
+		 * so it's safe to destroy the old data
+		 */
+		destroy_data(&agent->history);
+
+		if(work.data.tcp)
+			ret = send_work(agent, &work);
+
+		mutex_unlock(&work.sensor->mutex);
+	}
+
+	if (ret == -1) { /* nothing sent */
+		agent->history.data.tcp = NULL;
+		ret = send_msg(agent, UDP_NOT_FOUND);
+	}
+
+	return ret;
+}
+
+/*
+ * Function: send_current_work(AgentInfo *)
+ *
+ * Purpose: Send to an agent the last sent data again
+ *
+ * Arguments: agent=> struct with info about an agent
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure
+ */
+static int send_current_work(AgentInfo *agent)
+{
+	int ret = 0;
 	
-	/* find the work */
-	mutex_lock(&sensorlist.mutex);
+	DPRINTF("\n");
+	if(agent->history.data.tcp) { /* tcp doesn't matter, could be udp too */
 
-	sensor = hash_sensor_lookup(sensorlist.hash, sensor_id);
-	if (!sensor) {
-		mutex_unlock(&sensorlist.mutex);
-		return 0;
+		mutex_lock(&agent->history.sensor->mutex); /* Do I need this? */
+		
+		ret = send_work(agent, &agent->history);
+
+		mutex_unlock(&agent->history.sensor->mutex);
+
+	} else
+		ret = send_msg(agent, UDP_NOT_FOUND);
+
+	return ret;
+}
+
+
+/*
+ * Function: recv_udp_packet(UDPPacket *)
+ *
+ * Purpose: Receive a UDP Packet sent by an agent
+ *
+ * Arguments: pck=> Pointer to the struct we fill with the packet data
+ *
+ * Returns: 1=> exit on success, 0=> exit on failure
+ */
+static int recv_udp_packet(UDPPacket *pck)
+{
+	char buf[2*UDP_PCK_SIZE +1];
+	ssize_t numbytes;
+	socklen_t addr_len;
+
+	DPRINTF("\n");
+	addr_len = sizeof(struct sockaddr);
+	numbytes = recvfrom(udp_socket, buf, 2*UDP_PCK_SIZE+1, MSG_DONTWAIT,
+		      (struct sockaddr *) &pck->addr, &addr_len);
+	if (numbytes == -1) {
+		if(errno == EAGAIN)
+			return 0; /* no data available */
+		errno_abort("recvfrom");
 	}
 
-	mutex_lock(&sensor->mutex);
-	mutex_unlock(&sensorlist.mutex);
 
-	session = hash_session_lookup(sensor->hash, session_id);
-	if (!session) {
-		mutex_unlock(&sensor->mutex);
-		return 0;
-	}
+	DPRINTF("I got %d bytes\n", numbytes);
+	if((numbytes != UDP_PCK_SIZE) && (numbytes != 2*UDP_PCK_SIZE))
+		return -1;
 
-	if ((data = find_data(session, data_id))) {
-		work.sensor = sensor;
-		work.session = session;
-		work.data.tcp = data;
-		send_work(agent, &work);
-	}
+	pck->size = ntohl(*(u_int32_t *) (buf +  0));
+	if(pck->size != numbytes)
+		return -1;
+	pck->sec  = ntohl(*(u_int32_t *) (buf +  4));
+	pck->type = ntohl(*(u_int32_t *) (buf +  8));
+	pck->id   = ntohl(*(u_int32_t *) (buf + 12));
 
-	mutex_unlock(&sensor->mutex);
+	if(numbytes == 2*UDP_PCK_SIZE)
+		strncpy(pck->pwd,buf + UDP_PCK_SIZE, UDP_PCK_SIZE - 1);
 
-	return (data)?1:0;
-}
+	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->sec,
+				ntohl(pck->type), pck->id);
 
-
-/*
- * Send new work to an agent
- */
-static inline int send_new_work(AgentInfo *agent)
-{
-	int ret;
-
-	DPRINTF("\n");
-	ret = execute_job(send_work, agent);
-	if (ret) 
-		return 1;
-
-	send_msg(agent, UDP_NOT_FOUND);
-	return 0;
+	return 1;
 }
 
 /*
- * Send the previous data to the agent
+ * Function: process_udp_packet(Agents *, UDPPacket *)
+ *
+ * Purpose: Analyze and process a received UDP Packet
+ *
+ * Arguments: agents=> Struct with info about the agent table 
+ *            pck=> Pointer to the UDP packet struct
  */
-static inline int send_prev_work(AgentInfo *agent)
-{
-	int ret;
-
-	DPRINTF("\n");
-	ret = send_offset_work(agent, -1);
-	if (ret)
-		return 1;
-
-	send_msg(agent, UDP_NOT_FOUND);
-	return 0;
-}
-
-/*
- * Send the next data
- */
-static inline int send_next_work(AgentInfo *agent)
-{
-	int ret;
-
-	DPRINTF("\n");
-	ret = send_offset_work(agent, +1);
-	if (ret)
-		return 1;
-
-	send_msg(agent, UDP_NOT_FOUND);
-	return 0;
-}
-
-/*
- * Send current data
- */
-static inline int send_current_work(AgentInfo *agent)
-{
-	int ret;
-
-	DPRINTF("\n");
-	ret = send_offset_work(agent, 0);
-	if (ret)
-		return 1;
-
-	send_msg(agent, UDP_NOT_FOUND);
-	return 0;
-}
-
-
 static void process_udp_packet(Agents *agents, UDPPacket *pck)
 {
 	AgentInfo *this_agent;
 	unsigned short *index;
 
+	DPRINTF("\n");
 	if (pck->type == UDP_NEW_AGENT) {
 		if(!check_password(pck->pwd)) { /* Check the Password */
 			DPRINTF("Wrong Password\n");
@@ -440,29 +514,31 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 		switch(pck->type) {
 			case UDP_NEW_WORK:
 			case UDP_GET_NEXT:
-			case UDP_GET_PREV:		
 				send_current_work(this_agent);
 		}
 	}
-	else if(pck->sec > this_agent->sec) { /* new_request */
+	else if(pck->sec == (this_agent->sec + 1)) { /* new_request */
 
-		/* Update sequence */
-		this_agent->sec = pck->sec;
 		switch(pck->type) {
 			case UDP_NEW_WORK:
+				this_agent->sec = pck->sec;
 				send_new_work(this_agent);
 				break;
 			case UDP_GET_NEXT:
+				this_agent->sec = pck->sec;
 				send_next_work(this_agent);
 				break;
-			case UDP_GET_PREV:
-				send_prev_work(this_agent);
-				break;
 			case UDP_QUIT:
-				if(check_password(pck->pwd))
+				if(check_password(pck->pwd)) {
+					this_agent->sec = pck->sec;
 					remove_agent(agents,pck->id);
-				else return;
-				break;
+				}
+					/* we don't use break. this agent */
+				return; /* does not exist any more */
+					 
+			default:
+				DPRINTF("Unknown Packet type\n");
+				return;
 		}
 		/* Update timestamp */
 		this_agent->timestamp = time(NULL);
@@ -478,6 +554,7 @@ static void udp_request(Agents *agents)
 	UDPPacket pck;
 	int ret;
 
+	DPRINTF("\n");
 	ret = recv_udp_packet(&pck);
 	if(ret == 1)
 		process_udp_packet(agents, &pck);
@@ -485,11 +562,17 @@ static void udp_request(Agents *agents)
 	return;
 }
 
-/* 
- * Receives the alert data from a TCP connection.
- * Returns the data received on success, NULL if an error occurs.
- * It also updates the data_size argument.
- */ 
+
+/*
+ * Function: recv_alert_data(int, unsigned int *)
+ *
+ * Purpose: Receive the alert data from a TCP Connection
+ *
+ * Arguments: socket=> The TCP connection Socket
+ *            data_size=> A parameter we fill with the size of the alert data
+ *
+ * Returns: Pointer to a buffer filled with the collected alert data
+ */
 static char *recv_alert_data(int socket, unsigned int *data_size)
 {
 	u_int32_t size;
@@ -541,7 +624,15 @@ static char *recv_alert_data(int socket, unsigned int *data_size)
 	return NULL;
 }
 
-
+/*
+ * Function: process_alert_data(char *, int)
+ *
+ * Purpose: Process the alert data from a buffer, and push the alert to the
+ *          alert list
+ *
+ * Arguments: data=> buffer that contains the alert data
+ *            data_len=> size of the alert data buffer
+ */
 static void process_alert_data(char *data, int data_len)
 {
 	struct tuple4 connection;
@@ -564,7 +655,7 @@ static void process_alert_data(char *data, int data_len)
 	payload = (payload_len)? (data + 20) : NULL;
 
 	/* send the alert */
-	DPRINTF("push alert");
+	DPRINTF("push alert\n");
 	push_alert(&connection, proto, payload, payload_len);
 
 	return;
@@ -576,31 +667,35 @@ typedef struct {
 	unsigned short port;
 } TCPConData;
 
-/* 
- * Serve a TCP connection.
+/*
+ * Function: tcp_connection(TCPConData *)
+ *
+ * Purpose: Main thread function that handles a TCP connection to receive
+ *          an alert
+ *
+ * Arguments: data=> Pointer to a TCP Connection info struct
  */
 static void *tcp_connection(TCPConData *data)
 {
 	struct timeval wait;
 	int ret;
 	fd_set readset;
-	char pwd[UDP_PCK_SIZE];
+	char pwd[PWD_SIZE + 1];
 	char *buf = NULL;
 	int buf_len;
 	ssize_t numbytes;
+	size_t bytesleft = PWD_SIZE;
 
 	DPRINTF("\n");
 	FD_ZERO(&readset);
 	FD_SET(data->socket, &readset);
-	wait.tv_sec = 5;
-	wait.tv_usec = 0;
 
 select_again:
+	wait.tv_sec = 5;
+	wait.tv_usec = 0;
 	ret = select(data->socket + 1, &readset, NULL, NULL, &wait);
 	if (ret == -1) {
 		if (errno == EBADF) {
-			wait.tv_sec = 5;
-			wait.tv_usec = 0;
 			goto select_again;
 		}
 		else goto end;
@@ -610,14 +705,16 @@ select_again:
 		goto end;
 	}
 
-	numbytes = recv(data->socket, pwd, UDP_PCK_SIZE, 0);
+	numbytes = recv(data->socket, pwd + PWD_SIZE - bytesleft, bytesleft, 0);
 	if (numbytes == -1) {
 		errno_cont("recv");
 		goto end;
-	} else if (numbytes != UDP_PCK_SIZE)
-		goto end;
+	} else if (numbytes != bytesleft) {
+		bytesleft -= numbytes;
+		goto select_again;
+	}
 
-	pwd[UDP_PCK_SIZE - 1] = '\0';
+	pwd[PWD_SIZE] = '\0';
 	if(!check_password(pwd)) {
 		DPRINTF("Wrong Password\n");
 		goto end;
@@ -654,8 +751,14 @@ static void init_agents(Agents *agents, int max_conns)
 	agents->hash = new_hash_table();
 }
 
+
 /*
- * Main agents_thread function
+ * Function: agents_contact(AgentsContactData *)
+ *
+ * Purpose: Main agents_thread thread function. This function creates a UDP
+ *          and a TCP server to communicate with the agents
+ *
+ * Arguments: data=> Connection parameters
  */
 void *agents_contact(AgentsContactData *data)
 {

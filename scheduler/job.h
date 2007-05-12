@@ -4,15 +4,6 @@
 #include "thread.h"
 #include "data.h"
 
-typedef struct _DataInfo {
-	union {
-		UDPData *udp;
-		TCPData *tcp;
-	} data;
-	Session *session;
-	Sensor  *sensor;
-} DataInfo;
-
 typedef struct _Job {
 	struct _Job *next;
 	struct _Job *prev;
