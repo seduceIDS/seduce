@@ -228,7 +228,6 @@ static int parse_file(char *filename)
 		CFG_SIMPLE_STR("filename", &nids_params.filename),
 		CFG_SIMPLE_INT("sk_buff_size", &nids_params.sk_buff_size),
 		CFG_SIMPLE_INT("dev_addon", &nids_params.dev_addon),
-		CFG_SIMPLE_STR("pcap_filter", &nids_params.pcap_filter),
 		CFG_SIMPLE_BOOL("promisc", &nids_params.promisc),
 		CFG_SIMPLE_BOOL("one_loop_less", &nids_params.one_loop_less),
 		CFG_SIMPLE_INT("pcap_timeout", &nids_params.pcap_timeout),
