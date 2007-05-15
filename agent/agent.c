@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-
 #include "agent.h"
 #include "detect_engine.h"
 
@@ -34,7 +33,6 @@ static int send_msg(int type)
 	socklen_t addr_len;
 	size_t len;
 	ssize_t numbytes;
-
 
 
 	if((type == SEND_NEW_AGENT) || (type == SEND_QUIT)) {
@@ -74,6 +72,7 @@ int recv_packet(Packet *pck)
 	struct iovec iov[3];
 
 
+	fflush(stdout);
 	alarm(pv.timeout);
 	/* Just "Peek" the first 32 bits... this should be the packet size */
 	numbytes = recvfrom(pv.socket, &size, sizeof(u_int32_t),
@@ -174,7 +173,7 @@ int recv_packet(Packet *pck)
 void quit_handler(int s)
 {
 	pv.seq++;
-	fprintf(stderr,"Sending QUIT Message...\n");
+	printf("Sending QUIT Message...\n");
 	send_msg(SEND_QUIT);
 	exit(0);
 }
@@ -185,11 +184,10 @@ static int request_connection()
 
 	if(send_msg(SEND_NEW_AGENT) == 0) {
 		fprintf(stderr,"Can't send connection request\n");
-		return -1;
+		return -2;
 	}
 
 	printf("Connecting to the Scheduler...");
-	fflush(stdout);
 
 	pck.work = NULL;
 	if(recv_packet(&pck) == 0)
@@ -198,10 +196,11 @@ static int request_connection()
 	if(pck.type == RECV_CONNECTED) {
 		printf("Connected to the Scheduler.\n");
 		printf("My ID is %u\n", pck.id);
-		
+
 		/*write the new id */
 		pv.id = pck.id;
 		return 1;
+
 	} else if(pck.type == RECV_NOT_CONN) {
 		return 0;
 	} else
@@ -214,7 +213,7 @@ static int request_work(Work *work, int type)
 
 	if(send_msg(type) == 0) {
 		fprintf(stderr,"Can't send work request\n");
-		return -1;
+		return -2;
 	}
 
 	pck.work = work;
@@ -245,19 +244,22 @@ static int need_work(Work *work, int type)
 
 	printf("get_work\n");
 
-	/* New Work == New sequence number */
+	/* for new work we need new sequence number */
 	pv.seq++;
 
 	i = 0;
 	do {
 		ret = request_work(work, type);
-		if(ret != -1)
+		if(ret == -2)
+			goto err;
+		else if(ret != -1)
 			return ret;
 
 		i++;
-		fprintf(stderr,"Retying...\n");
+		printf("Retying...\n");
 	} while(i <= pv.retries);
 
+err:
 	fprintf(stderr, "The communication is bad, quiting..\n");
 	exit(1);
 }
@@ -276,12 +278,16 @@ static int scheduler_connect()
 			return 1;
 
 		else if(ret == 0) {
-			printf("Scheduler refused to connect me\n");
+			fprintf(stderr, "Scheduler refused to connect me\n");
 			return 0;
 		}
 
+		else if(ret == -2)
+			/* No need to retry, we have a problem in sending */
+			return 0;
+
 		i++;
-		fprintf(stderr,"Retying...\n");
+		printf("Retying...\n");
 	} while(i <= pv.retries);
 
 	return 0;
@@ -330,6 +336,7 @@ static void main_loop(void)
 				 * some sleep :-)
 				 */
 				printf("No work is available, I'll sleep\n");
+				fflush(stdout);
 				sleep(pv.no_work_wait);
 			}
 		}
@@ -352,6 +359,12 @@ int main(int argc, char *argv[])
 	/* initialize the programe variables */
 	fill_progvars(argc, argv);
 
+	/* initialize the socket */
+	pv.socket = socket(AF_INET, SOCK_DGRAM, 0);
+	if (pv.socket == -1) {
+		perror("socket");
+		exit(1);
+	}
 
 	/* Try to connect to the sceduler */
 	if(!scheduler_connect()) {
@@ -359,7 +372,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	/* if connected, initialize handlers for quiting... */
+	/* if connected, initialize handlers for quiting */
 	sa.sa_handler = quit_handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
