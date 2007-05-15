@@ -1,7 +1,7 @@
 #ifndef _DETECT_ENGINE_H
 #define _DETECT_ENGINE_H
 
-#include <stdio.h>
+#include <stdio.h> /* for size_t */
 
 #define WORK_DONE 1
 #define NEED_NEXT 2

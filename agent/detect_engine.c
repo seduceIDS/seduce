@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "detect_engine.h"
 
 char *threat_payload = "Example threat";
