@@ -1,21 +1,48 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <ctype.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <nids.h>
 #include <confuse.h>
 
-#include <nids.h>
 #include "sensor.h"
+
+/* struct filled with command-line arguments */
+typedef struct _CommandLineOptions {
+	char *server;
+	char *portlist_expr;
+	char *homenet_expr;
+	char *interface;
+	char *conf_file;
+} CLO;
+
+
+static void printusage(int rc)
+{
+	fprintf(stderr, 
+		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
+		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
+		"  c : Specify a config file. `E.g. sensor.conf'.\n"
+		"  h : Print this help message.\n"
+		"  i : Network interface. E.g. `eth0', `eth1'.\n"
+		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
+		"  s : Server Address in IP:Port format. E.g. `12.0.0.1:3540'.\n"
+		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
+		pv.prog_name);
+	exit(rc);
+}
 
 
 /*
  * Parse the portlist string and fill the port table.
  * The source is from Nmap.
  * Return value: 
- * 	 1 on success (required by libconfuse)
+ * 	 1 on success
  * 	 0 if errors occure
  */
 static int getpts(char *origexpr)
@@ -121,6 +148,7 @@ static int getpts(char *origexpr)
 	return 1;
 }
 
+
 static int fill_network(char *network)
 {
 	if(nids_params.pcap_filter)
@@ -135,6 +163,7 @@ static int fill_network(char *network)
 	sprintf(nids_params.pcap_filter, "net %s", network);
 	return 1;
 }
+
 
 static unsigned short get_valid_port(const char *port_str)
 {
@@ -157,24 +186,31 @@ static unsigned short get_valid_port(const char *port_str)
 	return (unsigned short) port;
 }
 
+
 /* 
  * Fill the server IP and Port in the pv struct.
  * Returns 1 on success and 0 on error.
  */
 static int fill_serveraddr(char *str)
 {
-	char *ip;
+	char *addr;
 	char *port;
+	struct hostent *he;
 
-	ip = strtok(str, ":");
-	if (ip == NULL)
+	addr = strtok(str, ":");
+	if (addr == NULL)
 		return 0;
 
 	port = strtok(NULL,"");
 	if (port == NULL)
 		return 0;
 
-	pv.server_addr = inet_addr(ip);
+	he = gethostbyname(addr);
+	if(!he) {
+		herror("gethostbyname");
+		return 0;
+	}
+	pv.server_addr = *(in_addr_t *)he->h_addr;
 	if(pv.server_addr == INADDR_NONE)
 		return 0;
 
@@ -184,6 +220,7 @@ static int fill_serveraddr(char *str)
 
 	return 1;
 }
+
 
 /* 
  * function wrapper to use it with libconfuse
@@ -207,7 +244,6 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 								opt->name);
 	return (ret) ? 0 : -1;
 }
-
 
 
 /* parse a config file */
@@ -266,38 +302,123 @@ static int parse_file(char *filename)
 	return 1;
 }
 
-int parse_options(CommandLineOptions *clo)
+
+/*
+ * Get the command line options
+ */
+#define PRINT_SPECIFY_ONCE(x) \
+	fprintf(stderr, "The -%c option should be specified only once\n", x)
+static int get_cloptions(int argc, char *argv[], CLO *clo)
+{
+	int c;
+	int c_arg = 0;
+	int i_arg = 0;
+	int n_arg = 0;
+	int s_arg = 0;
+	int p_arg = 0;
+
+	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
+		switch(c) {
+			case 'h':
+				printusage(0);
+
+			case 'c':
+				if (c_arg) {
+				PRINT_SPECIFY_ONCE('c');
+				return 0;
+				}
+				clo->conf_file = strdup(optarg);
+				break;
+
+			case 'i':
+				if (i_arg) {
+					PRINT_SPECIFY_ONCE('i');
+					return 0;
+				}
+				i_arg = 1;
+				clo->interface = strdup(optarg);
+				break;
+
+			case 'n':
+				if (n_arg) {
+					PRINT_SPECIFY_ONCE('n');
+					return 0;
+				}
+				n_arg = 1;
+				clo->homenet_expr = strdup(optarg);
+				break;
+
+			case 's':
+				if (s_arg) {
+					PRINT_SPECIFY_ONCE('s');
+					return 0;
+				}
+
+				s_arg = 1;
+				clo->server =  strdup(optarg);
+				break;
+
+			case 'p':
+				if (p_arg) {
+					PRINT_SPECIFY_ONCE('p');
+					return 0;
+				}
+				p_arg = 1;
+				clo->portlist_expr = strdup(optarg);
+				break;
+
+			default:
+				return 0;
+		}
+	}
+
+	return 1;
+}
+
+
+void fill_progvars(int argc, char *argv[])
 {
 	int i;
 
-	if(clo->conf_file) {
-		if(!parse_file(clo->conf_file))
-			return 0;
-		free(clo->conf_file);
+	CLO clo;
+
+	memset(&clo, '\0', sizeof(CLO));
+
+	memset(&pv, '\0', sizeof(PV));
+	pv.prog_name = argv[0];
+
+	if(!get_cloptions(argc, argv, &clo))
+		goto err;
+
+
+	if(clo.conf_file) {
+		if(!parse_file(clo.conf_file))
+			goto err;
+		free(clo.conf_file);
 	}
 
-	if(clo->server) {
-		if(!fill_serveraddr(clo->server))
-			return 0;
-		free(clo->server);
+	if(clo.server) {
+		if(!fill_serveraddr(clo.server))
+			goto err;
+		free(clo.server);
 	}
 
-	if(clo->portlist_expr) {
-		if(!getpts(clo->portlist_expr))
-			return 0;
-		free(clo->portlist_expr);
+	if(clo.portlist_expr) {
+		if(!getpts(clo.portlist_expr))
+			goto err;
+		free(clo.portlist_expr);
 	}
 
-	if(clo->homenet_expr) {
-		if(!fill_network(clo->homenet_expr))
-			return 0;
-		free(clo->homenet_expr);
+	if(clo.homenet_expr) {
+		if(!fill_network(clo.homenet_expr))
+			goto err;
+		free(clo.homenet_expr);
 	}
 
-	if(clo->interface) {
+	if(clo.interface) {
 		if(nids_params.device)
 			free(nids_params.device);
-		nids_params.device = clo->interface;
+		nids_params.device = clo.interface;
 	}
 
 	/* Check if all needed program variables are set */
@@ -306,7 +427,7 @@ int parse_options(CommandLineOptions *clo)
 				"Either use the -s command line option "
 				"or the \"server_addr\" variable of the "
 				"configuration file\n\n");
-		return 0;
+		goto err;
 	}
 
 	/* check if port list is set */
@@ -317,24 +438,29 @@ int parse_options(CommandLineOptions *clo)
 		/* No port is set, I'll set them ports */
 		memset(pv.port_table, TCP_PORT | UDP_PORT, 65536);
 
-	return 1;
+	return;
+
+err:
+	printusage(1);
 }
 
+
 #if 0
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 PV pv;
 
-int main()
+int main(int argc, char *argv[])
 {
-	CommandLineOptions clo;
+	fill_progvars(argc, argv);
 
-	memset(&pv, '\0', sizeof(PV));
-	memset(&clo, '\0', sizeof(clo));
+	printf("Options:\n");
+	printf("Sever Address: %s\n", inet_ntoa(*(struct in_addr *)
+							&pv.server_addr));
+	printf("Server Port: %u\n", pv.server_port);
 
-	clo.conf_file = strdup("sensor.conf");
-
-	if(parse_options(&clo)) {
-		printf("%s,%d\n",inet_ntoa(*(struct in_addr *)&pv.server_addr),pv.server_port);
-	}
-	else printf("Oxi\n");
+	return 0;
 }
 #endif
