@@ -9,7 +9,7 @@ PCAPLIB		= -lpcap
 LIBS_CFLAGS	= $(PCAP_CFLAGS)
 LIBS		= -lnids $(PCAPLIB) -lgthread-2.0 -lnsl -lconfuse
 
-OBGS		= sensor.o chksum_ctl.o server_contact.o parser.o
+OBGS		= sensor.o chksum_ctl.o server_contact.o options.o
 HDRS		= sensor.h server_contact.h
 
 .c.o:
