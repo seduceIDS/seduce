@@ -1,14 +1,6 @@
 #ifndef _SENSOR_H
 #define _SENSOR_H
 
- /* struct filled with command-line arguments */
-typedef struct _CommandLineOptions {
-	char *server;
-	char *portlist_expr;
-	char *homenet_expr;
-	char *interface;
-	char *conf_file;
-} CommandLineOptions;
 
 /* Program variables */
 typedef struct _progvars {
@@ -20,8 +12,7 @@ typedef struct _progvars {
 
 extern PV pv;
 
-#define TCP_PORT	1
-#define UDP_PORT	2
-
+#define TCP_PORT	0x01
+#define UDP_PORT	0x10
 
 #endif /* _SENSOR_H */

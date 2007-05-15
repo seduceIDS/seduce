@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -19,99 +18,10 @@
 #define NO  (!YES)
 
 extern int all_local_ipaddrs_chksum_disable(void);
-extern int parse_options(CommandLineOptions *);
+extern void fill_progvars(int, char **);
 
 /* GLOBALS */
 PV pv;
-
-static void printusage(int rc)
-{
-	fprintf(stderr, 
-		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
-		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  c : Specify a config file. `E.g. sensor.conf'.\n"
-		"  h : Print this help message.\n"
-		"  i : Network interface. E.g. `eth0', `eth1'.\n"
-		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
-		"  s : Server Address in IP:Port format. E.g. `12.0.0.1:3540'.\n"
-		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
-		pv.prog_name);
-	exit(rc);
-}
-
-
-/*
- * Get the command line options
- */
-#define PRINT_SPECIFY_ONCE(x) \
-	fprintf(stderr, "The -%c option should be specified only once\n", x)
-static int get_clo(int argc, char *argv[], CommandLineOptions *clo)
-{
-	int c;
-	int c_arg = 0;
-	int i_arg = 0;
-	int n_arg = 0;
-	int s_arg = 0;
-	int p_arg = 0;
-
-	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
-		switch(c) {
-			case 'h':
-				printusage(0);
-
-			case 'c':
-				if (c_arg) {
-				PRINT_SPECIFY_ONCE('c');
-				return 0;
-				}
-				clo->conf_file = strdup(optarg);
-				break;
-
-			case 'i':
-				if (i_arg) {
-					PRINT_SPECIFY_ONCE('i');
-					return 0;
-				}
-				i_arg = 1;
-				clo->interface = strdup(optarg);
-				break;
-
-			case 'n':
-				if (n_arg) {
-					PRINT_SPECIFY_ONCE('n');
-					return 0;
-				}
-				n_arg = 1;
-				clo->homenet_expr = strdup(optarg);
-				break;
-
-			case 's':
-				if (s_arg) {
-					PRINT_SPECIFY_ONCE('s');
-					return 0;
-				}
-
-				s_arg = 1;
-				clo->server =  strdup(optarg);
-				break;
-
-			case 'p':
-				if (p_arg) {
-					PRINT_SPECIFY_ONCE('p');
-					return 0;
-				}
-				p_arg = 1;
-				clo->portlist_expr = strdup(optarg);
-				break;
-
-			default:
-				return 0;
-		}
-	}
-
-	return 1;
-}
-
 
 /* 
  * Returns the next available ID
@@ -139,7 +49,6 @@ static unsigned int *init_stream(void)
 	*stream_id =  get_new_id();
 	return stream_id;
 }
-
 
 
 /*************Only for Debug purpose**********************/
@@ -227,25 +136,8 @@ void udp_sniff (struct tuple4 *addr, u_char *data, int len, struct ip *pkt)
 
 int main(int argc, char *argv[])
 {
-	CommandLineOptions *clo;
 
-	/* Clear the program variable struct */
-	memset(&pv, '\0', sizeof(pv));
-	pv.prog_name = argv[0];
-
-	clo = calloc(1, sizeof(CommandLineOptions));
-	if(clo == NULL) {
-		perror("malloc");
-		exit(0);
-	}
-
-	if (get_clo(argc, argv, clo) == 0)
-		printusage(1);
-
-	if(parse_options(clo) == 0)
-		printusage(1);
-
-	free(clo);
+	fill_progvars(argc, argv);
 
 	/* disable libnids portscan detection feature */
 	nids_params.scan_num_hosts = 0;
