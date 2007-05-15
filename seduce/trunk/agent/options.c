@@ -336,7 +336,6 @@ void fill_progvars(int argc, char *argv[])
 	pv.addr.sin_family = AF_INET;
 	memset(pv.addr.sin_zero, '\0', 8);
 
-
 	memset(&clo, '\0', sizeof(CLO));
 	clo.timeout = -1;
 	clo.retries = -1;

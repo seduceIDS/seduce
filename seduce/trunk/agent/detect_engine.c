@@ -15,7 +15,7 @@ int execute_work(char *data, size_t len)
 
 	if(times < 10) {
 		fprintf(stderr, "work done\n");
-		return WORK_DONE;
+		return NEED_NEXT;
 	}
 	else {
 		fprintf(stderr,"Thread detected\n");
@@ -23,4 +23,3 @@ int execute_work(char *data, size_t len)
 		return THREAT_DETECTED;
 	}
 }
- 
