@@ -1,21 +1,22 @@
 #ifndef _AGENT_H
 #define _AGENT_H
 
-#define UDP_SIZE	16
+#define MIN_UDP_SIZE	16
+#define MAX_PWD_SIZE	16
 
 /* send */
-#define UDP_NEW_AGENT htonl(1)
-#define UDP_NEW_WORK  htonl(2)
-#define UDP_GET_NEXT  htonl(3)
-#define UDP_QUIT      htonl(4)
+#define SEND_NEW_AGENT 1
+#define SEND_NEW_WORK  2
+#define SEND_GET_NEXT  3
+#define SEND_QUIT      4
 
 /* receive */
-#define UDP_CONNECTED htonl(1)
-#define UDP_NOT_CONN  htonl(2)
-#define UDP_DATA      htonl(3)
-#define UDP_NOT_FOUND htonl(4)
+#define RECV_CONNECTED 1
+#define RECV_NOT_CONN  2
+#define RECV_DATA      3
+#define RECV_NOT_FOUND 4
 
-#include <stdlib.h>
+#include <netinet/in.h> /* for struct in_addr */
 
 
 typedef struct _Work {
@@ -28,20 +29,28 @@ typedef struct _Work {
 
 typedef struct _Packet {
 	unsigned int size;
-	unsigned int sec;
+	unsigned int seq;
 	unsigned int type;
 	unsigned int id;
 	Work *work;
 } Packet;
 
-typedef struct _Session {
-	int fd;
-	struct sockaddr_in *addr;
-	unsigned int sec;
-	unsigned int id;
-} Session;
+typedef struct _ProgVars {
+	char *prog_name;		/* program name */
+	int socket;			/* udp socket */
+	struct sockaddr_in addr;	/* udp connection info */
+	unsigned int seq;		/* sequence number */
+	unsigned int id;		/* agents ID */
+	char *password;			/* Connection password */
+	int timeout;			/* timeout value */
+	int retries;			/* Number of allowed retries */
+	int no_work_wait;		/* Time to wait when there is
+					   no work available */
+} PV;
 
+extern PV pv;
 
+/* definitions */
 void copy_password(char *);
 
 #endif /* _AGENT_H */

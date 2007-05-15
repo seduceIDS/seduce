@@ -6,19 +6,16 @@
 #include <arpa/inet.h>
 #include <sys/uio.h>
 
-
-#include "alert.h"
-#include "config.h"
 #include "agent.h"
 
-/* from agent.c */
-extern Session session;
 
-/* from detect_endine.c */
+/* from detect_engine.c */
 extern char *threat_payload;
 extern size_t threat_length;
 
-static int tcp_connect(struct sockaddr_in *addr)
+#define MIN_TCP_SIZE	20
+
+static int tcp_connect()
 {
 	int sockfd;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -29,7 +26,7 @@ static int tcp_connect(struct sockaddr_in *addr)
 		return 0;
 	}
 
-	if(connect(sockfd, (struct sockaddr *)addr, addrlen) == -1) {
+	if(connect(sockfd, (struct sockaddr *)&pv.addr, addrlen) == -1) {
 		perror("connect");
 		return 0;
 	}
@@ -40,14 +37,14 @@ static int tcp_connect(struct sockaddr_in *addr)
 static int send_alert(int socket, Work *work)
 {
 	char pwd[16];
-	char buf[TCP_SIZE];
+	char buf[MIN_TCP_SIZE];
 	size_t size;
 	ssize_t numbytes;
 	int iovcnt;
 	struct iovec iov[3];
 
 	copy_password(pwd);
-	size = TCP_SIZE + threat_length;
+	size = MIN_TCP_SIZE + threat_length;
 	*(u_int32_t *)(buf +  0) = htonl(size);
 	*(u_int32_t *)(buf +  4) = htonl(work->proto);
 	*(u_int16_t *)(buf +  8) = work->s_port;
@@ -56,9 +53,9 @@ static int send_alert(int socket, Work *work)
 	*(u_int32_t *)(buf + 16) = work->d_addr;
 
 	iov[0].iov_base = pwd;
-	iov[0].iov_len = 16;
+	iov[0].iov_len = MAX_PWD_SIZE;
 	iov[1].iov_base = buf;
-	iov[1].iov_len = TCP_SIZE;
+	iov[1].iov_len = MIN_TCP_SIZE;
 	iov[2].iov_base = threat_payload;
 	iov[2].iov_len = threat_length;
 
@@ -82,22 +79,20 @@ int alert_scheduler(Work *work)
 
 	printf("Connecting to the Scheduler...");
 
-		socket = tcp_connect(session.addr);
+		socket = tcp_connect();
 		if(!socket) {
 			fprintf(stderr, "Connecting to the scheduler failed\n");
 			return 0;
-		}
-	
-	printf("done\n");
+		} else
+			printf("done\n");
 
 	printf("Sending the alert...");
 	if(send_alert(socket,work) == 0) {
 		fprintf(stderr, "Couldn't send the alert\n");
 		close(socket);
 	       return 0;
-	}
-
-	printf("done\n");
+	} else 
+		printf("done\n");
 
 	printf("Terminating the connection\n");
 	close(socket);

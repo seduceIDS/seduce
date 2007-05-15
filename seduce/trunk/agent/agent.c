@@ -5,19 +5,18 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/uio.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+
 
 #include "agent.h"
-#include "config.h"
 #include "detect_engine.h"
-#include "alert.h"
 
 
-Session session;
+extern void fill_progvars(int, char **);
+extern int alert_scheduler(Work *);
+
+/* Globals */
+PV pv;
 
 void sigalrm_handler(int s)
 {
@@ -26,30 +25,32 @@ void sigalrm_handler(int s)
 
 inline void copy_password(char *buf)
 {
-	strncpy(buf, PASSWORD, UDP_SIZE);
+	strncpy(buf, pv.password, MAX_PWD_SIZE);
 }
 
 static int send_msg(int type)
 {
-	char buf[2*UDP_SIZE];
+	char buf[MIN_UDP_SIZE + MAX_PWD_SIZE];
 	socklen_t addr_len;
 	size_t len;
 	ssize_t numbytes;
 
-	if((type == UDP_NEW_AGENT) || (type == UDP_QUIT)) {
-		len = 2*UDP_SIZE;
-		copy_password(buf + UDP_SIZE);
-	} else	len = UDP_SIZE;
+
+
+	if((type == SEND_NEW_AGENT) || (type == SEND_QUIT)) {
+		len = MIN_UDP_SIZE + MAX_PWD_SIZE;
+		copy_password(buf + MIN_UDP_SIZE);
+	} else	len = MIN_UDP_SIZE;
 
 	
 	*(u_int32_t *)(buf +  0) = htonl(len);
-	*(u_int32_t *)(buf +  4) = htonl(session.sec);
-	*(u_int32_t *)(buf +  8) = type;
-	*(u_int32_t *)(buf + 12) = htonl(session.id);
+	*(u_int32_t *)(buf +  4) = htonl(pv.seq);
+	*(u_int32_t *)(buf +  8) = htonl(type);
+	*(u_int32_t *)(buf + 12) = htonl(pv.id);
 
 	addr_len = sizeof(struct sockaddr);
-	numbytes = sendto(session.fd, buf, len, 0,
-			(struct sockaddr *)session.addr, addr_len);
+	numbytes = sendto(pv.socket, buf, len, 0,
+					(struct sockaddr *)&pv.addr, addr_len);
 	if(numbytes == -1) {
 		perror("sendto");
 		return 0;
@@ -61,8 +62,8 @@ static int send_msg(int type)
 
 int recv_packet(Packet *pck)
 {
-	char main_buf[UDP_SIZE];
-	char addr_buf[UDP_SIZE];
+	char main_buf[MIN_UDP_SIZE];
+	char addr_buf[MIN_UDP_SIZE];
 	char *payload = NULL;
 	ssize_t payload_len = 0;
 	unsigned int size;
@@ -73,9 +74,9 @@ int recv_packet(Packet *pck)
 	struct iovec iov[3];
 
 
-	alarm(TIMEOUT_WAIT);
+	alarm(pv.timeout);
 	/* Just "Peek" the first 32 bits... this should be the packet size */
-	numbytes = recvfrom(session.fd, &size, sizeof(u_int32_t),
+	numbytes = recvfrom(pv.socket, &size, sizeof(u_int32_t),
 			MSG_PEEK, (struct sockaddr *)&addr, &addr_len);
 	alarm(0);
 
@@ -91,9 +92,15 @@ int recv_packet(Packet *pck)
 		return 0;
 
 	size = ntohl(size);
-	if((size < UDP_SIZE) || ((size > UDP_SIZE) && (size <= 2*UDP_SIZE))) {
-		/* Size is not sane... I'll just clear the receiv buffer */
-		if(recvfrom(session.fd, main_buf, UDP_SIZE, 0,NULL,0) == -1)
+	if((size < MIN_UDP_SIZE) || 
+	  ((size > MIN_UDP_SIZE) && (size <= 2*MIN_UDP_SIZE))) {
+
+		/* 
+		 * Size is not sane...I'll just clear the receive buffer by
+		 * receiving 1 byte and leaving it to the kernel to remove
+		 * the packet from the buffer
+		 */
+		if(recvfrom(pv.socket, main_buf, 1, 0,NULL,0) == -1)
 			perror("recvfrom");
 		return 0;
 	}
@@ -105,28 +112,28 @@ int recv_packet(Packet *pck)
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
 	/* 
-	 * Don't know about this MSG_TRUNK flag. Stevens  says something,
+	 * Don't know about this MSG_TRUNK flag. Stevens says something,
 	 * linux man page something else....but I'll use it anyway.
 	 */
 	msg.msg_flags = MSG_TRUNC; 
 
 	iov[0].iov_base = main_buf;
-	iov[0].iov_len = UDP_SIZE;
+	iov[0].iov_len = MIN_UDP_SIZE;
 	iov[1].iov_base = addr_buf;
-	iov[1].iov_len = UDP_SIZE;
+	iov[1].iov_len = MIN_UDP_SIZE;
 
-	if(size == UDP_SIZE) /* Simple message packet */
+	if(size == MIN_UDP_SIZE) /* Simple message packet */
 		msg.msg_iovlen = 2;
 	else { /* Packet has addr and payload too */
-		payload_len = size - 2*UDP_SIZE;
+		payload_len = size - 2*MIN_UDP_SIZE;
 		payload = malloc(payload_len + 1);
 		iov[2].iov_base = payload;
 		iov[2].iov_len = payload_len + 1;
 		msg.msg_iovlen = 3;
 	}
 
-	/* Now let's get the packet "for real" */
-	numbytes = recvmsg(session.fd, &msg, 0);
+	/* Now let's get the packet for real this time */
+	numbytes = recvmsg(pv.socket, &msg, 0);
 	if(numbytes == -1) {
 		perror("recvmsg");
 		return 0;
@@ -140,14 +147,14 @@ int recv_packet(Packet *pck)
 		return 0;
 	}
 
-	pck->sec   = ntohl(*(u_int32_t *)(main_buf +  4));
-	pck->type  =       *(u_int32_t *)(main_buf +  8);
+	pck->seq   = ntohl(*(u_int32_t *)(main_buf +  4));
+	pck->type  = ntohl(*(u_int32_t *)(main_buf +  8));
 	pck->id    = ntohl(*(u_int32_t *)(main_buf + 12));
 
 	if(pck->work != NULL)
 		pck->work->payload_len = 0;
 
-	if(size != UDP_SIZE) { /* we have a long packet */
+	if(size != MIN_UDP_SIZE) { /* we have a long packet */
 		if(pck->work == NULL) {
 			free(payload);
 			return 0;
@@ -166,9 +173,9 @@ int recv_packet(Packet *pck)
 
 void quit_handler(int s)
 {
-	session.sec++;
+	pv.seq++;
 	fprintf(stderr,"Sending QUIT Message...\n");
-	send_msg(UDP_QUIT);
+	send_msg(SEND_QUIT);
 	exit(0);
 }
 
@@ -176,7 +183,7 @@ static int request_connection()
 {
 	Packet pck;
 
-	if(send_msg(UDP_NEW_AGENT) == 0) {
+	if(send_msg(SEND_NEW_AGENT) == 0) {
 		fprintf(stderr,"Can't send connection request\n");
 		return -1;
 	}
@@ -188,14 +195,14 @@ static int request_connection()
 	if(recv_packet(&pck) == 0)
 		return -1;
 
-	if(pck.type == UDP_CONNECTED) {
+	if(pck.type == RECV_CONNECTED) {
 		printf("Connected to the Scheduler.\n");
 		printf("My ID is %u\n", pck.id);
 		
 		/*write the new id */
-		session.id = pck.id;
+		pv.id = pck.id;
 		return 1;
-	} else if(pck.type == UDP_NOT_CONN) {
+	} else if(pck.type == RECV_NOT_CONN) {
 		return 0;
 	} else
 		return -1;
@@ -211,21 +218,27 @@ static int request_work(Work *work, int type)
 	}
 
 	pck.work = work;
+
+	/* receive packets until we get receive the right sec */
 	do {
 		if(recv_packet(&pck) == 0)
 			return -1;
 
-	} while(pck.sec != session.sec);
+	} while(pck.seq != pv.seq);
 
-	if(pck.type == UDP_NOT_FOUND)
+	if(pck.type == RECV_NOT_FOUND)
 		return 0;
-	if(pck.type == UDP_DATA)
+
+	else if(pck.type == RECV_DATA)
 		return 1;
-	else
+
+	else {
+		fprintf(stderr, "Unknown packet type\n");
 		return 0;
+	}
 }
 
-static inline int get_work(Work *work, int type)
+static int need_work(Work *work, int type)
 {
 	int i;
 	int ret;
@@ -233,16 +246,19 @@ static inline int get_work(Work *work, int type)
 	printf("get_work\n");
 
 	/* New Work == New sequence number */
-	session.sec++;
+	pv.seq++;
 
-	for(i = 0; i < RETRY_TIMES; i++) {
+	i = 0;
+	do {
 		ret = request_work(work, type);
 		if(ret != -1)
 			return ret;
-		fprintf(stderr,"Retying...\n");
-	}
 
-	/* The communication is bad, I'll quit */
+		i++;
+		fprintf(stderr,"Retying...\n");
+	} while(i <= pv.retries);
+
+	fprintf(stderr, "The communication is bad, quiting..\n");
 	exit(1);
 }
 
@@ -251,24 +267,23 @@ static int scheduler_connect()
 	int i;
 	int ret;
 
-	session.sec++;
+	pv.seq++;
 
-	for(i = 0; i < RETRY_TIMES; i++) {
+	i = 0;
+	do {
 		ret = request_connection();
-		if(ret == 1) {
+		if(ret == 1)
 			return 1;
-		} else if(ret == 0) {
+
+		else if(ret == 0) {
 			printf("Scheduler refused to connect me\n");
-#if 0
-			printf("I'll sleep for 1 minute...\n");
-			sleep(60);
-			connection.sec++;
-#endif
 			return 0;
-		} else {
-			fprintf(stderr,"Retying...\n");
 		}
-	}
+
+		i++;
+		fprintf(stderr,"Retying...\n");
+	} while(i <= pv.retries);
+
 	return 0;
 }
 
@@ -277,22 +292,26 @@ static void main_loop(void)
 {
 	int result;
 	int ret;
+	int new_work_asked = 0;
 	Work work;
 
 	result = WORK_DONE;
 	for(;;) {
 		switch(result) {
 			case WORK_DONE:
-				ret = get_work(&work, UDP_NEW_WORK);
+				ret = need_work(&work, SEND_NEW_WORK);
+				new_work_asked = 1;
 				break;
 
 			case NEED_NEXT:
-				ret = get_work(&work, UDP_GET_NEXT);
+				ret = need_work(&work, SEND_GET_NEXT);
+				new_work_asked = 0;
 				break;
 
 			case THREAT_DETECTED:
 				alert_scheduler(&work);
-				ret = get_work(&work, UDP_NEW_WORK);
+				ret = need_work(&work, SEND_NEW_WORK);
+				new_work_asked = 1;
 				break;
 
 			default:
@@ -303,28 +322,23 @@ static void main_loop(void)
 			result = execute_work(work.payload, work.payload_len);
 		else {
 			result = execute_work(NULL, 0);
-			fprintf(stderr,"No work is available,"
-					"I'll sleep for 5 secs\n");
-			sleep(5);
+
+			if(new_work_asked) {
+				/* 
+				 * If I requested new work (not next work!!)
+				 * and the scheduler hasn't any, I could use
+				 * some sleep :-)
+				 */
+				printf("No work is available, I'll sleep\n");
+				sleep(pv.no_work_wait);
+			}
 		}
 
 	}
 }
 
-static inline void init_session(int socket, struct sockaddr_in *addr)
-{
-	session.fd = socket;
-	session.addr = addr;
-	session.sec = 0;
-	session.id  = 0;
-}
-
 int main(int argc, char *argv[])
 {
-	int sockfd;
-	struct sockaddr_in their_addr;
-	struct hostent *he;
-	unsigned int port;
 	struct sigaction sa;
 
 	sa.sa_handler = sigalrm_handler;
@@ -335,40 +349,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (argc != 3) {
-		fprintf(stderr,"usage: agent IP PORT\n");
-		exit (1);
-	}
+	/* initialize the programe variables */
+	fill_progvars(argc, argv);
 
-	if ((he = gethostbyname(argv[1])) == NULL) {
-		herror("gethostbyname");
-		exit(1);
-	}
-
-	if ((port = atoi(argv[2])) == 0) {
-		fprintf(stderr, "This is not a valid port\n");
-		fprintf(stderr,"usage: agent IP PORT\n");
-		exit (1);
-	}
-
-	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-		perror("socket");
-		exit(1);
-	}
-
-	their_addr.sin_family = AF_INET;
-	their_addr.sin_port = htons(port);
-	their_addr.sin_addr = *((struct in_addr *)he->h_addr);
-	memset(their_addr.sin_zero, '\0', 8);
-
-	/* Now initialize the session */
-	init_session(sockfd, &their_addr);
-
-	/* Check the password */
-	if (strlen(PASSWORD) >= UDP_SIZE) {
-		fprintf(stderr, "Password too long\n");
-		exit(1);
-	}
 
 	/* Try to connect to the sceduler */
 	if(!scheduler_connect()) {
