@@ -8,8 +8,6 @@
 
 #include "thread.h"
 
-#define MAXSENSORS 256
-
 
 struct tuple4 { /* Don't ask about the name, it's from libnids... */
 	u_int16_t s_port,d_port;	/* source and destination port */

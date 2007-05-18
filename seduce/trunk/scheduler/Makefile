@@ -4,9 +4,9 @@ LDFLAGS		=
 LIBS_CFLAGS	= `pkg-config --cflags glib-2.0`
 LIBS		= `pkg-config --libs glib-2.0` \
 		  `libprelude-config --libs` \
-		  -lpthread -lm
+		  -lpthread -lm -lconfuse
 OBJS		= scheduler.o sensor_contact.o data.o hash.o job.o \
-		  alert.o utils.o agent_contact.o thread.c
+		  alert.o utils.o agent_contact.o thread.o options.o
 HEADERS		= data.h sensor_contact.h agent_contact.h hash.h errors.h \
 		  job.h alert.h utils.h thread.h
 .c.o:

@@ -4,6 +4,7 @@
 
 #include <strings.h>
 
+#include "scheduler.h"
 #include "data.h"
 #include "errors.h"
 #include "hash.h"
@@ -53,7 +54,7 @@ int add_sensor (struct in_addr ip,
 	Sensor *new_sensor;
 	unsigned int id;
 
-	if (sensorlist.cnt >= MAXSENSORS)
+	if (sensorlist.cnt >= pv.max_sensors)
 		return 1;
 
 	/* Create a unique id */
