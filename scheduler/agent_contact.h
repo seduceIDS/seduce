@@ -3,14 +3,9 @@
 
 #include <glib.h>
 #include <stdlib.h>
+
+#include "scheduler.h"
 #include "data.h"
-
-typedef struct _AgentsContactData {
-	unsigned short port;
-	int max_conns;
-} AgentsContactData;
-
-void *agents_contact(AgentsContactData *);
 
 
 typedef struct _AgentInfo {
@@ -38,14 +33,13 @@ typedef struct _Agents {
 			   * entries */
 } Agents;
 
-#define PWD_SIZE 16
 typedef struct _UDPPacket {
 	unsigned int size;
 	unsigned int sec;
 	unsigned int type;
 	unsigned int id;
 	struct sockaddr_in addr;
-	char pwd[PWD_SIZE];
+	char pwd[MAX_PWD_SIZE];
 } UDPPacket;
 
 		/* UDP Communication */
@@ -85,7 +79,6 @@ typedef struct _UDPPacket {
 
 #define UDP_PCK_SIZE 16
 #define TCP_PCK_SIZE 20
-#define PASSWORD "password"
 #define MAX_WAIT 5
 
 #endif /*_AGENT_CONTACT_H */

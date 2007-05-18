@@ -83,7 +83,7 @@ static int cleanup_map(Agents *agents)
 /* just check the password and return TRUE if it matches */
 static inline int check_password(char *pwd)
 {
-	return (strncmp(pwd, PASSWORD, PWD_SIZE))?0:1;
+	return (strncmp(pwd, pv.password, MAX_PWD_SIZE))?0:1;
 }
 
 
@@ -680,11 +680,11 @@ static void *tcp_connection(TCPConData *data)
 	struct timeval wait;
 	int ret;
 	fd_set readset;
-	char pwd[PWD_SIZE + 1];
+	char pwd[MAX_PWD_SIZE + 1];
 	char *buf = NULL;
 	int buf_len;
 	ssize_t numbytes;
-	size_t bytesleft = PWD_SIZE;
+	size_t bytesleft = MAX_PWD_SIZE;
 
 	DPRINTF("\n");
 	FD_ZERO(&readset);
@@ -705,7 +705,7 @@ select_again:
 		goto end;
 	}
 
-	numbytes = recv(data->socket, pwd + PWD_SIZE - bytesleft, bytesleft, 0);
+	numbytes = recv(data->socket, pwd + MAX_PWD_SIZE - bytesleft, bytesleft, 0);
 	if (numbytes == -1) {
 		errno_cont("recv");
 		goto end;
@@ -714,7 +714,7 @@ select_again:
 		goto select_again;
 	}
 
-	pwd[PWD_SIZE] = '\0';
+	pwd[MAX_PWD_SIZE] = '\0';
 	if(!check_password(pwd)) {
 		DPRINTF("Wrong Password\n");
 		goto end;
@@ -738,9 +738,9 @@ end:
 /*
  * Initialize an Agents struct
  */
-static void init_agents(Agents *agents, int max_conns)
+static void init_agents(Agents *agents)
 {
-	agents->max = max_conns;
+	agents->max = pv.max_agents;
 	agents->table = calloc(agents->max, sizeof(AgentInfo));
 	if (agents->table == NULL)
 		errno_abort("calloc");
@@ -760,7 +760,7 @@ static void init_agents(Agents *agents, int max_conns)
  *
  * Arguments: data=> Connection parameters
  */
-void *agents_contact(AgentsContactData *data)
+void *agents_contact(void)
 {
 	int newfd,maxfd;
 	fd_set readset, allset;
@@ -770,11 +770,10 @@ void *agents_contact(AgentsContactData *data)
 	Agents agents;
 	TCPConData *t_data;
 
-	init_agents(&agents, data->max_conns);
+	init_agents(&agents);
 
 	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(data->port);
-	free(data);
+	my_addr.sin_port = htons(pv.agent_port);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset(&(my_addr.sin_zero), '\0', 8);
 
