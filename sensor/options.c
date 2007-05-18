@@ -31,7 +31,8 @@ static void printusage(int rc)
 		"  h : Print this help message.\n"
 		"  i : Network interface. E.g. `eth0', `eth1'.\n"
 		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
-		"  s : Server Address in IP:Port format. E.g. `12.0.0.1:3540'.\n"
+		"  s : Server Address in HOST:Port format. "
+		       "E.g. `localhost:3540'.\n"
 		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
 		pv.prog_name);
 	exit(rc);
