@@ -1,6 +1,9 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #ifdef _DEBUG
 	#define DPRINTF(...) do {\
 		fprintf(stderr,"%s:\t",__func__); \
