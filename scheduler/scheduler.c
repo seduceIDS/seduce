@@ -18,6 +18,7 @@
 #include "data.h"
 #include "job.h"
 #include "alert.h"
+#include "oom_handler.h"
 
 extern void fill_progvars(int, char **);
 extern void *agents_contact();
@@ -26,11 +27,14 @@ extern void *agents_contact();
 
 PV pv;
 
+static void start_oom_handler(void)
+{
+	create_thread(oom_handler, NULL);
+}
+
 static void start_alert_thread(void)
 {
-	init_alertlist();
-
-	create_thread (alert_thread, NULL);
+	create_thread(alert_thread, NULL);
 }
 
 static void start_agents_thread(void)
@@ -85,8 +89,11 @@ int main(int argc, char *argv[])
 	/* Initialization functions */
 	init_sensorlist();
 	init_joblist();
+	init_alertlist();
+	init_oom_handler();
 	start_alert_thread();
 	start_agents_thread();
+	start_oom_handler();
 
 	while (1) {
 		addr_len = sizeof(their_addr);
