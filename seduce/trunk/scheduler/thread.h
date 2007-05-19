@@ -1,5 +1,5 @@
-#ifndef _MY_PTHREAD_H
-#define _MY_PTHREAD_H
+#ifndef _THREAD_H
+#define _THREAD_H
 
 #include <pthread.h>
 
@@ -15,4 +15,4 @@ void cond_destroy(pthread_cond_t *cond);
 void cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
 void cond_signal(pthread_cond_t *cond);
 
-#endif /* _MY_PTHREAD_H */
+#endif /* _THREAD_H */
