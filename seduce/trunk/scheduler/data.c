@@ -9,6 +9,7 @@
 #include "errors.h"
 #include "hash.h"
 #include "utils.h"
+#include "oom_handler.h"
 
 
 /* The Sensor List */
@@ -387,6 +388,9 @@ static UDPData *add_udpdata(Session *session, char *data, int length)
  */
 void *add_data(Session *session, char *data, int length)
 {
+	static int cnt = 0;
+	void * ret;
+
 	if (!session)
 		return NULL;
 
@@ -396,12 +400,26 @@ void *add_data(Session *session, char *data, int length)
 
 	switch (session->proto) {
 		case IPPROTO_TCP:
-			return add_tcpdata(session, data, length);
+			ret = add_tcpdata(session, data, length);
+			break;
 		case IPPROTO_UDP:
-			return add_udpdata(session, data, length);
+			ret = add_udpdata(session, data, length);
+			break;
+		default:
+			ret = NULL;
+	}
+
+	if(ret)
+		cnt++;
+	
+	if(cnt >= 10) {
+		cnt = 0;
+		mutex_lock(&oom_mutex);
+		cond_signal(&oom_cond);
+		mutex_unlock(&oom_mutex);
 	}
 	
-	return NULL;
+	return ret;
 }
 
 inline TCPData *get_next_data(TCPData *data)
