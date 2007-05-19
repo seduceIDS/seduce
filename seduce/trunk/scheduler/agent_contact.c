@@ -142,7 +142,7 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 	this_agent = agents->table + index;
 	this_agent->id = id;
 	this_agent->addr = *addr;
-	this_agent->sec = 1;
+	this_agent->seq = 1;
 	this_agent->timestamp = time(NULL);
 
 	return this_agent;
@@ -221,14 +221,14 @@ static int send_msg(AgentInfo *agent, int type)
 	addr_len =  sizeof(struct sockaddr);
 
 	*(u_int32_t *)(buf +  0) = htonl(length);
-	*(u_int32_t *)(buf +  4) = htonl(agent->sec);
+	*(u_int32_t *)(buf +  4) = htonl(agent->seq);
 	*(u_int32_t *)(buf +  8) = htonl(type);
 	*(u_int32_t *)(buf + 12) = htonl(agent->id);
 
 	numbytes = sendto(udp_socket, buf, length, 0,
 			(struct sockaddr *) &agent->addr, addr_len);
 
-	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->sec,ntohl(type),agent->id);
+	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->seq,ntohl(type),agent->id);
 	if (numbytes == -1)
 		errno_cont("sendto");
 	else if (numbytes != length)
@@ -277,7 +277,7 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 	}
 
 	*(u_int32_t *)(buf +  0) = htonl(length);
-	*(u_int32_t *)(buf +  4) = htonl(agent->sec);
+	*(u_int32_t *)(buf +  4) = htonl(agent->seq);
 	*(u_int32_t *)(buf +  8) = htonl(type);
 	*(u_int32_t *)(buf + 12) = htonl(agent->id);
 	*(u_int32_t *)(buf + 16) = htonl(work->session->proto);
@@ -294,7 +294,7 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 		return 0;
 	}
 
-	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->sec,ntohl(type),agent->id);
+	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->seq,ntohl(type),agent->id);
 
 	/* update history */
 	agent->history = *work;
@@ -462,14 +462,14 @@ static int recv_udp_packet(UDPPacket *pck)
 	pck->size = ntohl(*(u_int32_t *) (buf +  0));
 	if(pck->size != numbytes)
 		return -1;
-	pck->sec  = ntohl(*(u_int32_t *) (buf +  4));
+	pck->seq  = ntohl(*(u_int32_t *) (buf +  4));
 	pck->type = ntohl(*(u_int32_t *) (buf +  8));
 	pck->id   = ntohl(*(u_int32_t *) (buf + 12));
 
 	if(numbytes == 2*UDP_PCK_SIZE)
 		strncpy(pck->pwd,buf + UDP_PCK_SIZE, UDP_PCK_SIZE - 1);
 
-	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->sec,
+	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->seq,
 				ntohl(pck->type), pck->id);
 
 	return 1;
@@ -509,7 +509,7 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 	if(memcmp(&this_agent->addr,&pck->addr, sizeof(struct sockaddr)) != 0)
 		return;
 
-	if(pck->sec == this_agent->sec) { 
+	if(pck->seq == this_agent->seq) { 
 		/* Send the last data sent again, if still there... */
 		switch(pck->type) {
 			case UDP_NEW_WORK:
@@ -517,20 +517,20 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 				send_current_work(this_agent);
 		}
 	}
-	else if(pck->sec == (this_agent->sec + 1)) { /* new_request */
+	else if(pck->seq == (this_agent->seq + 1)) { /* new_request */
 
 		switch(pck->type) {
 			case UDP_NEW_WORK:
-				this_agent->sec = pck->sec;
+				this_agent->seq = pck->seq;
 				send_new_work(this_agent);
 				break;
 			case UDP_GET_NEXT:
-				this_agent->sec = pck->sec;
+				this_agent->seq = pck->seq;
 				send_next_work(this_agent);
 				break;
 			case UDP_QUIT:
 				if(check_password(pck->pwd)) {
-					this_agent->sec = pck->sec;
+					this_agent->seq = pck->seq;
 					remove_agent(agents,pck->id);
 				}
 					/* we don't use break. this agent */
