@@ -49,7 +49,9 @@ int execute_job(int (*func)(), void *params)
 	DPRINTF("Session ID: %u\n",job_to_remove->data_info.session->id);
 
 	/* Execute the function on this job */
-	ret = (*func) (params, &job_to_remove->data_info);
+	if(params)
+		ret = (*func) (params, &job_to_remove->data_info);
+	else	ret = (*func) (&job_to_remove->data_info);
 	DPRINTF("Job executed\n");
 
 
