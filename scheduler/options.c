@@ -372,6 +372,10 @@ void fill_progvars(int argc, char *argv[])
 			        "memory hard limit\n");
 		exit(1);
 	}
+
+	/* OK, now convert the limits to MB */
+	pv.mem_hardlimit <<= 20;
+	pv.mem_softlimit <<= 20;
 }
 
 #if 0
