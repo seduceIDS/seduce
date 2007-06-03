@@ -41,7 +41,7 @@ static void printusage(int rc)
 {
 	fprintf(stderr,
 		"Usage: %s [-h] [-a<agent_port>] [-A<max_agents>] "
-		"[-l<mem_softlimit>] [-L<mem_hardlimit>] [-s<agent_port>] "
+		"[-l<mem_softlimit>] [-L<mem_hardlimit>] [-s<sensor_port>] "
 		"[-S<max_sensors>] [-p<password>]\n\n"
 		"  h: Print this message.\n"
 		"  a: Specify the port to listen for agent requests. "

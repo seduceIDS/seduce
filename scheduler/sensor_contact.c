@@ -112,7 +112,6 @@ void *sensor_contact(SensorData *sensor_data)
 		else if (numbytes != STARTING_HDR_SIZE)
 			goto err2;
 
-		/* Revert the collected data to host byte order */
 		size = ntohl(size);
 		type = ntohl(type);
 
@@ -172,7 +171,7 @@ void *sensor_contact(SensorData *sensor_data)
 		/* We got the Packet, now call the proper handler */
 		if (proto_tbl[type].handler(&pck) == 0)
 			goto err2;	
-	} /* loop for ever */
+	}
 
 err1:
 	errno_cont("recvmsg");
@@ -197,6 +196,7 @@ static int sensor_connect(SensorPacket *p)
 	};
 
 	DPRINTF("\n");
+
 	/* trying to add the sensor */
 	mutex_lock(&sensorlist.mutex);
 
