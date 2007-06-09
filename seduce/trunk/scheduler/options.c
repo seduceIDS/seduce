@@ -5,7 +5,7 @@
 #include <ctype.h>
 #include <confuse.h>
 
-#include "scheduler.h"
+#include "manager.h"
 
 typedef struct _CommandLineOptions {
 	char *agent_port;
@@ -21,7 +21,7 @@ typedef struct _CommandLineOptions {
 /* 
  * The next 2 values define the acceptable port range for the agent and sensor
  * servers. The values were not picked randomly. Actually to open a port which 
- * in the range 1-1024 you need root permission and scheduler is not supposed to
+ * in the range 1-1024 you need root permission and manager is not supposed to
  * run with root priveleges. On the other hand at least for the 2.6 version of
  * the linux kernel, the ephemeral port range is 32768-61000, so we picked the
  * inbetween to be the acceptable port range. Feel free to change the bellow
@@ -48,7 +48,7 @@ static void printusage(int rc)
 		"Default value is 28001.\n"
 		"  A: Maximum number of agents allowed. "
 		"Default value is 256.\n"
-		"  c: Confuguration file. E.g. `scheduler.conf'.\n"
+		"  c: Confuguration file. E.g. `manager.conf'.\n"
 		"  l: Memory usage soft limit in Mb. E.g. `400'.\n"
 		"  L: Memory usage hard limit in Mb. E.g. `390'.\n"
 		"  p: Password for the agents.\n"

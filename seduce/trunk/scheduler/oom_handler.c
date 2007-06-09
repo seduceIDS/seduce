@@ -2,7 +2,7 @@
 
 #include "oom_handler.h"
 #include "utils.h"
-#include "scheduler.h"
+#include "manager.h"
 #include "job.h"
 
 pthread_mutex_t oom_mutex;

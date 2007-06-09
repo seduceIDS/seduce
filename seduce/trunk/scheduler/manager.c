@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#include "scheduler.h"
+#include "manager.h"
 #include "thread.h"
 #include "sensor_contact.h"
 #include "errors.h"

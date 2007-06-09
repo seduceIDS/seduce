@@ -1,10 +1,10 @@
 /*
- * Functions for manipulating and accessing the data stored in the scheduler.
+ * Functions for manipulating and accessing the data stored in the manager.
  */
 
 #include <strings.h>
 
-#include "scheduler.h"
+#include "manager.h"
 #include "data.h"
 #include "errors.h"
 #include "hash.h"

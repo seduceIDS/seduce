@@ -6,7 +6,7 @@ LIBS		= `pkg-config --libs glib-2.0` \
 		  `libprelude-config --libs` \
 		  -lpthread -lm -lconfuse
 
-OBJS		= scheduler.o sensor_contact.o data.o hash.o job.o \
+OBJS		= manager.o sensor_contact.o data.o hash.o job.o \
 		  alert.o utils.o agent_contact.o thread.o options.o \
 		  oom_handler.o
 
@@ -15,10 +15,10 @@ HEADERS		= data.h sensor_contact.h agent_contact.h hash.h errors.h \
 .c.o:
 	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $<
 
-all: scheduler
+all: manager
 
-scheduler: $(OBJS) $(HEADERS)
+manager: $(OBJS) $(HEADERS)
 	$(CC) -o $@ $(OBJS) $(LIBS)
 
 clean:
-	rm -f *.o *~ scheduler
+	rm -f *.o *~ manager
