@@ -98,6 +98,7 @@ int add_sensor (struct in_addr ip,
 	return 0;
 }
 
+static void close_all_sessions(Sensor *);
 
 /*
  * Function: close_sensor(Sensor *)
@@ -112,9 +113,6 @@ int add_sensor (struct in_addr ip,
  */
 int close_sensor(Sensor *sensor)
 {
-	/* the body of this function is down there somewhere :-) */
-	static void close_all_sessions(Sensor *);
-
 	close_all_sessions(sensor);
 
 	/* 
@@ -329,7 +327,7 @@ static void close_all_sessions(Sensor *sensor)
 }
 
 
-static TCPData *add_tcpdata(Session *session, char *data, int length)
+static TCPData *add_tcpdata(Session *session, unsigned char *data, int length)
 {
 	TCPData *data_struct;
 
@@ -357,7 +355,7 @@ static TCPData *add_tcpdata(Session *session, char *data, int length)
 }
 
 
-static UDPData *add_udpdata(Session *session, char *data, int length)
+static UDPData *add_udpdata(Session *session, unsigned char *data, int length)
 {
 	UDPData *data_struct;
 
@@ -386,7 +384,7 @@ static UDPData *add_udpdata(Session *session, char *data, int length)
  *
  * Returns: Pointer to newly added data on success, NULL on error
  */
-void *add_data(Session *session, char *data, int length)
+void *add_data(Session *session, unsigned char *data, int length)
 {
 	static int cnt = 0;
 	void * ret;
