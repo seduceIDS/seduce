@@ -406,7 +406,7 @@ void pop_alert(void)
 	free(alert_to_send);
 }
 
-int push_alert(struct tuple4 *addr, int proto, char *data, int length)
+int push_alert(struct tuple4 *addr, int proto, unsigned char *data, int length)
 {
 	AlertNode *new_alert;
 

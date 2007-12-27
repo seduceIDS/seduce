@@ -46,6 +46,8 @@ static unsigned short get_new_client_pos(u_int8_t *map, size_t map_size)
 	return map_size*8;
 }
 
+static void remove_agent(Agents *, unsigned int);
+
 /*
  * Function: cleanup_map(Agents *)
  *
@@ -62,9 +64,6 @@ static int cleanup_map(Agents *agents)
 	int cleared = 0;
 	time_t current_time;
 	AgentInfo *this_agent;
-
-	/* Press PageDown, you'll find the body of this function ;-) */ 
-	static void remove_agent(Agents *, unsigned int);
 
 	current_time = time(NULL);
 
@@ -255,7 +254,7 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 	char *buf;
 	socklen_t addr_len = sizeof(struct sockaddr);
 	size_t length = 2*UDP_PCK_SIZE; /* main_msg + addr */
-	char * payload;
+	unsigned char * payload;
 	size_t payload_length;
 	unsigned int type;
 
@@ -573,10 +572,10 @@ static void udp_request(Agents *agents)
  *
  * Returns: Pointer to a buffer filled with the collected alert data
  */
-static char *recv_alert_data(int socket, unsigned int *data_size)
+static unsigned char *recv_alert_data(int socket, unsigned int *data_size)
 {
 	u_int32_t size;
-	char *alert_data;
+	unsigned char *alert_data;
 	ssize_t numbytes;
 	int flags = 0;
 
@@ -633,11 +632,11 @@ static char *recv_alert_data(int socket, unsigned int *data_size)
  * Arguments: data=> buffer that contains the alert data
  *            data_len=> size of the alert data buffer
  */
-static void process_alert_data(char *data, int data_len)
+static void process_alert_data(unsigned char *data, unsigned int data_len)
 {
 	struct tuple4 connection;
 	int proto;
-	char *payload;
+	unsigned char *payload;
 	int payload_len;
 	unsigned int size;
 
@@ -681,8 +680,8 @@ static void *tcp_connection(TCPConData *data)
 	int ret;
 	fd_set readset;
 	char pwd[MAX_PWD_SIZE + 1];
-	char *buf = NULL;
-	int buf_len;
+	unsigned char *buf = NULL;
+	unsigned int buf_len;
 	ssize_t numbytes;
 	size_t bytesleft = MAX_PWD_SIZE;
 

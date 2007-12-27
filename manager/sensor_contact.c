@@ -19,7 +19,7 @@ extern SensorList sensorlist;
 
 typedef struct {
 	char header[MAX_MAIN_HDR_SIZE]; /* Main Header Buffer		*/
-	char *data;			/* Data Pointer 		*/
+	unsigned char *data;		/* Data Pointer 		*/
 	int data_len;			/* Data Lenght 			*/
 	int socket;			/* Sensor's Socket		*/
 	struct in_addr ip;		/* Sensor's IP Address		*/
@@ -188,7 +188,7 @@ err2:
 static int sensor_connect(SensorPacket *p)
 {
 	int reply;
-	const unsigned char *connreply[] = {
+	const char *connreply[] = {
 			"\x0\x0\x0\x8\x0\x0\x0\x0", /* Connected... */
 			"\x0\x0\x0\x8\x0\x0\x0\x1", /* Too many connections */
 			"\x0\x0\x0\x8\x0\x0\x0\x2", /* Undefined error */

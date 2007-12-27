@@ -99,7 +99,7 @@ Session * find_session (Sensor *, unsigned int stream_id);
 int close_session (Sensor *, unsigned int stream_id);
 
 /* returns a TCPData or UDPData pointer */ 
-void *add_data (Session *, char * payload, int length);
+void *add_data (Session *, unsigned char * payload, int length);
 
 TCPData *get_next_data (TCPData *);
 
