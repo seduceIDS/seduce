@@ -764,7 +764,7 @@ void *agents_contact(void)
 	int newfd,maxfd;
 	fd_set readset, allset;
 	int nready;
-	struct sockaddr_in my_addr, his_addr;;
+	struct sockaddr_in my_addr, his_addr;
 	socklen_t addrlen;
 	Agents agents;
 	TCPConData *t_data;
