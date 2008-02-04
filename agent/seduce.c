@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     if (argc < 2)
     {
         printf("usage %s file\n",argv[0]);
-        _exit(-1);
+        return -1;
     }
 
     fd = open(argv[1],0);
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
         if (addr == NULL)
         {
             printf("malloc failed\n");
-            _exit(-1);
+            return -1;
         }
         memset(addr, 0, blocksize + 1);
 
@@ -180,11 +180,11 @@ int main(int argc, char **argv)
     if (munmap((void *)stack_base, x86_stack_size)==-1)
     {
         perror("munmap");
-        _exit(-1);
+        return -1;
     }
 
     free(buff);
-    _exit(0);
+    return 0;
 }
 
 char *getBlock(char *data, size_t len, int min)
