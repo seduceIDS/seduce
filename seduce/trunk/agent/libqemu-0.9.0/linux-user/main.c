@@ -1513,7 +1513,7 @@ int qemu_exec(void *data, size_t len, unsigned long stack_base, CPUX86State *env
     memset(info, 0, sizeof(struct image_info));
 
     /* Scan interp_prefix dir for replacement files. */
-    init_paths(interp_prefix);
+    //init_paths(interp_prefix);
 
     /* NOTE: we need to init the CPU at this stage to get
        qemu_host_page_size */

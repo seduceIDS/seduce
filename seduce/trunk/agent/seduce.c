@@ -17,6 +17,8 @@
 #include "qemu.h"
 
 char *getBlock(char *, size_t, int);
+void free_struct_entries(void);
+void handler(int signum);
 extern unsigned long x86_stack_size;
 
 sigjmp_buf env;
@@ -25,11 +27,22 @@ void *data = "\xeb\x19\x31\xc0\x31\xdb\x31\xd2\x31\xc9\xb0\x04\xb3\x01\x59\xb2"
 			 "\x05\xcd\x80\x31\xc0\xb0\x01\x31\xdb\xcd\x80\xe8\xe2\xff\xff\xff"
 			 "\x68\x65\x6c\x6c\x6f\x00";
 
-void handler(int signum);
 void handler(int signum)
 {
     printf("To epiasa!!\n"); 
+    free_struct_entries();
     siglongjmp(env, 100);
+}
+
+void free_struct_entries(void)
+{
+    int c;
+    for (c = 1; c < 24; c++)
+    {
+        free(struct_entries[c].field_offsets[0]);
+        free(struct_entries[c].field_offsets[1]);
+    }
+    memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
 int main(int argc, char **argv)
@@ -128,6 +141,7 @@ int main(int argc, char **argv)
             fflush(stdout);
             //printf("size=%d\n",strlen(addr+i));
             ret = qemu_exec(addr + i, strlen(addr + i), stack_base, cpu);
+            free_struct_entries();
             switch(ret) 
             {
                 case SYSTEM_CALL:
