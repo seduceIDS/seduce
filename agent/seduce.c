@@ -31,9 +31,7 @@ void *data = "\xeb\x19\x31\xc0\x31\xdb\x31\xd2\x31\xc9\xb0\x04\xb3\x01\x59\xb2"
 
 void handler(int signum)
 {
-    printf("To epiasa!!\n"); 
     tb_lock = SPIN_LOCK_UNLOCKED;
-    free_struct_entries();
     siglongjmp(env, 100);
 }
 
@@ -50,16 +48,14 @@ void free_struct_entries(void)
 
 int main(int argc, char **argv)
 {
-	int ret, i, l = 0, fd;
+    int ret, i, l = 0, fd;
     char *block;
     void *addr;
     void *buff;
     struct stat st;
     unsigned long fsize = 0;
     struct itimerval value;
-    struct itimerval ovalue;
-    struct timeval time_interval;
-    struct timeval time_value;
+    struct itimerval zvalue;
     struct sigaction new_action;
     int blocksize;
     unsigned long stack_base;
@@ -71,21 +67,17 @@ int main(int argc, char **argv)
 
     sigaction (SIGVTALRM, &new_action, NULL);
 
-    time_interval.tv_sec = 0;
-    time_interval.tv_usec = 500000;
+    value.it_interval.tv_usec = value.it_value.tv_usec = 1000;
+    value.it_interval.tv_sec = value.it_value.tv_sec = 0;
 
-    time_value.tv_sec = 0;
-    time_value.tv_usec = 500000;
-
-    value.it_interval = time_interval;
-    value.it_value = time_value;
-
-    ovalue.it_interval = time_interval;
-    ovalue.it_value = time_value;
+    zvalue.it_interval.tv_sec = 
+    	zvalue.it_interval.tv_usec = 
+	zvalue.it_value.tv_sec = 
+	zvalue.it_value.tv_usec = 0;
 
     if (argc < 2)
     {
-        printf("usage %s file\n",argv[0]);
+        fprintf(stderr,"usage %s file\n",argv[0]);
         return -1;
     }
 
@@ -101,11 +93,11 @@ int main(int argc, char **argv)
     while ((block = getBlock(buff, fsize + 1, 30)) != NULL)
     {
         l++;
-        printf("%d address %x size %d\n",l,block,strlen(block));
+        fprintf(stderr,"%d address %x size %d\n",l,block,strlen(block));
     }
     return 0;
 */
-    setitimer(ITIMER_VIRTUAL, &value, &ovalue);
+    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
     l = 0;
     cpu = malloc(sizeof(CPUX86State));
     stack_base = setup_stack();
@@ -124,71 +116,75 @@ int main(int argc, char **argv)
         */
         l++;
         blocksize = strlen(block);
-        addr = malloc(blocksize + 1);
+        addr = calloc(1, blocksize + 1);
         if (addr == NULL)
         {
-            printf("malloc failed\n");
+            fprintf(stderr,"malloc failed\n");
             return -1;
         }
-        memset(addr, 0, blocksize + 1);
 
         for (i = 0; i < blocksize; i++)
         {
-            if (sigsetjmp(env,1) == 100)
-            {
-                printf("return from signal so continue\n");
-                continue;
-            }
             memcpy(addr, block, blocksize);
-            printf("block %d - byte %.2d - ", l, i);
-            fflush(stdout);
+            fprintf(stderr, "block %d - byte %.2d - ", l, i);
             //printf("size=%d\n",strlen(addr+i));
+	    if (sigsetjmp(env,1) == 100)
+            {
+                fprintf(stderr, "Endless Loop detected!\n");
+		setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
+                goto prepare_next_iter;
+            }
+
+    	    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
             ret = qemu_exec(addr + i, strlen(addr + i), stack_base, cpu);
-            free_struct_entries();
+	    setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
+
             switch(ret) 
             {
                 case SYSTEM_CALL:
-                    printf("syscall   - %d\n",cpu->regs[R_EAX]);
+                    fprintf(stderr,"syscall   - %d\n",cpu->regs[R_EAX]);
                     break;
                 case EXCEPTION_INTERRUPT:
-                    printf("exception - INTERRUPT\n");
+                    fprintf(stderr,"exception - INTERRUPT\n");
                     break;
                 case EXCEPTION_NOSEG:
-                    printf("exception - NOSEG\n");
+                    fprintf(stderr,"exception - NOSEG\n");
                     break;
                 case EXCEPTION_STACK:
-                    printf("exception - Stack Fault\n");
+                    fprintf(stderr,"exception - Stack Fault\n");
                     break;
                 case EXCEPTION_GPF:
-                    printf("exception - General Protection Fault\n");
+                    fprintf(stderr,"exception - General Protection Fault\n");
                     break;
                 case EXCEPTION_PAGE:
-                    printf("exception - Page Fault\n");
+                    fprintf(stderr,"exception - Page Fault\n");
                     break;
                 case EXCEPTION_DIVZ:
-                    printf("exception - Division by Zero\n");
+                    fprintf(stderr,"exception - Division by Zero\n");
                     break;
                 case EXCEPTION_SSTP:
-                    printf("exception - SSTP\n");
+                    fprintf(stderr,"exception - SSTP\n");
                     break;
                 case EXCEPTION_INT3:
-                    printf("exception - INT3\n");
+                    fprintf(stderr,"exception - INT3\n");
                     break;
                 case EXCEPTION_INTO:
-                    printf("exception - INTO\n");
+                    fprintf(stderr,"exception - INTO\n");
                     break;
                 case EXCEPTION_BOUND:
-                    printf("exception - BOUND\n");
+                    fprintf(stderr,"exception - BOUND\n");
                     break;
                 case EXCEPTION_ILLOP:
-                    printf("exception - Illegal Operation\n");
+                    fprintf(stderr,"exception - Illegal Operation\n");
                     break;
                 case EXCEPTION_DEBUG:
-                    printf("exception - DEBUG\n");
+                    fprintf(stderr,"exception - DEBUG\n");
                     break;
                 default:
-                    printf("unknown exception\n");
+                    fprintf(stderr,"unknown exception\n");
             }
+prepare_next_iter:
+	    free_struct_entries();
         }
         free(addr);
     }
