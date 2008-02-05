@@ -15,11 +15,13 @@
 #include <sys/mman.h>
 
 #include "qemu.h"
+#include "exec-all.h"
 
 char *getBlock(char *, size_t, int);
 void free_struct_entries(void);
 void handler(int signum);
 extern unsigned long x86_stack_size;
+extern spinlock_t tb_lock;
 
 sigjmp_buf env;
 
@@ -30,6 +32,7 @@ void *data = "\xeb\x19\x31\xc0\x31\xdb\x31\xd2\x31\xc9\xb0\x04\xb3\x01\x59\xb2"
 void handler(int signum)
 {
     printf("To epiasa!!\n"); 
+    tb_lock = SPIN_LOCK_UNLOCKED;
     free_struct_entries();
     siglongjmp(env, 100);
 }
