@@ -97,7 +97,6 @@ int main(int argc, char **argv)
     }
     return 0;
 */
-    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
     l = 0;
     cpu = malloc(sizeof(CPUX86State));
     stack_base = setup_stack();
