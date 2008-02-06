@@ -1893,17 +1893,12 @@ void syscall_init(void)
     IOCTLEntry *ie;
     const argtype *arg_type;
     int size;
-    static int inited = 0;
 
-if (!inited)
-{
-    inited = 1;
 #define STRUCT(name, list...) thunk_register_struct(STRUCT_ ## name, #name, struct_ ## name ## _def); 
 #define STRUCT_SPECIAL(name) thunk_register_struct_direct(STRUCT_ ## name, #name, &struct_ ## name ## _def); 
 #include "syscall_types.h"
 #undef STRUCT
 #undef STRUCT_SPECIAL
-}
 
     /* we patch the ioctl size if necessary. We rely on the fact that
        no ioctl has all the bits at '1' in the size field */

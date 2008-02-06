@@ -131,7 +131,7 @@ int main(int argc, char **argv)
             {
                 fprintf(stderr, "Endless Loop detected!\n");
 		setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
-                continue;
+                goto prepare_next_iter;
             }
 
     	    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
@@ -182,11 +182,12 @@ int main(int argc, char **argv)
                 default:
                     fprintf(stderr,"unknown exception\n");
             }
+prepare_next_iter:
+	    free_struct_entries();
         }
         free(addr);
     }
     free(cpu);
-    free_struct_entries();
 
     if (munmap((void *)stack_base - x86_stack_size, x86_stack_size) == -1)
     {
