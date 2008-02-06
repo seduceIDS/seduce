@@ -25,10 +25,6 @@ extern spinlock_t tb_lock;
 
 sigjmp_buf env;
 
-void *data = "\xeb\x19\x31\xc0\x31\xdb\x31\xd2\x31\xc9\xb0\x04\xb3\x01\x59\xb2"
-			 "\x05\xcd\x80\x31\xc0\xb0\x01\x31\xdb\xcd\x80\xe8\xe2\xff\xff\xff"
-			 "\x68\x65\x6c\x6c\x6f\x00";
-
 void handler(int signum)
 {
     tb_lock = SPIN_LOCK_UNLOCKED;
@@ -71,7 +67,7 @@ int main(int argc, char **argv)
     value.it_interval.tv_sec = value.it_value.tv_sec = 0;
 
     zvalue.it_interval.tv_sec = 
-    	zvalue.it_interval.tv_usec = 
+    zvalue.it_interval.tv_usec = 
 	zvalue.it_value.tv_sec = 
 	zvalue.it_value.tv_usec = 0;
 
@@ -88,37 +84,18 @@ int main(int argc, char **argv)
     memset(buff, 0, fsize + 1);
     read(fd, buff, fsize);
     close(fd);
-/*
-    l = 0;
-    while ((block = getBlock(buff, fsize + 1, 30)) != NULL)
-    {
-        l++;
-        fprintf(stderr,"%d address %x size %d\n",l,block,strlen(block));
-    }
-    return 0;
-*/
+
     l = 0;
     cpu = malloc(sizeof(CPUX86State));
     stack_base = setup_stack();
     while ((block = getBlock(buff, fsize + 1, 5)) != NULL)
     {
-        /*
-        if (l == 14)
-        {
-            FILE *fp;
-            fp = fopen("data1","w");
-            fwrite(block,strlen(block),1,fp);
-            fclose(fp);
-        }
-        else if (l > 14)
-            return;
-        */
         l++;
         blocksize = strlen(block);
         addr = calloc(1, blocksize + 1);
         if (addr == NULL)
         {
-            fprintf(stderr,"malloc failed\n");
+            fprintf(stderr,"calloc failed\n");
             return -1;
         }
 
@@ -126,17 +103,16 @@ int main(int argc, char **argv)
         {
             memcpy(addr, block, blocksize);
             fprintf(stderr, "block %d - byte %.2d - ", l, i);
-            //printf("size=%d\n",strlen(addr+i));
-	    if (sigsetjmp(env,1) == 100)
+            if (sigsetjmp(env,1) == 100)
             {
                 fprintf(stderr, "Endless Loop detected!\n");
-		setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
+                setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
             }
 
     	    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
             ret = qemu_exec(addr + i, strlen(addr + i), stack_base, cpu);
-	    setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
+            setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
 
             switch(ret) 
             {
