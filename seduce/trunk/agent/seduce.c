@@ -189,7 +189,7 @@ prepare_next_iter:
     }
     free(cpu);
 
-    if (munmap((void *)stack_base, x86_stack_size)==-1)
+    if (munmap((void *)stack_base - x86_stack_size, x86_stack_size) == -1)
     {
         perror("munmap");
         return -1;
