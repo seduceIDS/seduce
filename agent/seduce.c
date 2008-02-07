@@ -44,7 +44,7 @@ void free_struct_entries(void)
 
 int main(int argc, char **argv)
 {
-    int ret, i, l = 0, fd;
+    int ret, i, l = 0, fd, threat_detected = 0;
     char *block;
     void *addr;
     void *buff;
@@ -90,6 +90,7 @@ int main(int argc, char **argv)
     stack_base = setup_stack();
     while ((block = getBlock(buff, fsize + 1, 5)) != NULL)
     {
+        threat_detected = 0;
         l++;
         blocksize = strlen(block);
         addr = calloc(1, blocksize + 1);
@@ -116,8 +117,12 @@ int main(int argc, char **argv)
 
             switch(ret) 
             {
-                case SYSTEM_CALL:
-                    fprintf(stderr,"syscall   - %d\n",cpu->regs[R_EAX]);
+                case SYSTEM_CALL_EXIT:
+                    fprintf(stderr,"Syscall exit\n");
+                    break;
+                case HIGH_RISK_SYSCALL:
+                    fprintf(stderr,"High Risk Syscall - %d\n",cpu->regs[R_EAX]);
+                    threat_detected = 1;
                     break;
                 case EXCEPTION_INTERRUPT:
                     fprintf(stderr,"exception - INTERRUPT\n");
@@ -159,7 +164,8 @@ int main(int argc, char **argv)
                     fprintf(stderr,"unknown exception\n");
             }
 prepare_next_iter:
-	    free_struct_entries();
+            free_struct_entries();
+            if (threat_detected) break;
         }
         free(addr);
     }

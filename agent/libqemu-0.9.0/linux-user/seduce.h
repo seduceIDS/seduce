@@ -1,5 +1,5 @@
 
-#define SYSTEM_CALL         1000
+#define SYSTEM_CALL_EXIT    1000
 #define EXCEPTION_INTERRUPT 1001
 #define EXCEPTION_NOSEG     1002
 #define EXCEPTION_STACK     1003
@@ -13,6 +13,7 @@
 #define EXCEPTION_ILLOP     1011
 #define EXCEPTION_DEBUG     1012
 #define UNKNOWN_EXCEPTION   1013
+#define HIGH_RISK_SYSCALL   1014
 
 int qemu_exec(void *data, size_t len, unsigned long stack_base, CPUX86State *env);
 unsigned long setup_stack(void);
