@@ -180,11 +180,18 @@ int cpu_loop(CPUX86State *env)
         switch(trapnr) {
         case 0x80:
             /* linux syscall */
-            //return env->regs[R_EAX];
-            return SYSTEM_CALL;
-            break;
-            //ret = check_syscall_risk(env->regs[R_EAX]);
+            switch (env->regs[R_EAX]) {
+            case TARGET_NR_exit:
+                return SYSTEM_CALL_EXIT;
+            case TARGET_NR_execve:
+            case TARGET_NR_setuid:
+                return HIGH_RISK_SYSCALL;
+            default:
+//              fprintf(stderr,"syscall   - %d\n",env->regs[R_EAX]);
+                env->regs[R_EAX] = 0;
+            }
             //process_pending_signals(env);
+            break;
         case EXCP_INTERRUPT:
             //process_pending_signals(env);
             return EXCEPTION_INTERRUPT;
