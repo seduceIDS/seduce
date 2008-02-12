@@ -182,7 +182,7 @@ int cpu_loop(CPUX86State *env)
             /* linux syscall */
             switch (env->regs[R_EAX]) {
             case TARGET_NR_exit:
-                return SYSTEM_CALL_EXIT;
+                return EXIT_SYSCALL;
             case TARGET_NR_execve:
             case TARGET_NR_setuid:
                 return HIGH_RISK_SYSCALL;
