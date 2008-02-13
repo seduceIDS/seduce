@@ -277,7 +277,8 @@ void signal_init(void)
     act.sa_flags = SA_SIGINFO;
     act.sa_sigaction = host_signal_handler;
     for(i = 1; i < NSIG; i++) {
-        if (i == SIGVTALRM) continue;
+        if (i == SIGVTALRM || i == SIGALRM ||
+            i == SIGTERM   || i == SIGINT) continue;
         sigaction(i, &act, NULL);
     }
     
