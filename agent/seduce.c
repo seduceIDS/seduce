@@ -1,207 +1,80 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <sys/types.h>
-#include <assert.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/time.h>
-#include <signal.h>
-#include <setjmp.h>
-#include <sys/mman.h>
 
-#include "qemu.h"
-#include "exec-all.h"
+#include "detect_engine.h"
 
-char *getBlock(char *, size_t, int);
-void free_struct_entries(void);
-void handler(int signum);
-extern unsigned long x86_stack_size;
-extern spinlock_t tb_lock;
+/* from detect_engine.c */
+extern char *threat_payload;
+extern size_t threat_length;
 
-sigjmp_buf env;
-
-void handler(int signum)
+void *load_file(const char *filename, unsigned long *fsize)
 {
-    tb_lock = SPIN_LOCK_UNLOCKED;
-    siglongjmp(env, 100);
-}
+    int fd;
+    void *buff;
+    struct stat st;
 
-void free_struct_entries(void)
-{
-    int c;
-    for (c = 1; c < 24; c++)
-    {
-        free(struct_entries[c].field_offsets[0]);
-        free(struct_entries[c].field_offsets[1]);
+    if ((fd = open(filename, 0)) == -1) {
+        perror("open");
+        exit(-1);
     }
-    memset(struct_entries, 0, sizeof(StructEntry) * 128);
+    if (fstat(fd, &st) == -1) {
+        perror("fstat");
+        exit(-1);
+    }
+    *fsize = st.st_size;
+    buff = calloc(1, *fsize + 1);
+    if (buff == NULL) {
+        fprintf(stderr,"calloc failed\n");
+        exit(-1);
+    }
+    if (read(fd, buff, *fsize) == -1) {
+        perror("read");
+        exit(-1);
+    }
+    close(fd);
+    return buff;
 }
 
 int main(int argc, char **argv)
 {
-    int ret, i, l = 0, fd, threat_detected = 0;
-    char *block;
-    void *addr;
     void *buff;
-    struct stat st;
-    unsigned long fsize = 0;
-    struct itimerval value;
-    struct itimerval zvalue;
-    struct sigaction new_action;
-    int blocksize;
-    unsigned long stack_base;
-    CPUX86State *cpu;
+    unsigned long fsize;
+    struct sigaction sa;
+    int ret;
+    QemuVars qv;
 
-    new_action.sa_handler = handler;
-    sigemptyset (&new_action.sa_mask);
-    new_action.sa_flags = 0;
-
-    sigaction (SIGVTALRM, &new_action, NULL);
-
-    value.it_interval.tv_usec = value.it_value.tv_usec = 1000;
-    value.it_interval.tv_sec = value.it_value.tv_sec = 0;
-
-    zvalue.it_interval.tv_sec = 
-    zvalue.it_interval.tv_usec = 
-	zvalue.it_value.tv_sec = 
-	zvalue.it_value.tv_usec = 0;
-
-    if (argc < 2)
-    {
-        fprintf(stderr,"usage %s file\n",argv[0]);
+    if (argc < 2) {
+        fprintf(stderr,"usage %s file\n", argv[0]);
         return -1;
     }
 
-    fd = open(argv[1],0);
-    fstat(fd,&st);
-    fsize = st.st_size;
-    buff = malloc(fsize + 1);
-    memset(buff, 0, fsize + 1);
-    read(fd, buff, fsize);
-    close(fd);
+    sa.sa_handler = sigvtalrm_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+		perror("sigaction");
+		exit(-1);
+	}
 
-    l = 0;
-    cpu = malloc(sizeof(CPUX86State));
-    stack_base = setup_stack();
-    while ((block = getBlock(buff, fsize + 1, 5)) != NULL)
-    {
-        threat_detected = 0;
-        l++;
-        blocksize = strlen(block);
-        addr = calloc(1, blocksize + 1);
-        if (addr == NULL)
-        {
-            fprintf(stderr,"calloc failed\n");
-            return -1;
-        }
+    buff = load_file(argv[1], &fsize);
 
-        for (i = 0; i < blocksize; i++)
-        {
-            memcpy(addr, block, blocksize);
-            fprintf(stderr, "block %d - byte %.2d - ", l, i);
-            if (sigsetjmp(env,1) == 100)
-            {
-                fprintf(stderr, "Endless Loop detected!\n");
-                setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
-                goto prepare_next_iter;
-            }
-
-    	    setitimer(ITIMER_VIRTUAL, &value, (struct itimerval*) NULL);
-            ret = qemu_exec(addr + i, strlen(addr + i), stack_base, cpu);
-            setitimer(ITIMER_VIRTUAL, &zvalue, (struct itimerval*) NULL);
-
-            switch(ret) 
-            {
-                case SYSTEM_CALL_EXIT:
-                    fprintf(stderr,"Syscall exit\n");
-                    break;
-                case HIGH_RISK_SYSCALL:
-                    fprintf(stderr,"High Risk Syscall - %d\n",cpu->regs[R_EAX]);
-                    threat_detected = 1;
-                    break;
-                case EXCEPTION_INTERRUPT:
-                    fprintf(stderr,"exception - INTERRUPT\n");
-                    break;
-                case EXCEPTION_NOSEG:
-                    fprintf(stderr,"exception - NOSEG\n");
-                    break;
-                case EXCEPTION_STACK:
-                    fprintf(stderr,"exception - Stack Fault\n");
-                    break;
-                case EXCEPTION_GPF:
-                    fprintf(stderr,"exception - General Protection Fault\n");
-                    break;
-                case EXCEPTION_PAGE:
-                    fprintf(stderr,"exception - Page Fault\n");
-                    break;
-                case EXCEPTION_DIVZ:
-                    fprintf(stderr,"exception - Division by Zero\n");
-                    break;
-                case EXCEPTION_SSTP:
-                    fprintf(stderr,"exception - SSTP\n");
-                    break;
-                case EXCEPTION_INT3:
-                    fprintf(stderr,"exception - INT3\n");
-                    break;
-                case EXCEPTION_INTO:
-                    fprintf(stderr,"exception - INTO\n");
-                    break;
-                case EXCEPTION_BOUND:
-                    fprintf(stderr,"exception - BOUND\n");
-                    break;
-                case EXCEPTION_ILLOP:
-                    fprintf(stderr,"exception - Illegal Operation\n");
-                    break;
-                case EXCEPTION_DEBUG:
-                    fprintf(stderr,"exception - DEBUG\n");
-                    break;
-                default:
-                    fprintf(stderr,"unknown exception\n");
-            }
-prepare_next_iter:
-            free_struct_entries();
-            if (threat_detected) break;
-        }
-        free(addr);
-    }
-    free(cpu);
-
-    if (munmap((void *)stack_base - x86_stack_size, x86_stack_size) == -1)
-    {
-        perror("munmap");
-        return -1;
-    }
-
+    detect_engine_init(&qv);
+    ret = execute_work(buff, fsize + 1, &qv);
+    detect_engine_stop(&qv);
     free(buff);
-    return 0;
-}
 
-char *getBlock(char *data, size_t len, int min)
-{
-    assert(data[len - 1] == '\0');
-
-    static char *p = NULL;
-    if (p == NULL) p = data;
-    char *last;
+    if (ret == THREAT_DETECTED) {
+        printf("Threat detected - %s\n", threat_payload);
+        free(threat_payload);
+    } else if (ret == NEED_NEXT) 
+        printf("No threat detected\n");
+    else
+        printf("Unknown return code\n");
     
-    for (last = p; p < data + len; p++)
-    {
-        if (!*p)
-        {
-            if (p - last < min)
-                last = p + 1;
-            else
-            {
-                p++;
-                return last;
-            }
-        }
-    }
-    return NULL;
+    return 0;
 }
 
