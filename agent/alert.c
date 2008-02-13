@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/uio.h>
+#include <stdlib.h>
 
 #include "agent.h"
 
@@ -62,6 +63,7 @@ static int send_alert(int socket, Work *work)
 	iovcnt = 3;
 
 	numbytes = writev(socket,iov,iovcnt);
+    free(threat_payload);
 	if (numbytes == -1) {
 		perror("writev");
 		return 0;
