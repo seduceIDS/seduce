@@ -16,6 +16,7 @@ extern int alert_scheduler(Work *);
 
 /* Globals */
 PV pv;
+QemuVars qv;
 
 void sigalrm_handler(int s)
 {
@@ -172,6 +173,7 @@ int recv_packet(Packet *pck)
 
 void quit_handler(int s)
 {
+    detect_engine_stop(&qv);
 	pv.seq++;
 	printf("Sending QUIT Message...\n");
 	send_msg(SEND_QUIT);
@@ -301,6 +303,7 @@ static void main_loop(void)
 	int new_work_asked = 0;
 	Work work;
 
+    detect_engine_init(&qv);
 	result = WORK_DONE;
 	for(;;) {
 		switch(result) {
@@ -325,9 +328,9 @@ static void main_loop(void)
 				break;
 		}
 		if(ret)
-			result = execute_work(work.payload, work.payload_len);
+			result = execute_work(work.payload, work.payload_len, &qv);
 		else {
-			result = execute_work(NULL, 0);
+			result = execute_work(NULL, 0, &qv);
 
 			if(new_work_asked) {
 				/* 
@@ -340,7 +343,6 @@ static void main_loop(void)
 				sleep(pv.no_work_wait);
 			}
 		}
-
 	}
 }
 
@@ -352,7 +354,14 @@ int main(int argc, char *argv[])
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) {
-		perror("sigaction");
+		perror("sigaction sigalrm");
+		exit(1);
+	}
+    sa.sa_handler = sigvtalrm_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+		perror("sigaction sigvtalrm");
 		exit(1);
 	}
 
