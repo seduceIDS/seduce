@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <assert.h>
 
 #include "qemu.h"
 #include "exec-all.h"
@@ -34,7 +33,7 @@ void cleanup(void)
 
 char *getBlock(char *data, size_t len, int min, int reset)
 {
-    assert(data[len - 1] == '\0');
+    data[len - 1] = 0;
 
     static char *p = NULL;
     if (reset) p = data;
