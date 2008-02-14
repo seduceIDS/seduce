@@ -63,7 +63,7 @@ static void start_sensor_thread(int socket, struct in_addr ip,
 
 int main(int argc, char *argv[])
 {
-	int sockfd, connfd;
+	int sockfd, connfd, one;
 	struct sockaddr_in my_addr;
 	struct sockaddr_in their_addr;
 	socklen_t addr_len;
@@ -78,6 +78,8 @@ int main(int argc, char *argv[])
 	my_addr.sin_port = htons(pv.sensor_port);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset( &(my_addr.sin_zero), '\0', 8);
+
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
 
 	if(bind(sockfd, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
 		errno_abort("bind");
