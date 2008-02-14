@@ -268,9 +268,11 @@ static int parse_file(char *filename)
 		CFG_SIMPLE_BOOL("promisc", &nids_params.promisc),
 		CFG_SIMPLE_BOOL("one_loop_less", &nids_params.one_loop_less),
 		CFG_SIMPLE_INT("pcap_timeout", &nids_params.pcap_timeout),
+#if (NIDS_MINOR > 20)
 		CFG_SIMPLE_BOOL("multiproc", &nids_params.multiproc),
 		CFG_SIMPLE_INT("queue_limit", &nids_params.queue_limit),
 		CFG_SIMPLE_BOOL("tcp_workarounds", &nids_params.tcp_workarounds),
+#endif
 		CFG_END()
 	};
 	cfg_t *cfg;
