@@ -196,6 +196,8 @@ static void remove_agent(Agents *agents, unsigned int id)
 	mask = ~(1 << (*index % 8));
 	i = *index / 8;
 	agents->map[i] = agents->map[i] & mask;
+
+	hash_agent_remove(agents->hash, id);
 }
 
 /*
