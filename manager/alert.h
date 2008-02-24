@@ -19,6 +19,6 @@ typedef struct _AlertList {
 
 void init_alertlist(void);
 int push_alert(struct tuple4 *, int, unsigned char *, int);
-void pop_alert(void);
+void pop_alert(void (*func)(AlertNode *));
 void *alert_thread(void *);
 #endif /* _ALERT_H */

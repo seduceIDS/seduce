@@ -382,7 +382,7 @@ void init_alertlist(void)
 	init_prelude();
 }
 
-void pop_alert(void)
+void pop_alert(void (*func)(AlertNode *))
 {
 	AlertNode *alert_to_send;
 
@@ -400,8 +400,8 @@ void pop_alert(void)
 
 	mutex_unlock (&alertlist.mutex);
 
-	/* Sending the alert */
-	send_alert(alert_to_send);
+	/* Execute the function on the alert data*/
+	(*func)(alert_to_send);
 
 	free(alert_to_send);
 }
@@ -453,7 +453,7 @@ int push_alert(struct tuple4 *addr, int proto, unsigned char *data, int length)
 void *alert_thread(void *params)
 {
 	for(;;)
-		pop_alert();
+		pop_alert(send_alert);
 }
 
 #if 0
