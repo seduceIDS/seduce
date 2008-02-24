@@ -45,7 +45,7 @@ static void printusage(int rc)
 		"[-S<max_sensors>] [-p<password>]\n\n"
 		"  h: Print this message.\n"
 		"  a: Specify the port to listen for agent requests. "
-		"Default value is 28001.\n"
+		"Default value is 28002.\n"
 		"  A: Maximum number of agents allowed. "
 		"Default value is 256.\n"
 		"  c: Confuguration file. E.g. `manager.conf'.\n"
@@ -53,7 +53,7 @@ static void printusage(int rc)
 		"  L: Memory usage hard limit in Mb. E.g. `390'.\n"
 		"  p: Password for the agents.\n"
 		"  s: Specify the port to listen for sensor connections. "
-		"Default value is 28002.\n"
+		"Default value is 28001.\n"
 		"  S: Maximum number of sensor connections allowed. "
 		"The Default value is 8.\n\n",
 		pv.prog_name);
