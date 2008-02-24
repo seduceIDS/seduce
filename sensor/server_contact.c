@@ -121,16 +121,16 @@ int server_connect(in_addr_t addr,unsigned short port)
 	}
 
 	switch (reply) {
-		case 0:
-			return 1;
+	case 0:
+		return 1;
 		
-		case 1: 
-			fprintf(stderr, "Too many connection\n");
-			return 0;
+	case 1: 
+		fprintf(stderr, "Too many connection\n");
+		return 0;
 
-		default:
-			fprintf(stderr, "Undefined Error\n");
-			return 0;
+	default:
+		fprintf(stderr, "Undefined Error\n");
+		return 0;
 	}
 }
 

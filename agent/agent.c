@@ -307,26 +307,27 @@ static void main_loop(void)
 	result = WORK_DONE;
 	for(;;) {
 		switch(result) {
-			case WORK_DONE:
-				ret = need_work(&work, SEND_NEW_WORK);
-				new_work_asked = 1;
-				break;
+		case WORK_DONE:
+			ret = need_work(&work, SEND_NEW_WORK);
+			new_work_asked = 1;
+			break;
 
-			case NEED_NEXT:
-				ret = need_work(&work, SEND_GET_NEXT);
-				new_work_asked = 0;
-				break;
+		case NEED_NEXT:
+			ret = need_work(&work, SEND_GET_NEXT);
+			new_work_asked = 0;
+			break;
 
-			case THREAT_DETECTED:
-				alert_scheduler(&work);
-				ret = need_work(&work, SEND_NEW_WORK);
-				new_work_asked = 1;
-				break;
+		case THREAT_DETECTED:
+			alert_scheduler(&work);
+			ret = need_work(&work, SEND_NEW_WORK);
+			new_work_asked = 1;
+			break;
 
-			default:
-				ret = 0;
-				break;
+		default:
+			ret = 0;
+			break;
 		}
+
 		if(ret)
 			result = execute_work(work.payload, work.payload_len, &qv);
 		else {

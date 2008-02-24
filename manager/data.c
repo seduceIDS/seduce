@@ -397,14 +397,16 @@ void *add_data(Session *session, unsigned char *data, int length)
 		return NULL;
 
 	switch (session->proto) {
-		case IPPROTO_TCP:
-			ret = add_tcpdata(session, data, length);
-			break;
-		case IPPROTO_UDP:
-			ret = add_udpdata(session, data, length);
-			break;
-		default:
-			ret = NULL;
+	case IPPROTO_TCP:
+		ret = add_tcpdata(session, data, length);
+		break;
+
+	case IPPROTO_UDP:
+		ret = add_udpdata(session, data, length);
+		break;
+
+	default:
+		ret = NULL;
 	}
 
 	if(ret)

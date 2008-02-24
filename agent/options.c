@@ -186,69 +186,69 @@ int get_cloptions(int argc, char *argv[], CLO *clo)
 
 	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:")) != -1) {
 		switch(c) {
-			case 'h':
-				printusage(0);
-				break;
+		case 'h':
+			printusage(0);
+			break;
 
-			case 'c':
-				if(c_arg) {
-					PRINT_SPECIFY_ONCE('c');
-					return 0;
-				}
-				clo->config_file = strdup(optarg);
-				break;
+		case 'c':
+			if(c_arg) {
+				PRINT_SPECIFY_ONCE('c');
+				return 0;
+			}
+			clo->config_file = strdup(optarg);
+			break;
 
-			case 'p':
-				if(p_arg) {
-					PRINT_SPECIFY_ONCE('p');
-					return 0;
-				}
-				clo->password = strdup(optarg);
-				if(!validate_password(clo->password))
-					return 0;
-				break;
+		case 'p':
+			if(p_arg) {
+				PRINT_SPECIFY_ONCE('p');
+				return 0;
+			}
+			clo->password = strdup(optarg);
+			if(!validate_password(clo->password))
+				return 0;
+			break;
 
-			case 'r':
-				if(r_arg) {
-					PRINT_SPECIFY_ONCE('r');
-					return 0;
-				}
-				clo->retries = get_valid_retries(optarg);
-				if (clo->retries == -1)
-					return 0;
-				break;
+		case 'r':
+			if(r_arg) {
+				PRINT_SPECIFY_ONCE('r');
+				return 0;
+			}
+			clo->retries = get_valid_retries(optarg);
+			if (clo->retries == -1)
+				return 0;
+			break;
 
-			case 's':
-				if(s_arg) {
-					PRINT_SPECIFY_ONCE('s');
-					return 0;
-				}
-				if(!fill_serverinfo(optarg, &clo->addr,
-								&clo->port))
-					return 0;
-				break;
+		case 's':
+			if(s_arg) {
+				PRINT_SPECIFY_ONCE('s');
+				return 0;
+			}
+			if(!fill_serverinfo(optarg, &clo->addr, &clo->port))
+				return 0;
+			break;
 
-			case 't':
-				if(t_arg) {
-					PRINT_SPECIFY_ONCE('t');
-					return 0;
-				}
-				clo->timeout = get_valid_timeout(optarg);
-				if (clo->timeout == -1)
-					return 0;
-				break;
-			case 'w':
-				if(w_arg) {
-					PRINT_SPECIFY_ONCE('w');
-					return 0;
-				}
-				clo->no_work_wait = get_valid_no_work_wait(optarg);
-				if (clo->no_work_wait == -1)
-					return 0;
-				break;
+		case 't':
+			if(t_arg) {
+				PRINT_SPECIFY_ONCE('t');
+				return 0;
+			}
+			clo->timeout = get_valid_timeout(optarg);
+			if (clo->timeout == -1)
+				return 0;
+			break;
 
-			default:
-				printusage(1);
+		case 'w':
+			if(w_arg) {
+				PRINT_SPECIFY_ONCE('w');
+				return 0;
+			}
+			clo->no_work_wait = get_valid_no_work_wait(optarg);
+			if (clo->no_work_wait == -1)
+				return 0;
+			break;
+
+		default:
+			printusage(1);
 		}
 	}
 

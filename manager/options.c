@@ -128,75 +128,75 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 
 	while((c = getopt(argc, argv, "a:A:c:hl:L:p:s:S:")) != -1) {
 		switch(c) {
-			case 'h':
-				printusage(0);
+		case 'h':
+			printusage(0);
 
-			case 'a':
-				if (a_arg) {
-					PRINT_SPECIFY_ONCE('a');
-					goto err;
-				}
-				clo->agent_port = strdup(optarg);
-				break;
-
-			case 'A':
-				if (A_arg) {
-					PRINT_SPECIFY_ONCE('A');
-					goto err;
-				}
-				clo->max_agents = strdup(optarg);
-				break;
-
-			case 'c':
-				if (c_arg) {
-					PRINT_SPECIFY_ONCE('c');
-					goto err;
-				}
-				clo->conf_file = strdup(optarg);
-				break;
-
-			case 'l':
-				if (l_arg) {
-					PRINT_SPECIFY_ONCE('l');
-					goto err;
-				}
-				clo->mem_softlimit = strdup(optarg);
-				break;
-
-			case 'L':
-				if (L_arg) {
-					PRINT_SPECIFY_ONCE('L');
-					goto err;
-				}
-				clo->mem_hardlimit = strdup(optarg);
-				break;
-
-			case 's':
-				if (s_arg) {
-					PRINT_SPECIFY_ONCE('s');
-					goto err;
-				}
-				clo->sensor_port = strdup(optarg);
-				break;
-
-			case 'S':
-				if (S_arg) {
-					PRINT_SPECIFY_ONCE('S');
-					goto err;
-				}
-				clo->max_sensors = strdup(optarg);
-				break;
-
-			case 'p':
-				if (p_arg) {
-					PRINT_SPECIFY_ONCE('p');
-					goto err;
-				}
-				clo->password = strdup(optarg);
-				break;
-
-			default:
+		case 'a':
+			if (a_arg) {
+				PRINT_SPECIFY_ONCE('a');
 				goto err;
+			}
+			clo->agent_port = strdup(optarg);
+			break;
+
+		case 'A':
+			if (A_arg) {
+				PRINT_SPECIFY_ONCE('A');
+				goto err;
+			}
+			clo->max_agents = strdup(optarg);
+			break;
+
+		case 'c':
+			if (c_arg) {
+				PRINT_SPECIFY_ONCE('c');
+				goto err;
+			}
+			clo->conf_file = strdup(optarg);
+			break;
+
+		case 'l':
+			if (l_arg) {
+				PRINT_SPECIFY_ONCE('l');
+				goto err;
+			}
+			clo->mem_softlimit = strdup(optarg);
+			break;
+
+		case 'L':
+			if (L_arg) {
+				PRINT_SPECIFY_ONCE('L');
+				goto err;
+			}
+			clo->mem_hardlimit = strdup(optarg);
+			break;
+
+		case 's':
+			if (s_arg) {
+				PRINT_SPECIFY_ONCE('s');
+				goto err;
+			}
+			clo->sensor_port = strdup(optarg);
+			break;
+
+		case 'S':
+			if (S_arg) {
+				PRINT_SPECIFY_ONCE('S');
+				goto err;
+			}
+			clo->max_sensors = strdup(optarg);
+			break;
+
+		case 'p':
+			if (p_arg) {
+				PRINT_SPECIFY_ONCE('p');
+				goto err;
+			}
+			clo->password = strdup(optarg);
+			break;
+
+		default:
+			goto err;
 		}
 	}
 
