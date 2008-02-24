@@ -510,36 +510,40 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 	if(memcmp(&this_agent->addr,&pck->addr, sizeof(struct sockaddr)) != 0)
 		return;
 
-	if(pck->seq == this_agent->seq) { 
+	if(pck->seq == this_agent->seq) {
 		/* Send the last data sent again, if still there... */
 		switch(pck->type) {
-			case UDP_NEW_WORK:
-			case UDP_GET_NEXT:
-				send_current_work(this_agent);
+		case UDP_NEW_WORK:
+		case UDP_GET_NEXT:
+			send_current_work(this_agent);
 		}
 	}
 	else if(pck->seq == (this_agent->seq + 1)) { /* new_request */
 
 		switch(pck->type) {
-			case UDP_NEW_WORK:
+		case UDP_NEW_WORK:
+			this_agent->seq = pck->seq;
+			send_new_work(this_agent);
+			break;
+
+		case UDP_GET_NEXT:
+			this_agent->seq = pck->seq;
+			send_next_work(this_agent);
+			break;
+
+		case UDP_QUIT:
+			if(check_password(pck->pwd)) {
 				this_agent->seq = pck->seq;
-				send_new_work(this_agent);
-				break;
-			case UDP_GET_NEXT:
-				this_agent->seq = pck->seq;
-				send_next_work(this_agent);
-				break;
-			case UDP_QUIT:
-				if(check_password(pck->pwd)) {
-					this_agent->seq = pck->seq;
-					remove_agent(agents,pck->id);
-				}
-					/* we don't use break. this agent */
-				return; /* does not exist any more */
-					 
-			default:
-				DPRINTF("Unknown Packet type\n");
-				return;
+				remove_agent(agents,pck->id);
+			}
+
+			/* we don't use break. this agent */
+			/* does not exist any more */
+			return; 
+				 
+		default:
+			DPRINTF("Unknown Packet type\n");
+			return;
 		}
 		/* Update timestamp */
 		this_agent->timestamp = time(NULL);

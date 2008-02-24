@@ -72,54 +72,56 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 	struct half_stream *hlf;
 	
 	switch (a_tcp->nids_state) {
-		case NIDS_JUST_EST:
-			if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
-				if ((*stream_id = init_stream())) {
-					a_tcp->server.collect = YES;
-					new_tcp_connection(**stream_id,
-							&a_tcp->addr);
-					DPRINTF("Established a Connection:%s\n",
-							adres(a_tcp->addr));
-					DPRINTF("Sequence Number:%u\n",
-								**stream_id);
-				}
-			}
-			return;
-	
-		case NIDS_DATA:
-			/* 
-			 * I play with the client.collect value, so I can get
-			 * informed by libnids when the server data I collect
-			 * are not continuous any more. I don't want to collect
-			 * client data but I want to know when client data start
-			 * comming. When this happens, I stop collecting client
-			 * data.
-			 */
-			if(a_tcp->client.count_new) {
-				DPRINTF("Sending Break for Stream:%u\n",
-								**stream_id);
-				tcp_data_break(**stream_id);
-				a_tcp->client.collect = NO;
-				return;
-			}
-			/* data sent to the server */
-			a_tcp->client.collect = YES;
-			hlf = &a_tcp->server;
-			send_tcp_data(**stream_id, hlf->data,
-					hlf->count - hlf->offset);
-			DPRINTF("New TCP DATA: %s\n",adres(a_tcp->addr));
-			DPRINTF("Sequence Number:%u\n",**stream_id);
-			DPRINTF("Data Pointer: %p\n", hlf->data);
-			DPRINTF("Data Length: %d\n", hlf->count - hlf->offset);
-			return;
+	case NIDS_JUST_EST:
+		if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
+			if ((*stream_id = init_stream())) {
 
-		case NIDS_CLOSE:
-		case NIDS_RESET:
-		case NIDS_TIMED_OUT:
-			DPRINTF("Connection %d is dying...\n",**stream_id);
-			close_tcp_connection(**stream_id);
-			free(*stream_id);
+				a_tcp->server.collect = YES;
+				new_tcp_connection(**stream_id, &a_tcp->addr);
+
+				DPRINTF("Established a Connection:%s\n",
+							adres(a_tcp->addr));
+				DPRINTF("Sequence Number:%u\n", **stream_id);
+			}
+		}
+		return;
+
+	case NIDS_DATA:
+		/* 
+		 * I play with the client.collect value, so I can get
+		 * informed by libnids when the server data I collect
+		 * are not continuous any more. I don't want to collect
+		 * client data but I want to know when client data start
+		 * comming. When this happens, I stop collecting client
+		 * data.
+		 */
+		if(a_tcp->client.count_new) {
+
+			DPRINTF("Sending Break for Stream:%u\n", **stream_id);
+			
+			tcp_data_break(**stream_id);
+			a_tcp->client.collect = NO;
 			return;
+		}
+		/* data sent to the server */
+		a_tcp->client.collect = YES;
+		hlf = &a_tcp->server;
+		send_tcp_data(**stream_id, hlf->data, hlf->count - hlf->offset);
+
+		DPRINTF("New TCP DATA: %s\n",adres(a_tcp->addr));
+		DPRINTF("Sequence Number:%u\n",**stream_id);
+		DPRINTF("Data Pointer: %p\n", hlf->data);
+		DPRINTF("Data Length: %d\n", hlf->count - hlf->offset);
+
+		return;
+
+	case NIDS_CLOSE:
+	case NIDS_RESET:
+	case NIDS_TIMED_OUT:
+		DPRINTF("Connection %d is dying...\n",**stream_id);
+		close_tcp_connection(**stream_id);
+		free(*stream_id);
+		return;
 	}
 }
 

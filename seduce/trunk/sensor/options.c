@@ -322,56 +322,55 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 
 	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
 		switch(c) {
-			case 'h':
-				printusage(0);
+		case 'h':
+			printusage(0);
 
-			case 'c':
-				if (c_arg) {
+		case 'c':
+			if (c_arg) {
 				PRINT_SPECIFY_ONCE('c');
 				return 0;
-				}
-				clo->conf_file = strdup(optarg);
-				break;
+			}
+			clo->conf_file = strdup(optarg);
+			break;
 
-			case 'i':
-				if (i_arg) {
-					PRINT_SPECIFY_ONCE('i');
-					return 0;
-				}
-				i_arg = 1;
-				clo->interface = strdup(optarg);
-				break;
-
-			case 'n':
-				if (n_arg) {
-					PRINT_SPECIFY_ONCE('n');
-					return 0;
-				}
-				n_arg = 1;
-				clo->homenet_expr = strdup(optarg);
-				break;
-
-			case 's':
-				if (s_arg) {
-					PRINT_SPECIFY_ONCE('s');
-					return 0;
-				}
-
-				s_arg = 1;
-				clo->server =  strdup(optarg);
-				break;
-
-			case 'p':
-				if (p_arg) {
-					PRINT_SPECIFY_ONCE('p');
-					return 0;
-				}
-				p_arg = 1;
-				clo->portlist_expr = strdup(optarg);
-				break;
-
-			default:
+		case 'i':
+			if (i_arg) {
+				PRINT_SPECIFY_ONCE('i');
 				return 0;
+			}
+			i_arg = 1;
+			clo->interface = strdup(optarg);
+			break;
+
+		case 'n':
+			if (n_arg) {
+				PRINT_SPECIFY_ONCE('n');
+				return 0;
+			}
+			n_arg = 1;
+			clo->homenet_expr = strdup(optarg);
+			break;
+
+		case 's':
+			if (s_arg) {
+				PRINT_SPECIFY_ONCE('s');
+				return 0;
+			}
+			s_arg = 1;
+			clo->server =  strdup(optarg);
+			break;
+
+		case 'p':
+			if (p_arg) {
+				PRINT_SPECIFY_ONCE('p');
+				return 0;
+			}
+			p_arg = 1;
+			clo->portlist_expr = strdup(optarg);
+			break;
+
+		default:
+			return 0;
 		}
 	}
 
