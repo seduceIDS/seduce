@@ -18,6 +18,7 @@ LIBS		= $(LIBS_AGENT) $(LIBS_QEMU)
 
 all: agent seduce
 
+dummy:	dummy_agent
 dummy_agent: CFLAGS += -D_DUMMY_ENGINE
 dummy_agent: agent.o dummy_engine.o alert.o options.o
 	$(CC) -o $@ agent.o dummy_engine.o alert.o options.o $(LDFLAGS) $(LIBS_AGENT)
