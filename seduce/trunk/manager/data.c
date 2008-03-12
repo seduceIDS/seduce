@@ -384,6 +384,9 @@ static UDPData *add_udpdata(Session *session, unsigned char *data, int length)
  *
  * Returns: Pointer to newly added data on success, NULL on error
  */
+
+#define OOM_WAKEUP_THRESHOLD	10
+
 void *add_data(Session *session, unsigned char *data, int length)
 {
 	static int cnt = 0;
@@ -412,7 +415,7 @@ void *add_data(Session *session, unsigned char *data, int length)
 	if(ret)
 		cnt++;
 	
-	if(cnt >= 10) {
+	if(cnt >= OOM_WAKEUP_THRESHOLD) {
 		cnt = 0;
 		mutex_lock(&oom_mutex);
 		cond_signal(&oom_cond);
