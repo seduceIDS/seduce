@@ -309,7 +309,7 @@ static int setup_analyzer(idmef_analyzer_t *analyzer)
 {
         int ret;
         prelude_string_t *string;
-        
+
         ret = idmef_analyzer_new_model(analyzer, &string);
         if ( ret < 0 )
                 return ret;
