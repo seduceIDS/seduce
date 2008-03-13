@@ -19,7 +19,7 @@
 #define YES (1==1)
 #define NO (!YES)
 
-/* Functions Declaration */
+/* Function Declarations */
 unsigned short find_first_zero(u_int8_t);
 unsigned int get_rand(void);
 
