@@ -17,7 +17,7 @@ void init_joblist(void)
  *  function passed as argument on the Data of the job just removed.
  *  Returns whatever the function returns. 
  */
-int execute_job(int (*func)(), void *params)
+int consume_job(int (*func)(), void *params)
 {
 	int ret;
 	Job *job_to_remove;
