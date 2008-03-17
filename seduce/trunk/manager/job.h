@@ -21,6 +21,6 @@ typedef struct _JobList {
 void *jobs_thread(void *);
 void init_joblist(void);
 int  add_job(Sensor *, Session *, void *);
-int execute_job(int (*func)(), void *params);
+int consume_job(int (*func)(), void *params);
 
 #endif /* _JOB_H */

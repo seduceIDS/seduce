@@ -36,7 +36,7 @@ int free_memory(void)
 	int ret;
 
 	do {
-		ret = execute_job(destroy_data, NULL);
+		ret = consume_job(destroy_data, NULL);
 		if(ret == -1) /* joblist is empty */
 			break;
 

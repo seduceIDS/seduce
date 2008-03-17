@@ -343,8 +343,8 @@ static int send_new_work(AgentInfo *agent)
 		}
 	}
 
-	ret = execute_job(send_work, agent);
-	if (ret != -1)  /* a job was executed */
+	ret = consume_job(send_work, agent);
+	if (ret != -1)  /* a job was consumed */
 		return ret;
 
 	/* Clear the history */
