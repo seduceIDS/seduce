@@ -14,7 +14,7 @@ void init_oom_handler(void)
 	cond_init(&oom_cond);
 }
 
-void print_mem_usage(struct mallinfo *info)
+static inline void print_mem_usage(struct mallinfo *info)
 {
 	DPRINTF("MALLINFO\n");
 	DPRINTF("Arena: %d\n", info->arena);
@@ -29,43 +29,55 @@ void print_mem_usage(struct mallinfo *info)
 	DPRINTF("Keepcost: %d\n", info->keepcost);
 }
 
-int free_memory(void)
+static unsigned long compute_mem_usage(void)
 {
 	struct mallinfo info;
-	unsigned long occupied_mem;
-	int ret;
-
-	do {
-		ret = consume_job(destroy_data, NULL);
-		if(ret == -1) /* joblist is empty */
-			break;
-
-		info = mallinfo();
-		/* occupied memory = malloc + mmap */
-		occupied_mem = info.uordblks + info.hblkhd;
-
-	} while(occupied_mem > pv.mem_softlimit);
 
 	info = mallinfo();
-	occupied_mem = info.uordblks + info.hblkhd;
+	print_mem_usage(&info);
 
-	return (occupied_mem <= pv.mem_softlimit) ? 1 : 0;
+	/* occupied memory = malloc + mmap */
+	return info.uordblks + info.hblkhd;
+}
+
+static int free_memory(void)
+{
+	unsigned long mem;
+
+	DPRINTF("Freeing memory");
+
+	do {
+		int ret = consume_job(destroy_data, NULL);
+		if(ret == -1) /* joblist is empty, couldn't delete enough data */
+			return 0;
+		else if(ret == 2)
+		{
+			/* 
+			 * TODO: this is really important!!! I need to destroy
+			 * a sensor but I don't know which. I think I cannot
+			 * avoid searching the hole sensor list to find the one
+			 * that has sessionlist_head == NULL & is_connected = NO
+			 */
+		}
+
+		mem = compute_mem_usage();
+
+	} while(mem > pv.mem_softlimit);
+
+	return 1;
 }
 
 
 void *oom_handler(void)
 {
-	struct mallinfo info;
 	unsigned long occupied_mem;
 
 	for(;;) {
-		mutex_lock(&oom_mutex);		
+		mutex_lock(&oom_mutex);
 		cond_wait(&oom_cond, &oom_mutex);
 		mutex_unlock(&oom_mutex);
 
-		info = mallinfo();
-		print_mem_usage(&info);		
-		occupied_mem = info.uordblks + info.hblkhd;
+		occupied_mem = compute_mem_usage();
 
 		if(occupied_mem > pv.mem_hardlimit)
 			free_memory();
