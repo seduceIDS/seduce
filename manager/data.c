@@ -258,6 +258,7 @@ Session *add_session(Sensor *sensor, unsigned int stream_id,
 int destroy_session(Sensor *sensor, Session *session)
 {
 	int ret;
+
 	if (sensor->sessionlist_head != session)
 		session->prev->next = session->next;
 	else
@@ -488,7 +489,7 @@ int destroy_data(DataInfo *d)
 
 
 /*
- * Function: destroy_data(Sensor *, unsigned int, unsigned int)
+ * Function: destroy_datagroup(Sensor *, unsigned int, unsigned int)
  *
  * Purpose: Destroy a whole group of data.
  *
