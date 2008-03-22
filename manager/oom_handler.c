@@ -40,7 +40,7 @@ static unsigned long compute_mem_usage(void)
 	return info.uordblks + info.hblkhd;
 }
 
-static int free_memory(void)
+static int free_memory(int limit_to_reach)
 {
 	unsigned long mem;
 
@@ -62,7 +62,7 @@ static int free_memory(void)
 
 		mem = compute_mem_usage();
 
-	} while(mem > pv.mem_softlimit);
+	} while(mem > limit_to_reach);
 
 	return 1;
 }
@@ -80,6 +80,6 @@ void *oom_handler(void)
 		occupied_mem = compute_mem_usage();
 
 		if(occupied_mem > pv.mem_hardlimit)
-			free_memory();
+			free_memory(pv.mem_softlimit);
 	}
 }
