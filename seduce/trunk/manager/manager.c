@@ -79,7 +79,9 @@ int main(int argc, char *argv[])
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset( &(my_addr.sin_zero), '\0', 8);
 
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+	if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, 
+							 sizeof(one)) == -1)
+		errno_abort("setsockopt");
 
 	if(bind(sockfd, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
 		errno_abort("bind");
