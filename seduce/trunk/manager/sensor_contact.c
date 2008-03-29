@@ -297,11 +297,11 @@ static int tcp_data(SensorPacket *p)
 {
 	Session *this_session;
 	TCPData *new_data = NULL;
-	TCPData *last_data = NULL;
-	unsigned int stream_id;
-	int add_in_joblist = 1; /* Do we add the new data in the joblist? */	
+	unsigned int new_id, last_id, stream_id;
+	int add_in_joblist; /* Do we add the new data in the joblist? */
 
 	DPRINTF("\n");
+
 	stream_id = ntohl(*((u_int32_t *)(*p).header));
 	DPRINTF("DATA for TCP with stream ID %u\n", stream_id);
 	DPRINTF("DATA length is %u\n", p->data_len);
@@ -311,23 +311,26 @@ static int tcp_data(SensorPacket *p)
 	this_session = find_session(p->my_sensor, stream_id);
 	if (this_session)
 		new_data = add_data(this_session, p->data, p->data_len);
+	
+	if(new_data == NULL) {
+		mutex_unlock(&p->my_sensor->mutex);
+		return 0;
+	}
 
 	/* If the new data have an ID that is equal to previous data ID + 1
-	 * we don't add them in the joblist.*/	
-	if(new_data)
-		last_data = new_data->prev; 
-	if(last_data)
-		if(new_data->id == (last_data->id + 1))
-			add_in_joblist = 0;
-			
+	 * we don't add them in the joblist.*/
+
+	new_id  = new_data->id;
+	last_id = (new_data->prev) ? new_data->prev->id : 0;
+
+	add_in_joblist = (last_id) && (new_id == last_id + 1) ? 0 : 1;
+
 	mutex_unlock(&p->my_sensor->mutex);
 
-	if (new_data) {
-		if(add_in_joblist)
-			return add_job(p->my_sensor, this_session, new_data);
-		else return 1;
-	}
-	else return 0;
+	if(add_in_joblist)
+		return add_job(p->my_sensor, this_session, new_data);
+
+	return 1;
 }
 
 static int tcp_break(SensorPacket *p)
