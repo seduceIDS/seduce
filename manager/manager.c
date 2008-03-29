@@ -95,10 +95,13 @@ int main(int argc, char *argv[])
 	init_joblist();
 	init_alertlist();
 	init_oom_handler();
+
+	/* thread starting functions */
 	start_alert_thread();
 	start_agents_thread();
 	start_oom_handler();
 
+	/* Wait for new sensor connections */
 	while (1) {
 		addr_len = sizeof(their_addr);
 		connfd = accept(sockfd, (struct sockaddr *)&their_addr, 
@@ -110,7 +113,7 @@ int main(int argc, char *argv[])
 			errno_abort("accept");
 		}
 
-		start_sensor_thread (connfd, their_addr.sin_addr,
+		start_sensor_thread(connfd, their_addr.sin_addr,
 							their_addr.sin_port);
 	}
 	return 0;
