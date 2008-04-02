@@ -35,8 +35,8 @@ typedef struct _Agents {
 
 typedef struct _UDPPacket {
 	unsigned int size;
-	unsigned int seq;
 	unsigned int type;
+	unsigned int seq;
 	unsigned int id;
 	struct sockaddr_in addr;
 	char pwd[MAX_PWD_SIZE];
@@ -53,8 +53,9 @@ typedef struct _UDPPacket {
 /* send */
 #define UDP_CONNECTED		1
 #define UDP_NOT_CONNECTED	2
-#define UDP_DATA		3
-#define UDP_NOT_FOUND		4
+#define UDP_HEAD_DATA		3
+#define UDP_DATA		4
+#define UDP_NOT_FOUND		5
 
 /*
  * RECV PACKET:
@@ -64,7 +65,7 @@ typedef struct _UDPPacket {
  *0        4        8        12       16
  *
  * SEND PACKET:
- *  ________ ________ ________ ________
+ * ________ ________ ________ ________
  *|  size  |  type  |  seq   |   ID   |
  *|________|________|________|________|
  *0        4        8        12       16
@@ -74,11 +75,14 @@ typedef struct _UDPPacket {
  *|________|________|________|________|________|____|____|________|________|load
  *0        4        8        12       16       20   22   24       28       32
  *
- *|--------------main_msg-------------|----------------addr----------------|
+ *|--------------main_msg-------------|------------PAYLOAD INFO------------|
  */
 
-#define UDP_PCK_SIZE 16
-#define TCP_PCK_SIZE 20
+#define UDP_HDR_SIZE	16
+#define UDP_INFO_SIZE	16
+
+/* needed for alert */
+#define TCP_PCK_SIZE	20
 #define MAX_WAIT 5
 
 #endif /*_AGENT_CONTACT_H */

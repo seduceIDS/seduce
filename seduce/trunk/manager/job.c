@@ -48,6 +48,9 @@ int consume_job(int (*func)(), void *params)
 	DPRINTF("Execute the Job...\n");
 	DPRINTF("Session ID: %u\n",job_to_remove->data_info.session->id);
 
+	/* Those data are the heading data of a group */
+	job_to_remove->data_info.is_grouphead = 1;
+
 	/* Execute the function on this job */
 	if(params)
 		ret = (*func) (params, &job_to_remove->data_info);

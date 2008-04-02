@@ -9,7 +9,7 @@
 #include "thread.h"
 
 
-struct tuple4 { /* Don't ask about the name, it's from libnids... */
+struct tuple4 {
 	u_int16_t s_port,d_port;	/* source and destination port */
 	u_int32_t s_addr,d_addr;	/* source and destination ip   */
 };
@@ -76,6 +76,7 @@ typedef struct _DataInfo {	/* A triplet that defines a unite of data */
 		UDPData *udp;
 		TCPData *tcp;
 	} data;
+	int is_grouphead; /* Are those data the head of a group? */
 } DataInfo;
 
 typedef struct _SensorList {
