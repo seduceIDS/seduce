@@ -18,8 +18,8 @@
 
 extern  SensorList sensorlist;
 
-static int udp_socket; /* The UDP Socket */
-static int tcp_socket; /* The TCP Socket listening for incoming connections */
+static int udp_sock; /* The UDP Socket */
+static int tcp_sock; /* The TCP Socket listening for incoming connections */
 
 /*
  * Function: get_new_client_pos(u_int8_t *, size_t)
@@ -212,24 +212,24 @@ static void remove_agent(Agents *agents, unsigned int id)
  */
 static int send_msg(AgentInfo *agent, int type)
 {
-	char buf[UDP_PCK_SIZE];
+	char buf[UDP_HDR_SIZE];
 	size_t length;
-	socklen_t addr_len;
+	socklen_t addr_len = sizeof(struct sockaddr);
 	int numbytes;
 
 	DPRINTF("\n");
-	length = UDP_PCK_SIZE;
+	length = UDP_HDR_SIZE;
 	addr_len =  sizeof(struct sockaddr);
 
 	*(u_int32_t *)(buf +  0) = htonl(length);
-	*(u_int32_t *)(buf +  4) = htonl(agent->seq);
-	*(u_int32_t *)(buf +  8) = htonl(type);
+	*(u_int32_t *)(buf +  4) = htonl(type);
+	*(u_int32_t *)(buf +  8) = htonl(agent->seq);
 	*(u_int32_t *)(buf + 12) = htonl(agent->id);
 
-	numbytes = sendto(udp_socket, buf, length, 0,
+	numbytes = sendto(udp_sock, buf, length, 0,
 			(struct sockaddr *) &agent->addr, addr_len);
 
-	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->seq,ntohl(type),agent->id);
+	DPRINTF("Send: %u,%u,%u,%u\n", length, agent->seq, type, agent->id);
 	if (numbytes == -1)
 		errno_cont("sendto");
 	else if (numbytes != length)
@@ -254,11 +254,13 @@ static int send_msg(AgentInfo *agent, int type)
 static int send_work(AgentInfo *agent, DataInfo *work)
 {
 	char *buf;
+	ssize_t numbytes;
 	socklen_t addr_len = sizeof(struct sockaddr);
-	size_t length = 2*UDP_PCK_SIZE; /* main_msg + addr */
+	size_t length = UDP_HDR_SIZE;
+	
+	unsigned int type;
 	unsigned char * payload;
 	size_t payload_length;
-	unsigned int type;
 
 	DPRINTF("\n");
 	if (work->session->proto == IPPROTO_TCP) {
@@ -268,7 +270,13 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 		payload =        work->data.udp->payload;
 		payload_length = work->data.udp->length;
 	}
-	type = UDP_DATA;
+
+	/* what kind of package do we send? */
+	if(work->is_grouphead) {
+		type = UDP_HEAD_DATA;
+		length += UDP_INFO_SIZE;
+	} else
+		type = UDP_DATA;
 
 	length += payload_length;
 	buf = malloc(length);
@@ -277,25 +285,32 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 		return 0;
 	}
 
+	/* The packet header */
 	*(u_int32_t *)(buf +  0) = htonl(length);
-	*(u_int32_t *)(buf +  4) = htonl(agent->seq);
-	*(u_int32_t *)(buf +  8) = htonl(type);
+	*(u_int32_t *)(buf +  4) = htonl(type);
+	*(u_int32_t *)(buf +  8) = htonl(agent->seq);
 	*(u_int32_t *)(buf + 12) = htonl(agent->id);
-	*(u_int32_t *)(buf + 16) = htonl(work->session->proto);
-	*(u_int16_t *)(buf + 20) = work->session->addr.s_port;
-	*(u_int16_t *)(buf + 22) = work->session->addr.d_port;
-	*(u_int32_t *)(buf + 24) = work->session->addr.s_addr;
-	*(u_int32_t *)(buf + 28) = work->session->addr.d_addr;
-	memcpy(buf + 2*UDP_PCK_SIZE, payload, payload_length);
-	addr_len =  sizeof(struct sockaddr);
-	if(sendto(udp_socket, buf, length, 0,
-			(struct sockaddr *) &agent->addr, addr_len) == -1) {
+
+	if(work->is_grouphead) {
+		*(u_int32_t *)(buf + 16) = htonl(work->session->proto);
+		*(u_int16_t *)(buf + 20) = work->session->addr.s_port;
+		*(u_int16_t *)(buf + 22) = work->session->addr.d_port;
+		*(u_int32_t *)(buf + 24) = work->session->addr.s_addr;
+		*(u_int32_t *)(buf + 28) = work->session->addr.d_addr;
+		memcpy(buf + 32, payload, payload_length); 
+	} else
+		memcpy(buf + 16, payload, payload_length);
+
+	numbytes = sendto(udp_sock, buf, length, 0, 
+		     		(struct sockaddr *) &agent->addr, addr_len);
+	if(numbytes == -1) {
 		errno_cont("sendto");
 		free(buf);
 		return 0;
 	}
 
-	DPRINTF("Send: %u,%u,%u,%u\n",length,agent->seq,ntohl(type),agent->id);
+	DPRINTF("Send: %u,%u,%u,%u\n", length, agent->seq, type, agent->id);
+	DPRINTF("Bytes sent:%u\n", numbytes);
 
 	/* update history */
 	agent->history = *work;
@@ -387,6 +402,9 @@ static int send_next_work(AgentInfo *agent)
 		 */
 		destroy_data(&agent->history);
 
+		/* those data are not the head of a data group */
+		work.is_grouphead = 0;
+
 		if(work.data.tcp)
 			ret = send_work(agent, &work);
 
@@ -441,13 +459,14 @@ static int send_current_work(AgentInfo *agent)
  */
 static int recv_udp_packet(UDPPacket *pck)
 {
-	char buf[2*UDP_PCK_SIZE +1];
+	char buf[UDP_HDR_SIZE + UDP_INFO_SIZE + 1];
 	ssize_t numbytes;
 	socklen_t addr_len;
+	int max_pck_size = UDP_HDR_SIZE + UDP_INFO_SIZE; 
 
 	DPRINTF("\n");
 	addr_len = sizeof(struct sockaddr);
-	numbytes = recvfrom(udp_socket, buf, 2*UDP_PCK_SIZE+1, MSG_DONTWAIT,
+	numbytes = recvfrom(udp_sock, buf, max_pck_size + 1, MSG_DONTWAIT,
 		      (struct sockaddr *) &pck->addr, &addr_len);
 	if (numbytes == -1) {
 		if(errno == EAGAIN)
@@ -457,21 +476,21 @@ static int recv_udp_packet(UDPPacket *pck)
 
 
 	DPRINTF("I got %d bytes\n", numbytes);
-	if((numbytes != UDP_PCK_SIZE) && (numbytes != 2*UDP_PCK_SIZE))
+	if((numbytes != UDP_HDR_SIZE) && (numbytes != max_pck_size))
 		return -1;
 
 	pck->size = ntohl(*(u_int32_t *) (buf +  0));
 	if(pck->size != numbytes)
 		return -1;
-	pck->seq  = ntohl(*(u_int32_t *) (buf +  4));
-	pck->type = ntohl(*(u_int32_t *) (buf +  8));
+	pck->type = ntohl(*(u_int32_t *) (buf +  4));
+	pck->seq  = ntohl(*(u_int32_t *) (buf +  8));
 	pck->id   = ntohl(*(u_int32_t *) (buf + 12));
 
-	if(numbytes == 2*UDP_PCK_SIZE)
-		strncpy(pck->pwd,buf + UDP_PCK_SIZE, UDP_PCK_SIZE - 1);
+	if(numbytes == max_pck_size)
+		strncpy(pck->pwd,buf + UDP_HDR_SIZE, UDP_INFO_SIZE - 1);
 
 	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->seq,
-				ntohl(pck->type), pck->id);
+							pck->type, pck->id);
 
 	return 1;
 }
@@ -601,7 +620,7 @@ static unsigned char *recv_alert_data(int socket, unsigned int *data_size)
 	DPRINTF("size is %u\n",size);
 
 	/* we allow zero payload */
-	if (size < UDP_PCK_SIZE + sizeof(u_int32_t)) { 
+	if (size < UDP_HDR_SIZE + sizeof(u_int32_t)) {
 		DPRINTF("The alert message size is not sane\n");
 		return NULL;
 	}
@@ -782,28 +801,28 @@ void *agents_contact(void)
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset(&(my_addr.sin_zero), '\0', 8);
 
-	udp_socket = socket(PF_INET, SOCK_DGRAM, 0);
-	if (udp_socket == -1)
+	udp_sock = socket(PF_INET, SOCK_DGRAM, 0);
+	if (udp_sock == -1)
 		errno_abort("socket");
 
-	if(bind(udp_socket, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
+	if(bind(udp_sock, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
 		errno_abort("bind");
 
-	tcp_socket = socket(PF_INET, SOCK_STREAM, 0);
-	if (tcp_socket == -1)
+	tcp_sock = socket(PF_INET, SOCK_STREAM, 0);
+	if (tcp_sock == -1)
 		errno_abort("socket");
 
-	if(bind(tcp_socket, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
+	if(bind(tcp_sock, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
 		errno_abort("bind");
 
-	if(listen(tcp_socket, 10) == -1)
+	if(listen(tcp_sock, 10) == -1)
 		errno_abort("listen");
 
-	maxfd = MAX(udp_socket, tcp_socket);
+	maxfd = MAX(udp_sock, tcp_sock);
 
 	FD_ZERO(&allset);
-	FD_SET(udp_socket, &allset);
-	FD_SET(tcp_socket, &allset);
+	FD_SET(udp_sock, &allset);
+	FD_SET(tcp_sock, &allset);
 
 	for(;;) {
 		readset = allset;
@@ -814,16 +833,16 @@ select_restart:
 				goto select_restart;
 			else errno_abort("select");
 		}
-		if (FD_ISSET(udp_socket, &readset)) {
+		if (FD_ISSET(udp_sock, &readset)) {
 			udp_request(&agents);
 
 			if(--nready <= 0)
 				continue;
 		}
 
-		if (FD_ISSET(tcp_socket, &readset)) {
+		if (FD_ISSET(tcp_sock, &readset)) {
 			addrlen = sizeof(his_addr);
-			newfd = accept(tcp_socket, (struct sockaddr *)&his_addr,
+			newfd = accept(tcp_sock, (struct sockaddr *)&his_addr,
 								&addrlen);
 			if(newfd == -1)
 				errno_cont("accept");

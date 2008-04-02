@@ -8,12 +8,6 @@
 
 #include "agent.h"
 
-
-/* Default Options */
-#define TIMEOUT	5
-#define RETRIES 5
-#define NO_WORK_WAIT 5
-
 static void printusage(int rc)
 {
 	fprintf(stderr, 
@@ -133,7 +127,6 @@ static int fill_serverinfo(const char *serverinfo, struct in_addr *addr,
 	char *host_str;
 	struct hostent *he;
 
-
 	tmp = strdup(serverinfo);
 	if(!tmp)
 		return 0;
@@ -160,20 +153,9 @@ err:
 	return 0;
 }
 
-
-typedef struct _CommandLineOptions {
-	char *config_file;
-	struct in_addr addr;
-	unsigned short port;
-	char *password;
-	int timeout;
-	int retries;
-	int no_work_wait;
-} CLO;
-
 #define PRINT_SPECIFY_ONCE(x) \
 	fprintf(stderr, "The -%c option should be specified only once\n", x)
-int get_cloptions(int argc, char *argv[], CLO *clo)
+int get_cloptions(int argc, char *argv[], ProgVars *clo)
 {
 	int c;
 	int c_arg = 0;
@@ -261,7 +243,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 	if (strcmp(opt->name, "server_addr") == 0)
 		ret = fill_serverinfo(*(char **)opt->simple_value,
-					&pv.addr.sin_addr, &pv.addr.sin_port);
+					&pv.addr, &pv.port);
 	else if (strcmp(opt->name, "password") == 0)
 		ret = validate_password(*(char **)opt->simple_value);
 	else if (strcmp(opt->name, "timeout") == 0)
@@ -325,18 +307,18 @@ static int parse_fileoptions(char *filename)
 void fill_progvars(int argc, char *argv[])
 {
 	int ret;
-	CLO clo;
+	ProgVars clo; /* temporary struct to store the command line options */
 
-	memset(&pv, '\0', sizeof(PV));
+	memset(&pv, '\0', sizeof(ProgVars));
 	pv.prog_name = argv[0];
 	pv.timeout = -1;
 	pv.retries = -1;
 	pv.no_work_wait = -1;
 
-	pv.addr.sin_family = AF_INET;
-	memset(pv.addr.sin_zero, '\0', 8);
+//	pv.addr.sin_family = AF_INET;
+//	memset(pv.addr.sin_zero, '\0', 8);
 
-	memset(&clo, '\0', sizeof(CLO));
+	memset(&clo, '\0', sizeof(ProgVars));
 	clo.timeout = -1;
 	clo.retries = -1;
 	clo.no_work_wait = -1;
@@ -351,8 +333,8 @@ void fill_progvars(int argc, char *argv[])
 		exit(1);
 
 	if(clo.port) {
-		pv.addr.sin_port = clo.port;
-		pv.addr.sin_addr = clo.addr;
+		pv.port = clo.port;
+		pv.addr = clo.addr;
 	}
 
 	if(clo.password) {
@@ -369,26 +351,24 @@ void fill_progvars(int argc, char *argv[])
 	if(clo.timeout != -1)
 		pv.timeout = clo.timeout;
 	else if(pv.timeout == -1)
-		pv.timeout = TIMEOUT;
+		pv.timeout = DEFAULT_TIMEOUT;
 
 	if(clo.retries != -1)
 		pv.retries = clo.retries;
 	else if(pv.retries == -1)
-		pv.retries = RETRIES;
+		pv.retries = DEFAULT_RETRIES;
 
 	if(clo.no_work_wait != -1)
 		pv.no_work_wait = clo.no_work_wait;
 	else if(pv.no_work_wait == -1)
-		pv.no_work_wait = NO_WORK_WAIT;
-
+		pv.no_work_wait = DEFAULT_NO_WORK_WAIT;
 
 	/* 
 	 * Now that command line and config file options are set,
-	 * check check if a required option is missing.
+	 * check if a required option is missing.
 	 * Required options are the connection info (IP/port & password)
 	 */
-
-	if(!pv.addr.sin_port) {
+	if(!pv.port) {
 		fprintf(stderr, "Server address and port are not set\n");
 		printusage(1);
 	}
@@ -405,15 +385,15 @@ void fill_progvars(int argc, char *argv[])
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-PV pv;
+ProgVars pv;
 
 int main(int argc, char *argv[])
 {
 	fill_progvars(argc, argv);
 
 	printf("Options:\n");
-	printf("Sever Address: %s\n", inet_ntoa(pv.addr.sin_addr));
-	printf("Server Port: %u\n", ntohs(pv.addr.sin_port));
+	printf("Sever Address: %s\n", inet_ntoa(pv.addr));
+	printf("Server Port: %u\n", ntohs(pv.port));
 	printf("Password: %s\n", pv.password);
 	printf("Timeout: %d\n", pv.timeout);
 	printf("Retries: %d\n", pv.retries);

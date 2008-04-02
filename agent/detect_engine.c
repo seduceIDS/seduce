@@ -9,18 +9,21 @@
 
 extern unsigned long x86_stack_size;
 
+static QemuVars qv;
+
 /* Globals */
 char *threat_payload;
 size_t threat_length;
 sigjmp_buf env;
 
-void sigvtalrm_handler(int signum)
+
+static void sigvtalrm_handler(int signum)
 {
     tb_lock = SPIN_LOCK_UNLOCKED;
     siglongjmp(env, 100);
 }
 
-void cleanup(void)
+static void cleanup(void)
 {
     int c;
     for (c = 1; c < 24; c++)
@@ -31,7 +34,7 @@ void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-char *getBlock(char *data, size_t len, int min, int reset)
+static char *getBlock(char *data, size_t len, int min, int reset)
 {
     data[len - 1] = 0;
 
@@ -55,7 +58,7 @@ char *getBlock(char *data, size_t len, int min, int reset)
     return NULL;
 }
 
-int execute_work(char *data, size_t len, QemuVars *qv)
+int qemu_engine_process(char *data, size_t len)
 {
     char *p;
     void *block;
@@ -83,17 +86,17 @@ int execute_work(char *data, size_t len, QemuVars *qv)
             DPRINTF("block %d - byte %.2d - ", l, i);
             if (sigsetjmp(env,1) == 100) {
                 DPRINTF("Endless Loop detected!\n");
-                setitimer(ITIMER_VIRTUAL, &qv->zvalue, (struct itimerval*) NULL);
+                setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
             }
-    	    setitimer(ITIMER_VIRTUAL, &qv->value, (struct itimerval*) NULL);
-            ret = qemu_exec(block + i, blocksize - i, qv->stack_base, qv->cpu);
-            setitimer(ITIMER_VIRTUAL, &qv->zvalue, (struct itimerval*) NULL);
+    	    setitimer(ITIMER_VIRTUAL, &qv.value, (struct itimerval*) NULL);
+            ret = qemu_exec(block + i, blocksize - i, qv.stack_base, qv.cpu);
+            setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
 
             switch(ret) {
                 case HIGH_RISK_SYSCALL:
-                    DPRINTF("High risk syscall - %d\n", qv->cpu->regs[R_EAX]);
-                    snprintf(tmp, 25, "syscall - %d", qv->cpu->regs[R_EAX]);
+                    DPRINTF("High risk syscall - %d\n", qv.cpu->regs[R_EAX]);
+                    snprintf(tmp, 25, "syscall - %d", qv.cpu->regs[R_EAX]);
                     threat_length  = strlen(tmp);
                     threat_payload = strndup(tmp, threat_length);
                     cleanup();
@@ -149,29 +152,39 @@ prepare_next_iter:
     return NEED_NEXT;
 }
 
-void detect_engine_init(QemuVars *qv)
+void qemu_engine_init()
 {
-    qv->value.it_interval.tv_usec =
-    qv->value.it_value.tv_usec = 1000;
-    qv->value.it_interval.tv_sec =
-    qv->value.it_value.tv_sec = 0;
+	struct sigaction sa;
 
-    qv->zvalue.it_interval.tv_sec =
-    qv->zvalue.it_interval.tv_usec =
-    qv->zvalue.it_value.tv_sec =
-    qv->zvalue.it_value.tv_usec = 0;
+	sa.sa_handler = sigvtalrm_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+		perror("sigaction sigvtalrm");
+		exit(1);
+	}
 
-    qv->cpu = malloc(sizeof(CPUX86State));
-    qv->stack_base = setup_stack();
+
+    qv.value.it_interval.tv_usec =
+    qv.value.it_value.tv_usec = 1000;
+    qv.value.it_interval.tv_sec =
+    qv.value.it_value.tv_sec = 0;
+
+    qv.zvalue.it_interval.tv_sec =
+    qv.zvalue.it_interval.tv_usec =
+    qv.zvalue.it_value.tv_sec =
+    qv.zvalue.it_value.tv_usec = 0;
+
+    qv.cpu = malloc(sizeof(CPUX86State));
+    qv.stack_base = setup_stack();
 }
 
-void detect_engine_stop(QemuVars *qv)
+void qemu_engine_stop(void)
 {
-    free(qv->cpu);
+    free(qv.cpu);
 
-    if (munmap((void *)qv->stack_base - x86_stack_size, x86_stack_size) == -1) {
+    if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size) == -1) {
         perror("munmap stack_base");
         exit(1);
     }
 }
-

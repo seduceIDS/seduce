@@ -16,16 +16,18 @@ LIBS_AGENT	= -lconfuse
 LIBS_QEMU	= -lqemu
 LIBS		= $(LIBS_AGENT) $(LIBS_QEMU)
 
-all: agent seduce
+CORE_OBJS	= server_contact.o error.o alert.o options.o utils.o
+
+all: agent seduce 
 
 dummy:	dummy_agent
 dummy_agent: CFLAGS += -D_DUMMY_ENGINE
-dummy_agent: agent.o dummy_engine.o alert.o options.o
-	$(CC) -o $@ agent.o dummy_engine.o alert.o options.o $(LDFLAGS) $(LIBS_AGENT)
+dummy_agent: agent.o dummy_engine.o $(CORE_OBJS)
+	$(CC) -o $@ agent.o dummy_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS_AGENT)
 
 agent: CFLAGS += $(CFLAGS_QEMU)
-agent: agent.o detect_engine.o alert.o options.o
-	$(CC) -o $@ agent.o detect_engine.o alert.o options.o $(LDFLAGS) $(LIBS)
+agent: agent.o detect_engine.o $(CORE_OBJS)
+	$(CC) -o $@ agent.o detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS)
 
 seduce: CFLAGS += $(CFLAGS_QEMU)
 seduce: seduce.o detect_engine.o
@@ -34,22 +36,23 @@ seduce: seduce.o detect_engine.o
 seduce.o: seduce.c
 	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
 
-agent.o: agent.c agent.h detect_engine.h
-	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) agent.c
-
 alert.o: alert.c agent.h
-	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) alert.c
+	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
-	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) detect_engine.c
-
-dummy_engine.o: detect_engine.h
-	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) dummy_engine.c
+	$(CC) $(CFLAGS) -c detect_engine.c 
 
 options.o: options.c agent.h
-	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) options.c
+	$(CC) $(CFLAGS) -c options.c
 
+server_contact.o: server_contact.c server_contact.h error.h utils.h
+	$(CC) $(CFLAGS) -c server_contact.c
 
+utils.o: utils.c
+	$(CC) $(CFLAGS) -c utils.c
+
+error.o: error.c error.h
+	$(CC) $(CFLAGS) -c error.c
 
 clean:
 	rm -f *.o *~ agent seduce dummy_agent

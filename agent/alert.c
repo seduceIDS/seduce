@@ -8,6 +8,8 @@
 #include <stdlib.h>
 
 #include "agent.h"
+#include "server_contact.h"
+#include "utils.h"
 
 
 /* from detect_engine.c */
@@ -35,7 +37,7 @@ static int tcp_connect()
 	return sockfd;
 }
 
-static int send_alert(int socket, Work *work)
+static int send_alert(int socket, const Work *work)
 {
 	char pwd[16];
 	char buf[MIN_TCP_SIZE];
@@ -75,7 +77,7 @@ static int send_alert(int socket, Work *work)
 	return 1;
 }
 
-int alert_scheduler(Work *work)
+int alert_scheduler(const Work *work)
 {
 	int socket;
 
@@ -89,7 +91,7 @@ int alert_scheduler(Work *work)
 			printf("done\n");
 
 	printf("Sending the alert...");
-	if(send_alert(socket,work) == 0) {
+	if(send_alert(socket, work) == 0) {
 		fprintf(stderr, "Couldn't send the alert\n");
 		close(socket);
 	       return 0;
