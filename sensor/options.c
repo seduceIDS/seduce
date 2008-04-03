@@ -21,6 +21,11 @@ typedef struct _CommandLineOptions {
 	char *conf_file;
 } CLO;
 
+static void hlpmsg(int rc)
+{
+	fprintf(stderr,"Type `%s -h' for help.\n", pv.prog_name);
+	exit(rc);
+}
 
 static void printusage(int rc)
 {
@@ -177,12 +182,17 @@ static unsigned short get_valid_port(const char *port_str)
 		return 0;
 	size = strlen(port_str);
 	for(i = 0; i < size; i++)
-		if(!isdigit(port_str[i]))
+		if(!isdigit(port_str[i])) {
+			fprintf(stderr, "Port should be a number. ");
 			return 0;
+		}
 
 	port = atoi(port_str);
-	if (port <= 0 || port > 65535)
+	if (port <= 0 || port > 65535) {
+		fprintf(stderr, "Port is not valid. "
+				"Valid port range: [0-65535]. ");
 		return 0;
+	}
 
 	return (unsigned short) port;
 }
@@ -241,7 +251,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 		ret = 0;
 
 	if(!ret)
-		cfg_error(cfg, "Error while parsing parameter \"%s\".",
+		cfg_error(cfg, "Error while parsing parameter `%s'.",
 								opt->name);
 	return (ret) ? 0 : -1;
 }
@@ -400,20 +410,26 @@ void fill_progvars(int argc, char *argv[])
 	}
 
 	if(clo.server) {
-		if(!fill_serveraddr(clo.server))
+		if(!fill_serveraddr(clo.server)) {
+			fprintf(stderr, "Error while parsing `-s' option.\n");
 			goto err;
+		}
 		free(clo.server);
 	}
 
 	if(clo.portlist_expr) {
-		if(!getpts(clo.portlist_expr))
+		if(!getpts(clo.portlist_expr)) {
+			fprintf(stderr, "Error while parsing `-p' option.\n");
 			goto err;
+		}
 		free(clo.portlist_expr);
 	}
 
 	if(clo.homenet_expr) {
-		if(!fill_network(clo.homenet_expr))
+		if(!fill_network(clo.homenet_expr)) {
+			fprintf(stderr, "Error while parsing `-n' option.\n");
 			goto err;
+		}
 		free(clo.homenet_expr);
 	}
 
@@ -425,10 +441,10 @@ void fill_progvars(int argc, char *argv[])
 
 	/* Check if all needed program variables are set */
 	if(pv.server_addr == 0 || pv.server_port == 0) {
-		fprintf(stderr, "Scheduler connection info is missing\n"
-				"Either use the -s command line option "
-				"or the \"server_addr\" variable of the "
-				"configuration file\n\n");
+		fprintf(stderr, "Scheduler connection info is missing. "
+				"Either use the `-s' command line option "
+				"or the `server_addr' variable of the "
+				"configuration file.\n");
 		goto err;
 	}
 
@@ -443,7 +459,7 @@ void fill_progvars(int argc, char *argv[])
 	return;
 
 err:
-	printusage(1);
+	hlpmsg(1);
 }
 
 
