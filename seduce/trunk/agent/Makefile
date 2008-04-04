@@ -8,30 +8,48 @@ srcdir		= .
 CC		= gcc
 CFLAGS		= -g -O2 -D_DEBUG -Wall -D_GNU_SOURCE
 CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/
-LDFLAGS		= 
 
+LDFLAGS		= 
 LIBS_CFLAGS	= 
 
-LIBS_AGENT	= -lconfuse
 LIBS_QEMU	= -lqemu
-LIBS		= $(LIBS_AGENT) $(LIBS_QEMU)
+LIBS		= -lconfuse
 
-CORE_OBJS	= server_contact.o error.o alert.o options.o utils.o
+CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o utils.o
 
-all: agent seduce 
+ENGINE		= dummy
 
-dummy:	dummy_agent
-dummy_agent: CFLAGS += -D_DUMMY_ENGINE
-dummy_agent: agent.o detect_engine.o dummy_detect_engine.o $(CORE_OBJS)
-	$(CC) -o $@ agent.o detect_engine.o dummy_detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS_AGENT)
+ifeq ($(ENGINE), qemu)
+	CFLAFS += $(CFLAGS_QEMU)
+	LIBS += $(LIBS_QEMU)
+	OBJS = $(CORE_OBJS) detect_engine_qemu.o
+endif
+ifeq ($(ENGINE), dummy)
+	OBJS = $(CORE_OBJS) detect_engine_dummy.o
+endif
 
-agent: CFLAGS += $(CFLAGS_QEMU)
-agent: agent.o detect_engine.o qemu_detect_engine.o $(CORE_OBJS)
-	$(CC) -o $@ agent.o detect_engine.o qemu_detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS)
+all: agent 
+.PHONY: all dummy qemu clean
 
-seduce: CFLAGS += $(CFLAGS_QEMU)
-seduce: seduce.o detect_engine.o qemu_detect_engine.o
-	$(CC) -o $@ seduce.o detect_engine.o qemu_detect_engine.o $(LIBS_QEMU)
+dummy:
+	$(MAKE) ENGINE=dummy
+
+qemu:
+	$(MAKE) ENGINE=qemu
+
+agent:	$(OBJS)
+	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
+	@echo
+	@echo The agent is linked against the $(ENGINE) detection engine. If you
+	@echo want to use another engine, either modify the ENGINE variable or
+	@echo use the engine name as a target like this":"
+	@echo
+	@echo -e "\t make qemu"
+	@echo -e "\t make dummy"
+	@echo
+
+seduce: seduce.o detect_engine.o detect_engine_qemu.o
+	$(CC) -o $@ seduce.o detect_engine.o detect_engine_qemu.o $(LIBS_QEMU)
 
 seduce.o: seduce.c
 	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
@@ -54,13 +72,13 @@ utils.o: utils.c
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c
 
-qemu_detect_engine.o: qemu_detect_engine.c qemu_detect_engine.h
-	$(CC) $(CFLAGS) -c qemu_detect_engine.c 
+detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
+	$(CC) $(CFLAGS) -c detect_engine_qemu.c 
 
-dummy_detect_engine.o: dummy_detect_engine.c
-	$(CC) $(CFLAGS) -c dummy_detect_engine.c 
+detect_engine_dummy.o: detect_engine_dummy.c
+	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
 
 clean:
-	rm -f *.o *~ agent seduce dummy_agent
+	rm -f *.o *~ agent seduce 
 
 # EOF
