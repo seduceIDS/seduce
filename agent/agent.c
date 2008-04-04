@@ -161,11 +161,8 @@ static void main_loop(void)
 	}
 }
 
-#ifdef _DUMMY_ENGINE
-extern DetectEngine dummy_engine;
-#else
-extern DetectEngine qemu_engine;
-#endif
+/* SOmeone should export this */
+extern DetectEngine engine;
 
 int main(int argc, char *argv[])
 {
@@ -174,11 +171,7 @@ int main(int argc, char *argv[])
 	/* initialize the programe variables */
 	fill_progvars(argc, argv);
 
-#ifdef _DUMMY_ENGINE
-	pv.detect_engine = &dummy_engine;
-#else
-	pv.detect_engine = &qemu_engine;
-#endif
+	pv.detect_engine = &engine;
 
 	/* Try to connect to the sceduler */
 	if(!manager_connect()) {

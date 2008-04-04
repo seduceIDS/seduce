@@ -10,7 +10,7 @@ void dummy_engine_stop();
 int  dummy_engine_process(char *data, size_t len);
 int  dummy_engine_get_threat();
 
-DetectEngine dummy_engine = {
+DetectEngine engine = {
 	.init = &dummy_engine_init,
 	.stop = &dummy_engine_stop,
 	.process = &dummy_engine_process,
