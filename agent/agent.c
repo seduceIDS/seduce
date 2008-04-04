@@ -9,6 +9,7 @@
 
 #include "agent.h"
 #include "server_contact.h"
+#include "alert.h"
 #include "error.h"
 
 
@@ -32,7 +33,7 @@ static int manager_connect(void)
 {
 	int ret;
 	
-	ret = init_conn_info();
+	ret = init_session();
 	if(ret == 0)
 		critical_error(1, "Unable to initialize the connection info");
 
@@ -61,7 +62,7 @@ static int manager_connect(void)
 static void manager_disconnect(void)
 {
 	server_request(SEND_QUIT);
-	destroy_conn_info();
+	destroy_session();
 }
 
 /*
@@ -116,7 +117,7 @@ static Work * get_next_work(void)
 
 void quit_handler(int s)
 {
-	pv.detect_engine_stop();
+	pv.detect_engine->stop();
 	printf("Sending QUIT Message...\n");
 	manager_disconnect();
 	exit(0);
@@ -125,6 +126,7 @@ void quit_handler(int s)
 static void main_loop(void)
 {
 	Work *w;
+	Threat t;
 	int ret;
 
 	for (;;) {
@@ -139,16 +141,17 @@ static void main_loop(void)
 		printf("Got a new data_group\n");
 
 		/* clear the detect engine */
-		pv.detect_engine_process(NULL, 0);
+		pv.detect_engine->process(NULL, 0);
 	
 		do {
 			printf("Detect data\n");
-			ret = pv.detect_engine_process(w->payload, w->length);
+			ret = pv.detect_engine->process(w->payload, w->length);
 			if(ret == 1) {
-				
 				printf("Threat Detected\n");
-				/* alert_scheduler */
-	
+				pv.detect_engine->get_threat(&t);
+				/* send the t treat */
+				alert_submission(&w->info, &t);
+				destroy_threat(&t);
 			} else if(ret == -1) {
 	
 				/* detection engine error */
@@ -157,14 +160,10 @@ static void main_loop(void)
 	}
 }
 
-#ifndef _DUMMY_ENGINE
-extern int qemu_engine_process(char *, size_t);
-extern void qemu_engine_init(void);
-extern void qemu_engine_stop(void);
+#ifdef _DUMMY_ENGINE
+extern DetectEngine dummy_engine;
 #else
-extern int dummy_engine_process(char *, size_t);
-extern void dummy_engine_init(void);
-extern void dummy_engine_stop(void);
+extern DetectEngine qemu_engine;
 #endif
 
 int main(int argc, char *argv[])
@@ -174,14 +173,10 @@ int main(int argc, char *argv[])
 	/* initialize the programe variables */
 	fill_progvars(argc, argv);
 
-#ifndef _DUMMY_ENGINE
-	pv.detect_engine_init = &qemu_engine_init;
-	pv.detect_engine_stop = &qemu_engine_stop;
-	pv.detect_engine_process = &qemu_engine_process;
+#ifdef _DUMMY_ENGINE
+	pv.detect_engine = &dummy_engine;
 #else
-	pv.detect_engine_init = &dummy_engine_init;
-	pv.detect_engine_stop = &dummy_engine_stop;
-	pv.detect_engine_process = &dummy_engine_process;
+	pv.detect_engine = &qemu_engine;
 #endif
 
 	/* Try to connect to the sceduler */

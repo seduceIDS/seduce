@@ -7,36 +7,32 @@
 #include <sys/uio.h>
 #include <stdlib.h>
 
+#include "alert.h"
 #include "agent.h"
-#include "server_contact.h"
 #include "utils.h"
-
-
-/* from detect_engine.c */
-extern char *threat_payload;
-extern size_t threat_length;
 
 #define MIN_TCP_SIZE	20
 
 static int tcp_connect()
 {
-	int sockfd;
+	int sock;
 	socklen_t addrlen = sizeof(struct sockaddr);
 
-	sockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if(sockfd == -1) {
+	sock = socket(PF_INET, SOCK_STREAM, 0);
+	if(sock == -1) {
 		perror("socket");
 		return 0;
 	}
 
-	if(connect(sockfd, (struct sockaddr *)&pv.addr, addrlen) == -1) {
+	if(connect(sock, (struct sockaddr *)&pv.addr, addrlen) == -1) {
 		perror("connect");
 		return 0;
 	}
 
-	return sockfd;
+	return sock;
 }
 
+#if 0
 static int send_alert(int socket, const Work *work)
 {
 	char pwd[16];
@@ -49,11 +45,11 @@ static int send_alert(int socket, const Work *work)
 	copy_password(pwd);
 	size = MIN_TCP_SIZE + threat_length;
 	*(u_int32_t *)(buf +  0) = htonl(size);
-	*(u_int32_t *)(buf +  4) = htonl(work->proto);
-	*(u_int16_t *)(buf +  8) = work->s_port;
-	*(u_int16_t *)(buf + 10) = work->d_port;
-	*(u_int32_t *)(buf + 12) = work->s_addr;
-	*(u_int32_t *)(buf + 16) = work->d_addr;
+	*(u_int32_t *)(buf +  4) = htonl(work->info.proto);
+	*(u_int16_t *)(buf +  8) = work->info.s_port;
+	*(u_int16_t *)(buf + 10) = work->info.d_port;
+	*(u_int32_t *)(buf + 12) = work->info.s_addr;
+	*(u_int32_t *)(buf + 16) = work->info.d_addr;
 
 	iov[0].iov_base = pwd;
 	iov[0].iov_len = MAX_PWD_SIZE;
@@ -100,5 +96,12 @@ int alert_scheduler(const Work *work)
 
 	printf("Terminating the connection\n");
 	close(socket);
+	return 1;
+}
+#endif
+
+int alert_submission(ConnectionInfo *c, Threat *t)
+{
+	printf("Submitting an alert...\n");
 	return 1;
 }

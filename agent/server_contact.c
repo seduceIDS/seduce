@@ -17,10 +17,10 @@
 #include "agent.h"
 
 /* 
- * conn_info should only be visible in this file. To make
+ * srv_session should only be visible in this file. To make
  * other functions see part of it we need to declare getters.
  */
-static ConnectionInfo  *conn_info = NULL;
+static ServerSession  *srv_session = NULL;
 
 static void sigalrm_handler(int s)
 {
@@ -71,11 +71,11 @@ static int send_pck(int type)
 
 	*(u_int32_t *)(pck +  0) = htonl(length);
 	*(u_int32_t *)(pck +  4) = htonl(type);
-	*(u_int32_t *)(pck +  8) = htonl(conn_info->seq);
-	*(u_int32_t *)(pck + 12) = htonl(conn_info->id);
+	*(u_int32_t *)(pck +  8) = htonl(srv_session->seq);
+	*(u_int32_t *)(pck + 12) = htonl(srv_session->id);
 
-	numbytes = sendto(conn_info->sock, pck, length, 0,
-		 (struct sockaddr *)&conn_info->addr, sizeof(struct sockaddr));
+	numbytes = sendto(srv_session->sock, pck, length, 0,
+		 (struct sockaddr *)&srv_session->addr, sizeof(struct sockaddr));
 	if(numbytes == -1) {
 		perror("sendto");
 		return 0;
@@ -92,7 +92,7 @@ static inline void fill_hdr_info(Packet *dst, const char *src)
 	dst->id   = ntohl(*(u_int32_t *)(src + 12));
 }
 
-static inline void fill_session_info(Work *dst, const char *src)
+static inline void fill_conn_info(ConnectionInfo *dst, const char *src)
 {
 	dst->proto = ntohl(*(u_int32_t *)(src +  0));
 	dst->s_port =      *(u_int16_t *)(src +  4);
@@ -134,7 +134,7 @@ static int recv_pck(Packet *pck)
 
 	alarm(pv.timeout);
 	/* Just "Peek" the first 64 bits... this should be the size & type */
-	numbytes = recvfrom(conn_info->sock, peek, 2*sizeof(u_int32_t),
+	numbytes = recvfrom(srv_session->sock, peek, 2*sizeof(u_int32_t),
 				  MSG_PEEK,(struct sockaddr *)&addr, &addr_len);
 	alarm(0);
 
@@ -255,7 +255,7 @@ static int recv_pck(Packet *pck)
 	msg.msg_flags = MSG_TRUNC;
 
 	/* Now let's get the packet for real this time */
-	numbytes = recvmsg(conn_info->sock, &msg, 0);
+	numbytes = recvmsg(srv_session->sock, &msg, 0);
 	if(numbytes == -1) {
 		perror("recvmsg");
 		ret = 0;
@@ -284,7 +284,7 @@ static int recv_pck(Packet *pck)
 
 	/* Copy payload's session info if needed*/
 	if(type == RECV_HEAD_DATA)
-		fill_session_info(&pck->work, info);
+		fill_conn_info(&pck->work.info, info);
 
 	/* Copy the payload info (may be NULL)*/
 	pck->work.payload = payload;
@@ -297,7 +297,7 @@ drop_pck:
  	 * clear the receive buffer by receiving 1 byte and leaving it to the
 	 * kernel to remove the packet from the buffer
  	 */
-	if(recvfrom(conn_info->sock, hdr, 1, 0,NULL,0) == -1)
+	if(recvfrom(srv_session->sock, hdr, 1, 0,NULL,0) == -1)
 			perror("recvfrom");
 	
 	return ret;
@@ -380,7 +380,7 @@ static int do_request(unsigned int type, Packet *pck)
 		 * if we reached here, check the sequence number and do a retry
 		 * if needed.
 		 */
-	} while(pck->seq != conn_info->seq);
+	} while(pck->seq != srv_session->seq);
 
 	return 1;
 }
@@ -391,8 +391,8 @@ static int handle_connect_reply(Packet *pck)
 	case RECV_CONNECTED:
 		printf("Connected with ID %d\n", pck->id);
 		/* save the new id and seq*/
-		conn_info->id = pck->id;
-		conn_info->seq = pck->seq;
+		srv_session->id = pck->id;
+		srv_session->seq = pck->seq;
 		return 1;
 
 	case RECV_NOT_CONN:
@@ -409,12 +409,12 @@ static int handle_connect_reply(Packet *pck)
 
 static int handle_newwork_reply(Packet *pck)
 {
-	destroy_payload(&conn_info->current);
+	destroy_payload(&srv_session->current);
 
 	switch(pck->type) {
 	case RECV_HEAD_DATA:
 		/* Update current work info */
-		memcpy(&conn_info->current, &pck->work, sizeof(Work));
+		memcpy(&srv_session->current, &pck->work, sizeof(Work));
 		pck->work.length = 0;
 		return 1;
 
@@ -430,13 +430,13 @@ static int handle_newwork_reply(Packet *pck)
 static int handle_getnext_reply(Packet *pck)
 {
 
-	destroy_payload(&conn_info->current);
+	destroy_payload(&srv_session->current);
 
 	switch(pck->type) {
 	case RECV_DATA:
 		/* Update current work info */
-		conn_info->current.length = pck->work.length;
-		conn_info->current.payload = pck->work.payload;
+		srv_session->current.length = pck->work.length;
+		srv_session->current.payload = pck->work.payload;
 
 		return 1;
 	case RECV_NOT_FOUND:
@@ -460,7 +460,7 @@ int server_request(int req_type)
 	}
 
 	/* For a new request we need a new Sequence number */
-	conn_info->seq++;
+	srv_session->seq++;
 
 retry:
 	ret = do_request(req_type, &pck);
@@ -517,36 +517,36 @@ retry:
 	}
 }
 
-int init_conn_info(void)
+int init_session(void)
 {
 	struct sigaction sa;
 
-	conn_info = malloc(sizeof(ConnectionInfo));
-	if(conn_info == NULL) {
+	srv_session = malloc(sizeof(ServerSession));
+	if(srv_session == NULL) {
 		perror("malloc");
 		return 0;
 	}
 
 	/* initialize the socket */
-	conn_info->sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (conn_info->sock == -1) {
+	srv_session->sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (srv_session->sock == -1) {
 		perror("socket");
 		goto err;
 	}
 
-	conn_info->addr.sin_family = AF_INET;
-	conn_info->addr.sin_port = pv.port;
-	conn_info->addr.sin_addr = pv.addr;
-	memset(&(conn_info->addr.sin_zero), '\0', 8);
+	srv_session->addr.sin_family = AF_INET;
+	srv_session->addr.sin_port = pv.port;
+	srv_session->addr.sin_addr = pv.addr;
+	memset(&(srv_session->addr.sin_zero), '\0', 8);
 
 	/* 
 	 * They will be overwritten when we connect to the
 	 * server, but I'll initialize them anyway.
 	 */
-	conn_info->seq = 0;
-	conn_info->id = 0;
+	srv_session->seq = 0;
+	srv_session->id = 0;
 
-	memset(&conn_info->current, '\0', sizeof(Work));
+	memset(&srv_session->current, '\0', sizeof(Work));
 
 	sa.sa_handler = sigalrm_handler;
 	sigemptyset(&sa.sa_mask);
@@ -560,19 +560,19 @@ int init_conn_info(void)
 	return 1;
 
 err:
-	free(conn_info);
+	free(srv_session);
 	return 0;
 }
 
-void destroy_conn_info(void)
+void destroy_session(void)
 {
-	if(conn_info) {
-		conn_info = NULL;
-		free(conn_info);
+	if(srv_session) {
+		srv_session = NULL;
+		free(srv_session);
 	}
 }
 
 Work * fetch_current_work(void)
 {
-	return &conn_info->current;
+	return &srv_session->current;
 }
