@@ -129,6 +129,7 @@ static void main_loop(void)
 	Threat t;
 	int ret;
 
+	pv.detect_engine->init();
 	for (;;) {
 		w = get_new_work();
 		if(w == NULL) {
@@ -140,7 +141,7 @@ static void main_loop(void)
 
 		printf("Got a new data_group\n");
 
-		/* clear the detect engine */
+		/* reset the detect engine */
 		pv.detect_engine->process(NULL, 0);
 	
 		do {
@@ -149,7 +150,7 @@ static void main_loop(void)
 			if(ret == 1) {
 				printf("Threat Detected\n");
 				pv.detect_engine->get_threat(&t);
-				/* send the t treat */
+				/* send the treat */
 				alert_submission(&w->info, &t);
 				destroy_threat(&t);
 			} else if(ret == -1) {
