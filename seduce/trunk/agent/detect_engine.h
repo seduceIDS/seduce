@@ -1,20 +1,31 @@
 #ifndef _DETECT_ENGINE_H
 #define _DETECT_ENGINE_H
 
-#include <stdio.h>    /* for size_t */
-#include <sys/time.h> /* for struct itimerval */
+#include <stddef.h> /* for size_t */
 
-#include "qemu.h"     /* for CPUX86State */
+typedef enum {
+	SEVERITY_HIGH = 1,
+	SEVERITY_MEDIUM = 2,
+	SEVERITY_LOW = 3,
+	SEVERITY_INFO = 4
+} ImpactSeverity;
 
-#define WORK_DONE 1
-#define NEED_NEXT 2
-#define THREAT_DETECTED 3
+typedef struct _Threat{
+	unsigned char *payload;	 /* The payload that caused the alert */
+	size_t length;		 /* The length of the payload */
+	ImpactSeverity severity; /* Severity of the threat */
+	char *msg;		 /* Null-Terminated, human-readable, message */
+} Threat;
 
-typedef struct _QemuVars {
-    struct itimerval value;
-    struct itimerval zvalue;
-    unsigned long stack_base;
-    CPUX86State *cpu;
-} QemuVars;
+typedef struct _DetectEngine{
+	void (*init)(void);
+	void (*stop)(void);
+	int (*process)(char *, size_t);
+	int (*get_threat)(Threat *);
+} DetectEngine;
 
-#endif /* _DETECT_ENGINE_H */
+
+/* Function Declarations */
+void destroy_threat(Threat *);
+
+#endif /* _DETECT_ENGINE_H*/

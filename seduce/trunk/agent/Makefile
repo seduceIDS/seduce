@@ -22,16 +22,16 @@ all: agent seduce
 
 dummy:	dummy_agent
 dummy_agent: CFLAGS += -D_DUMMY_ENGINE
-dummy_agent: agent.o dummy_engine.o $(CORE_OBJS)
-	$(CC) -o $@ agent.o dummy_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS_AGENT)
+dummy_agent: agent.o detect_engine.o dummy_detect_engine.o $(CORE_OBJS)
+	$(CC) -o $@ agent.o detect_engine.o dummy_detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS_AGENT)
 
 agent: CFLAGS += $(CFLAGS_QEMU)
-agent: agent.o detect_engine.o $(CORE_OBJS)
-	$(CC) -o $@ agent.o detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS)
+agent: agent.o detect_engine.o qemu_detect_engine.o $(CORE_OBJS)
+	$(CC) -o $@ agent.o detect_engine.o qemu_detect_engine.o $(CORE_OBJS) $(LDFLAGS) $(LIBS)
 
 seduce: CFLAGS += $(CFLAGS_QEMU)
-seduce: seduce.o detect_engine.o
-	$(CC) -o $@ seduce.o detect_engine.o $(LIBS_QEMU)
+seduce: seduce.o detect_engine.o qemu_detect_engine.o
+	$(CC) -o $@ seduce.o detect_engine.o qemu_detect_engine.o $(LIBS_QEMU)
 
 seduce.o: seduce.c
 	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
@@ -53,6 +53,12 @@ utils.o: utils.c
 
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c
+
+qemu_detect_engine.o: qemu_detect_engine.c qemu_detect_engine.h
+	$(CC) $(CFLAGS) -c qemu_detect_engine.c 
+
+dummy_detect_engine.o: dummy_detect_engine.c
+	$(CC) $(CFLAGS) -c dummy_detect_engine.c 
 
 clean:
 	rm -f *.o *~ agent seduce dummy_agent

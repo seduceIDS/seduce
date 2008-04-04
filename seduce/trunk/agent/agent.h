@@ -2,6 +2,7 @@
 #define _AGENT_H
 
 #include <netinet/in.h>
+#include "detect_engine.h"
 
 typedef struct _ProgVars {
 	char *prog_name;	/* program name */
@@ -13,10 +14,7 @@ typedef struct _ProgVars {
 	int retries;		/* Number of allowed retries */
 	int no_work_wait;	/* Seconds to wait when no work available */
 
-	/* Detection Engine */
-	void (*detect_engine_init)(void);
-	void (*detect_engine_stop)(void);
-	int (*detect_engine_process)(char *, size_t);
+	DetectEngine *detect_engine; /* The detection engine to use */
 } ProgVars;
 
 /* Default Options */
