@@ -37,7 +37,7 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-agent:	$(OBJS)
+agent:	$(OBJS) agent.h server_contact.h alert.h error.h
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
 	@echo The agent is linked against the $(ENGINE) detection engine. If you
