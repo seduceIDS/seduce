@@ -6,6 +6,7 @@
 #include "exec-all.h"
 #include "debug.h"
 #include "detect_engine.h"
+#include "detection_engine_qemu.h"
 
 extern unsigned long x86_stack_size;
 
