@@ -117,7 +117,7 @@ static Work * get_next_work(void)
 
 void quit_handler(int s)
 {
-	pv.detect_engine->stop();
+	pv.detect_engine->destroy();
 	printf("Sending QUIT Message...\n");
 	manager_disconnect();
 	exit(0);
@@ -142,7 +142,7 @@ static void main_loop(void)
 		printf("Got a new data_group\n");
 
 		/* reset the detect engine */
-		pv.detect_engine->process(NULL, 0);
+		pv.detect_engine->reset();
 	
 		do {
 			printf("Detect data\n");
