@@ -1,5 +1,5 @@
-#ifndef _QEMU_DETECT_ENGINE_H
-#define _QEMU_DETECT_ENGINE_H
+#ifndef _DETECT_ENGINE_QEMU_H
+#define _DETECT_ENGINE_QEMU_H
 
 #include <stdio.h>    /* for size_t */
 #include <sys/time.h> /* for struct itimerval */
@@ -13,4 +13,4 @@ typedef struct _QemuVars {
     CPUX86State *cpu;
 } QemuVars;
 
-#endif /* _QUEMU_DETECT_ENGINE_H */
+#endif /* _DETECT_ENGINE_QEMU_H */
