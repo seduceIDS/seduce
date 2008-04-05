@@ -8,6 +8,14 @@
 #include "detect_engine.h"
 #include "detection_engine_qemu.h"
 
+DetectEngine engine = {
+	.init = &qemu_engine_init,
+	.destroy = &qemu_engine_destroy,
+	.reset = &qemu_engine_reset,
+	.process = &qemu_engine_process,
+	.get_threat = &qemu_engine_get_threat
+};
+
 extern unsigned long x86_stack_size;
 
 static QemuVars qv;
@@ -59,7 +67,7 @@ static char *getBlock(char *data, size_t len, int min, int reset)
     return NULL;
 }
 
-int qemu_engine_process(char *data, size_t len)
+static int qemu_engine_process(char *data, size_t len)
 {
     char *p;
     void *block;
@@ -153,17 +161,17 @@ prepare_next_iter:
     return NEED_NEXT;
 }
 
-void qemu_engine_init()
+static int qemu_engine_init()
 {
-	struct sigaction sa;
+    struct sigaction sa;
 
-	sa.sa_handler = sigvtalrm_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
-		perror("sigaction sigvtalrm");
-		exit(1);
-	}
+    sa.sa_handler = sigvtalrm_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+	perror("sigaction sigvtalrm");
+	return 0;
+    }
 
 
     qv.value.it_interval.tv_usec =
@@ -177,10 +185,16 @@ void qemu_engine_init()
     qv.zvalue.it_value.tv_usec = 0;
 
     qv.cpu = malloc(sizeof(CPUX86State));
+    if (qv == NULL) {
+	perror("malloc CPUX86State");
+	return 0;
+    }
     qv.stack_base = setup_stack();
+
+    return 1;
 }
 
-void qemu_engine_stop(void)
+static void qemu_engine_destroy(void)
 {
     free(qv.cpu);
 
@@ -188,4 +202,10 @@ void qemu_engine_stop(void)
         perror("munmap stack_base");
         exit(1);
     }
+}
+
+static int qemu_engine_get_threat(Threat *t)
+{
+	/* TODO: fill this function */
+	return 1;
 }

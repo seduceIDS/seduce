@@ -5,36 +5,43 @@
 
 #define TIMES	10
 
-void dummy_engine_init();
-void dummy_engine_stop();
-int  dummy_engine_process(char *data, size_t len);
-int  dummy_engine_get_threat();
+static int dummy_engine_init();
+static void dummy_engine_destroy();
+static int  dummy_engine_process();
+static void dummy_engine_reset();
+static int  dummy_engine_get_threat();
 
 DetectEngine engine = {
 	.init = &dummy_engine_init,
-	.stop = &dummy_engine_stop,
+	.destroy = &dummy_engine_destroy,
+	.reset = &dummy_engine_reset,
 	.process = &dummy_engine_process,
 	.get_threat = &dummy_engine_get_threat
 };
 
-void dummy_engine_init()
+static int dummy_engine_init()
+{
+	printf("Dummy engine initialized\n");
+	return 1;
+}
+
+static void dummy_engine_destroy()
 {
 	return;
 }
 
-void dummy_engine_stop()
+static void dummy_engine_reset()
 {
+	printf("Dummy engine destroyed\n");
 	return;
 }
 
-int dummy_engine_process(char *data, size_t len)
+static int dummy_engine_process(char *data, size_t len)
 {
 	static int times = 0;
 
-	if((data == NULL) || (len == 0)) {
-		fprintf(stderr, "engine reset\n");
-		return 0;
-	}
+	if((data == NULL) || (len == 0))
+		return -1;
 
 	if(times++ < TIMES) {
 		fprintf(stderr, "work done\n");
@@ -47,7 +54,7 @@ int dummy_engine_process(char *data, size_t len)
 	}
 }
 
-int dummy_engine_get_threat(Threat *t)
+static int dummy_engine_get_threat(Threat *t)
 {
 	memcpy(t->payload, "\x01\x02\x03\x04", 4); 
 	t->length = 4;
