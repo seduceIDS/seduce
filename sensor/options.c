@@ -30,7 +30,7 @@ static void hlpmsg(int rc)
 static void printusage(int rc)
 {
 	fprintf(stderr, 
-		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
+		"\nUsage:\n%s [-c <config_file>] [-h] [-i<interface>] "
 		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
 		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  h : Print this help message.\n"
