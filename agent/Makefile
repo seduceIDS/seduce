@@ -15,7 +15,7 @@ LIBS_CFLAGS	=
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
 
-CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o utils.o
+CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o
 
 ENGINE		= dummy
 
@@ -37,7 +37,7 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-agent:	$(OBJS) agent.h server_contact.h alert.h error.h
+agent:	$(OBJS) agent.h server_contact.h alert.h error.h options.h
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
 	@echo The agent is linked against the $(ENGINE) detection engine. If you
@@ -54,20 +54,20 @@ seduce: seduce.o detect_engine.o detect_engine_qemu.o
 seduce.o: seduce.c
 	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
 
+agent.o: agent.c agent.h alert.h error.h options.h detect_engine.h server_contact.h
+	$(CC) $(CFLAGS) -c agent.c
+
 alert.o: alert.c agent.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine.c 
 
-options.o: options.c agent.h
+options.o: options.c options.h
 	$(CC) $(CFLAGS) -c options.c
 
 server_contact.o: server_contact.c server_contact.h error.h utils.h
 	$(CC) $(CFLAGS) -c server_contact.c
-
-utils.o: utils.c
-	$(CC) $(CFLAGS) -c utils.c
 
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c

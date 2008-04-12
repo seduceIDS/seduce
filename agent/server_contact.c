@@ -14,13 +14,12 @@
 #include "error.h"
 
 #include "server_contact.h"
-#include "agent.h"
 
-/* 
- * srv_session should only be visible in this file. To make
- * other functions see part of it we need to declare getters.
- */
-static ServerSession  *srv_session = NULL;
+
+inline char *pwdcpy(const ServerSession *s, char *buf)
+{
+	return strncpy(buf, s->password, PROTO_PWD_SIZE);
+}
 
 static void sigalrm_handler(int s)
 {
@@ -28,7 +27,7 @@ static void sigalrm_handler(int s)
 }
 
 /*
- * Function: send_pck(int)
+ * Function: send_pck(const ServerSession *, int)
  *
  * Purpose: send a UDP package to the manager
  *
@@ -37,7 +36,7 @@ static void sigalrm_handler(int s)
  * Returns: 1 => success
  *          0 => An error occured
  */
-static int send_pck(int type)
+static int send_pck(const ServerSession *s, int type)
 {
 	char pck[PROTO_HDR_SIZE + PROTO_PWD_SIZE];
 	size_t length;
@@ -48,7 +47,7 @@ static int send_pck(int type)
 	case SEND_QUIT:
 		/* those packets contain the hdr and a password*/
 		length = PROTO_HDR_SIZE + PROTO_PWD_SIZE;
-		copy_password(pck + PROTO_HDR_SIZE);
+		pwdcpy(s, pck + PROTO_HDR_SIZE);
 		break;
 
 	case SEND_NEW_WORK:
@@ -71,11 +70,11 @@ static int send_pck(int type)
 
 	*(u_int32_t *)(pck +  0) = htonl(length);
 	*(u_int32_t *)(pck +  4) = htonl(type);
-	*(u_int32_t *)(pck +  8) = htonl(srv_session->seq);
-	*(u_int32_t *)(pck + 12) = htonl(srv_session->id);
+	*(u_int32_t *)(pck +  8) = htonl(s->seq);
+	*(u_int32_t *)(pck + 12) = htonl(s->id);
 
-	numbytes = sendto(srv_session->sock, pck, length, 0,
-		 (struct sockaddr *)&srv_session->addr, sizeof(struct sockaddr));
+	numbytes = sendto(s->sock, pck, length, 0,
+		 (struct sockaddr *)&s->addr, sizeof(struct sockaddr));
 	if(numbytes == -1) {
 		perror("sendto");
 		return 0;
@@ -113,18 +112,18 @@ static inline void fill_conn_info(ConnectionInfo *dst, const char *src)
  *          -1 => Timed Out
  *          -2 => Package Sanity (wrong package fields)
  */
-static int recv_pck(Packet *pck)
+static int recv_pck(const ServerSession *s, Packet *pck)
 {
 	char hdr[PROTO_HDR_SIZE]; /* for the packet header */
 	char info[PROTO_INFO_SIZE]; /* for the session info (RECV_DATA_HEAD) */
 	char *payload = NULL;
-	socklen_t addr_len;
 	ssize_t payload_len = 0;
 
 	u_int32_t peek[2];
 	unsigned int size, type;
 
 	struct sockaddr_in addr;
+	socklen_t addr_len = sizeof(struct sockaddr_in);
 	ssize_t numbytes;
 
 	struct msghdr msg;
@@ -132,9 +131,9 @@ static int recv_pck(Packet *pck)
 
 	int ret;
 
-	alarm(pv.timeout);
+	alarm(s->timeout);
 	/* Just "Peek" the first 64 bits... this should be the size & type */
-	numbytes = recvfrom(srv_session->sock, peek, 2*sizeof(u_int32_t),
+	numbytes = recvfrom(s->sock, peek, 2*sizeof(u_int32_t),
 				  MSG_PEEK,(struct sockaddr *)&addr, &addr_len);
 	alarm(0);
 
@@ -255,7 +254,7 @@ static int recv_pck(Packet *pck)
 	msg.msg_flags = MSG_TRUNC;
 
 	/* Now let's get the packet for real this time */
-	numbytes = recvmsg(srv_session->sock, &msg, 0);
+	numbytes = recvmsg(s->sock, &msg, 0);
 	if(numbytes == -1) {
 		perror("recvmsg");
 		ret = 0;
@@ -297,7 +296,7 @@ drop_pck:
  	 * clear the receive buffer by receiving 1 byte and leaving it to the
 	 * kernel to remove the packet from the buffer
  	 */
-	if(recvfrom(srv_session->sock, hdr, 1, 0,NULL,0) == -1)
+	if(recvfrom(s->sock, hdr, 1, 0,NULL,0) == -1)
 			perror("recvfrom");
 	
 	return ret;
@@ -319,7 +318,7 @@ void destroy_payload(Work *w)
 }
 
 /*
- * Function: do_request(unsigned int, Packet *)
+ * Function: do_request(const ServerSession *, unsigned int, Packet *)
  *
  * Purpose: Send a message to the manager and then receive a valid reply. A 
  *          reply is valid if it has the same sequence number with the request
@@ -331,11 +330,11 @@ void destroy_payload(Work *w)
  *           0 => Critical Error
  *          -1 => Timed Out
  */
-static int do_request(unsigned int type, Packet *pck)
+static int do_request(const ServerSession *s, unsigned int type, Packet *pck)
 {
 	int ret;
 
-	ret = send_pck(type);
+	ret = send_pck(s, type);
 	if(ret == 0) {
 		fprintf(stderr, "server_request: Can't send request\n");
 		return 0;
@@ -350,7 +349,7 @@ static int do_request(unsigned int type, Packet *pck)
 	}
 
 	do {
-		ret = recv_pck(pck);
+		ret = recv_pck(s, pck);
 		if(ret == -2) {
 			/* I received garbage, I'll retry */
 			proto_violation("Collected garbage. Retrying to receive"
@@ -380,19 +379,19 @@ static int do_request(unsigned int type, Packet *pck)
 		 * if we reached here, check the sequence number and do a retry
 		 * if needed.
 		 */
-	} while(pck->seq != srv_session->seq);
+	} while(pck->seq != s->seq);
 
 	return 1;
 }
 
-static int handle_connect_reply(Packet *pck)
+static int handle_connect_reply(ServerSession *s, Packet *pck)
 {
 	switch(pck->type) {
 	case RECV_CONNECTED:
 		printf("Connected with ID %d\n", pck->id);
 		/* save the new id and seq*/
-		srv_session->id = pck->id;
-		srv_session->seq = pck->seq;
+		s->id = pck->id;
+		s->seq = pck->seq;
 		return 1;
 
 	case RECV_NOT_CONN:
@@ -407,14 +406,14 @@ static int handle_connect_reply(Packet *pck)
 	}
 }
 
-static int handle_newwork_reply(Packet *pck)
+static int handle_newwork_reply(ServerSession *s, Packet *pck)
 {
-	destroy_payload(&srv_session->current);
+	destroy_payload(&s->current);
 
 	switch(pck->type) {
 	case RECV_HEAD_DATA:
 		/* Update current work info */
-		memcpy(&srv_session->current, &pck->work, sizeof(Work));
+		memcpy(&s->current, &pck->work, sizeof(Work));
 		pck->work.length = 0;
 		return 1;
 
@@ -427,16 +426,16 @@ static int handle_newwork_reply(Packet *pck)
 	}
 }
 
-static int handle_getnext_reply(Packet *pck)
+static int handle_getnext_reply(ServerSession *s, Packet *pck)
 {
 
-	destroy_payload(&srv_session->current);
+	destroy_payload(&s->current);
 
 	switch(pck->type) {
 	case RECV_DATA:
 		/* Update current work info */
-		srv_session->current.length = pck->work.length;
-		srv_session->current.payload = pck->work.payload;
+		s->current.length = pck->work.length;
+		s->current.payload = pck->work.payload;
 
 		return 1;
 	case RECV_NOT_FOUND:
@@ -448,11 +447,11 @@ static int handle_getnext_reply(Packet *pck)
 	}
 }
 
-int server_request(int req_type)
+int server_request(ServerSession *s, int req_type)
 {
 	Packet pck;
 	int ret;
-	int retries_left = pv.retries;
+	int retries_left = s->retries;
 
 	if((req_type > MAX_SEND_TYPE) || (req_type < 1)) {
 		proto_violation("Unknown request type");
@@ -460,10 +459,10 @@ int server_request(int req_type)
 	}
 
 	/* For a new request we need a new Sequence number */
-	srv_session->seq++;
+	s->seq++;
 
 retry:
-	ret = do_request(req_type, &pck);
+	ret = do_request(s, req_type, &pck);
 	if(ret == 0)
 		critical_error(1, "Unable to communicate with the manager");
 	else if(ret == -1) {
@@ -484,17 +483,17 @@ retry:
 
 	switch(req_type) {
 	case SEND_NEW_AGENT:
-		ret = handle_connect_reply(&pck);
+		ret = handle_connect_reply(s, &pck);
 		break;
 	case SEND_QUIT:
 		printf("nothing to examin. We are quitting\n");
 		ret = 1;
 		break;
 	case SEND_NEW_WORK:
-		ret =  handle_newwork_reply(&pck);
+		ret =  handle_newwork_reply(s, &pck);
 		break;
 	case SEND_GET_NEXT:
-		ret = handle_getnext_reply(&pck);
+		ret = handle_getnext_reply(s, &pck);
 		break;
 	}
 
@@ -517,36 +516,40 @@ retry:
 	}
 }
 
-int init_session(void)
+ServerSession *init_session(struct in_addr addr, unsigned short port, 
+				const char *pwd, int timeout, int retries)
 {
 	struct sigaction sa;
+	ServerSession  *srv_session;
 
-	srv_session = malloc(sizeof(ServerSession));
+	srv_session = calloc(1, sizeof(ServerSession));
 	if(srv_session == NULL) {
 		perror("malloc");
-		return 0;
+		return NULL;
 	}
+
+	srv_session->password = strdup(pwd);
+	if(srv_session->password == NULL) {
+		perror("strdup");
+		goto err1;
+	}
+
+	printf("Passsword: %s@\n", srv_session->password);
 
 	/* initialize the socket */
 	srv_session->sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (srv_session->sock == -1) {
 		perror("socket");
-		goto err;
+		goto err2;
 	}
 
 	srv_session->addr.sin_family = AF_INET;
-	srv_session->addr.sin_port = pv.port;
-	srv_session->addr.sin_addr = pv.addr;
-	memset(&(srv_session->addr.sin_zero), '\0', 8);
+	srv_session->addr.sin_port = port;
+	srv_session->addr.sin_addr = addr;
+	//memset(&(srv_session->addr.sin_zero), '\0', 8);
 
-	/* 
-	 * They will be overwritten when we connect to the
-	 * server, but I'll initialize them anyway.
-	 */
-	srv_session->seq = 0;
-	srv_session->id = 0;
-
-	memset(&srv_session->current, '\0', sizeof(Work));
+	srv_session->timeout = timeout;
+	srv_session->retries = retries;
 
 	sa.sa_handler = sigalrm_handler;
 	sigemptyset(&sa.sa_mask);
@@ -554,25 +557,30 @@ int init_session(void)
 
 	if(sigaction(SIGALRM, &sa, NULL) == -1) {
 		perror("sigaction sigalarm");
-		goto err;
+		goto err2;
 	}
 
-	return 1;
+	return srv_session;
 
-err:
+err2:
+	free(srv_session->password);
+err1:
 	free(srv_session);
-	return 0;
+	return NULL;
 }
 
-void destroy_session(void)
+void destroy_session(ServerSession *srv_session)
 {
 	if(srv_session) {
-		srv_session = NULL;
+		if(srv_session->password)
+			free(srv_session->password);
+
 		free(srv_session);
+		srv_session = NULL;
 	}
 }
 
-Work * fetch_current_work(void)
+const Work * fetch_current_work(const ServerSession *srv_session)
 {
 	return &srv_session->current;
 }

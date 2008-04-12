@@ -47,6 +47,9 @@ typedef struct _Packet {
 typedef struct _ServerSession {
 	struct sockaddr_in addr;/* udp connection info */
 	int sock; 		/* UDP Socket */
+	char * password;
+	int retries;		/* number of allowed retries */
+	int timeout;		/* Seconds to wait before timeout */
 	unsigned int seq; 	/* Sequence Number */
 	unsigned int id;	/* Agents ID */
 	Work current;		/* Current Work */
@@ -54,9 +57,12 @@ typedef struct _ServerSession {
 
 /* function Declarations */
 
-Work *fetch_current_work(void);
-int init_session(void);
-void destroy_session(void);
-int server_request(int req_type);
+ServerSession *init_session(struct in_addr addr, unsigned short port,
+				     const char *pwd, int timeout, int retries);
+void destroy_session(ServerSession *);
+
+int server_request(ServerSession *, int req_type);
+const Work *fetch_current_work(const ServerSession *);
+inline char * pwdcpy(const ServerSession *, char *buf);
 
 #endif /* _SERVER_CONTACT_H */
