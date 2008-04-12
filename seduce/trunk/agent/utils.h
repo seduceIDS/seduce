@@ -12,7 +12,5 @@
 	#define DPRINTF(...)
 #endif
 
-inline void copy_password(char *buf);
-
 #endif /* _UTILS_H */
 

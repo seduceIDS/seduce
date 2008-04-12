@@ -1,29 +1,14 @@
 #ifndef _AGENT_H
 #define _AGENT_H
 
-#include <netinet/in.h>
 #include "detect_engine.h"
+#include "server_contact.h"
 
 typedef struct _ProgVars {
-	char *prog_name;	/* program name */
-	char *config_file;	/* Configuration File*/
-	struct in_addr addr;	/* Server Address */
-	unsigned short port;	/* Server Port in network byte order*/
-	char *password;		/* Connection Password */
-	int timeout;		/* Seconds to wait before timeout */
-	int retries;		/* Number of allowed retries */
-	int no_work_wait;	/* Seconds to wait when no work available */
-
-	DetectEngine *detect_engine; /* The detection engine to use */
+	const char *prog_name;/* program name */
+	int no_work_wait;    /* Seconds to wait when no work available */
+	DetectEngine *detect_engine;
+	ServerSession *server_session;
 } ProgVars;
-
-/* Default Options */
-#define DEFAULT_TIMEOUT		5
-#define DEFAULT_RETRIES		5
-#define DEFAULT_NO_WORK_WAIT	5
-
-#define MAX_PWD_SIZE		16
-
-extern ProgVars pv;
 
 #endif /* _AGENT_H */

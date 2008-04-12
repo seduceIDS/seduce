@@ -8,11 +8,10 @@
 #include <stdlib.h>
 
 #include "alert.h"
-#include "agent.h"
-#include "utils.h"
 
 #define MIN_TCP_SIZE	20
 
+#if 0
 static int tcp_connect()
 {
 	int sock;
@@ -32,7 +31,6 @@ static int tcp_connect()
 	return sock;
 }
 
-#if 0
 static int send_alert(int socket, const Work *work)
 {
 	char pwd[16];
@@ -100,7 +98,8 @@ int alert_scheduler(const Work *work)
 }
 #endif
 
-int alert_submission(ConnectionInfo *c, Threat *t)
+int submit_alert(const ServerSession *s, const ConnectionInfo *c,
+								const Threat *t)
 {
 	printf("Submitting an alert...\n");
 	return 1;

@@ -6,13 +6,20 @@
 #include <netdb.h>
 #include <confuse.h>
 
-#include "agent.h"
+#include "options.h"
 
-static void printusage(int rc)
+static void hlpmsg(const char *prog_name, int rc)
+{
+	fprintf(stderr,"Type `%s -h' for help.\n", prog_name);
+	exit(rc);
+}
+
+
+static void printusage(const char *prog_name, int rc)
 {
 	fprintf(stderr, 
-		"Usage: %s [-c <config_file>] [-h] [-p<password>] "
-		"[-r<retries>] [-s<senver_address]> [-t<timeout>] "
+		"\nUsage:\n%s [-c <config_file>] [-h] [-p<password>] "
+		"[-r<retries>]\n       [-s<senver_address]> [-t<timeout>] "
 		"[-w<no_work_wait>]\n\n"
 		"  c : Specify a config file. `E.g. agent.conf'.\n"
 		"  h : Print this help message.\n"
@@ -23,8 +30,8 @@ static void printusage(int rc)
 		      "E.g. `12.0.0.1:3540'.\n"
 		"  t : Time in sec to wait for an answer by the scheduler.\n"
 		"  w : Time in sec to wait before requesting again when the "
-		      "scheduler has no work available\n\n",
-		pv.prog_name);
+		      "scheduler has no work\n      available.\n\n",
+		prog_name);
 	exit(rc);
 }
 
@@ -119,31 +126,39 @@ static int validate_password(const char *pwd)
 	return 1;
 }
 
+#define VALIDATE_SERVERINFO(x) fill_serverinfo(x, NULL, NULL)
+
 static int fill_serverinfo(const char *serverinfo, struct in_addr *addr,
-							unsigned short *port)
+							   unsigned short *port)
 {
 	char *tmp;
+	unsigned short tmp_port;
 	char *port_str;
 	char *host_str;
 	struct hostent *he;
 
 	tmp = strdup(serverinfo);
-	if(!tmp)
+	if(!tmp) {
+		perror("strdup");
 		return 0;
+	}
 
 	host_str = strtok(tmp,":");
 	port_str = strtok(NULL,"");
 
-	if(!(*port = get_valid_port(port_str)))
+	if(!(tmp_port = get_valid_port(port_str)))
 		goto err;
 
+	if(port)
+		*port = tmp_port;
 
 	if((he = gethostbyname(host_str)) == NULL) {
 		herror("gethostbyname");
 		goto err;
 	}
 
-	*addr = *((struct in_addr *)he->h_addr);
+	if(addr)
+		*addr = *((struct in_addr *)he->h_addr);
 
 	free(tmp);
 	return 1;
@@ -155,7 +170,7 @@ err:
 
 #define PRINT_SPECIFY_ONCE(x) \
 	fprintf(stderr, "The -%c option should be specified only once\n", x)
-int get_cloptions(int argc, char *argv[], ProgVars *clo)
+static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 {
 	int c;
 	int c_arg = 0;
@@ -169,7 +184,7 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:")) != -1) {
 		switch(c) {
 		case 'h':
-			printusage(0);
+			printusage(opts->prog_name, 0);
 			break;
 
 		case 'c':
@@ -177,7 +192,7 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('c');
 				return 0;
 			}
-			clo->config_file = strdup(optarg);
+			opts->config_file = strdup(optarg);
 			break;
 
 		case 'p':
@@ -185,8 +200,8 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('p');
 				return 0;
 			}
-			clo->password = strdup(optarg);
-			if(!validate_password(clo->password))
+			opts->password = strdup(optarg);
+			if(!validate_password(opts->password))
 				return 0;
 			break;
 
@@ -195,8 +210,8 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('r');
 				return 0;
 			}
-			clo->retries = get_valid_retries(optarg);
-			if (clo->retries == -1)
+			opts->retries = get_valid_retries(optarg);
+			if (opts->retries == -1)
 				return 0;
 			break;
 
@@ -205,7 +220,7 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('s');
 				return 0;
 			}
-			if(!fill_serverinfo(optarg, &clo->addr, &clo->port))
+			if(!fill_serverinfo(optarg, &opts->addr, &opts->port))
 				return 0;
 			break;
 
@@ -214,8 +229,8 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('t');
 				return 0;
 			}
-			clo->timeout = get_valid_timeout(optarg);
-			if (clo->timeout == -1)
+			opts->timeout = get_valid_timeout(optarg);
+			if (opts->timeout == -1)
 				return 0;
 			break;
 
@@ -224,13 +239,13 @@ int get_cloptions(int argc, char *argv[], ProgVars *clo)
 				PRINT_SPECIFY_ONCE('w');
 				return 0;
 			}
-			clo->no_work_wait = get_valid_no_work_wait(optarg);
-			if (clo->no_work_wait == -1)
+			opts->no_work_wait = get_valid_no_work_wait(optarg);
+			if (opts->no_work_wait == -1)
 				return 0;
 			break;
 
 		default:
-			printusage(1);
+			printusage(opts->prog_name, 1);
 		}
 	}
 
@@ -242,8 +257,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	int ret;
 
 	if (strcmp(opt->name, "server_addr") == 0)
-		ret = fill_serverinfo(*(char **)opt->simple_value,
-					&pv.addr, &pv.port);
+		ret = VALIDATE_SERVERINFO(*(char **)opt->simple_value);
 	else if (strcmp(opt->name, "password") == 0)
 		ret = validate_password(*(char **)opt->simple_value);
 	else if (strcmp(opt->name, "timeout") == 0)
@@ -262,23 +276,23 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 }
 
 
-static int parse_fileoptions(char *filename)
+static int parse_fileoptions(const char *filename, InputOptions *opts)
 {
 	char *server_addr = NULL;
 	int ret;
 
-	cfg_opt_t opts[] = {
+	cfg_opt_t cfg_opts[] = {
 		CFG_SIMPLE_STR("server_addr",&server_addr),
-		CFG_SIMPLE_STR("password",&pv.password),
-		CFG_SIMPLE_INT("timeout",&pv.timeout),
-		CFG_SIMPLE_INT("retries",&pv.retries),
-		CFG_SIMPLE_INT("no_work_wait",&pv.no_work_wait),
+		CFG_SIMPLE_STR("password",&opts->password),
+		CFG_SIMPLE_INT("timeout",&opts->timeout),
+		CFG_SIMPLE_INT("retries",&opts->retries),
+		CFG_SIMPLE_INT("no_work_wait",&opts->no_work_wait),
 		CFG_END()
 	};
 
 	cfg_t *cfg;
 
-	cfg = cfg_init(opts,0);
+	cfg = cfg_init(cfg_opts,0);
 
 	/* set validation callback functions */
 	cfg_set_validate_func(cfg,"server_addr",cfg_validate);
@@ -293,90 +307,109 @@ static int parse_fileoptions(char *filename)
 		if (ret == CFG_FILE_ERROR)
 			fprintf(stderr, "Can't open config file %s\n",filename);
 		cfg_free(cfg);
-		printusage(1);
+		return 0;
 	}
 
-	if(server_addr)
+	if(server_addr) {
+		fill_serverinfo(server_addr, &opts->addr, &opts->port);
 		free(server_addr);
+	}
 
 	cfg_free(cfg);
 	return 1;
 }
 
 
-void fill_progvars(int argc, char *argv[])
+InputOptions *fill_inputopts(int argc, char *argv[])
 {
 	int ret;
-	ProgVars clo; /* temporary struct to store the command line options */
+	InputOptions clo; /* temporary store of the command line options */
+	InputOptions *final_opts;
 
-	memset(&pv, '\0', sizeof(ProgVars));
-	pv.prog_name = argv[0];
-	pv.timeout = -1;
-	pv.retries = -1;
-	pv.no_work_wait = -1;
+	final_opts = calloc(1, sizeof(InputOptions));
+	if(final_opts == NULL) {
+		perror("calloc");
+		return NULL;
+	}
 
-//	pv.addr.sin_family = AF_INET;
-//	memset(pv.addr.sin_zero, '\0', 8);
-
-	memset(&clo, '\0', sizeof(ProgVars));
-	clo.timeout = -1;
-	clo.retries = -1;
-	clo.no_work_wait = -1;
+	memset(&clo, '\0', sizeof(InputOptions));
+	
+	final_opts->prog_name = clo.prog_name = argv[0];
+	final_opts->timeout = clo.timeout = -1;
+	final_opts->retries = clo.retries = -1;
+	final_opts->no_work_wait = clo.no_work_wait = -1;
 	
 	ret = get_cloptions(argc, argv, &clo);
 	if (!ret)
-		printusage(1);
+		printusage(argv[0], 1);
 
-	if(clo.config_file)
-		ret = parse_fileoptions(clo.config_file);
-	if(!ret)
-		exit(1);
-
-	if(clo.port) {
-		pv.port = clo.port;
-		pv.addr = clo.addr;
-	}
-
-	if(clo.password) {
-		if(pv.password)
-			free(pv.password);
-		pv.password = clo.password;
+	if(clo.config_file) {
+		ret = parse_fileoptions(clo.config_file, final_opts);
+		free(clo.config_file);
+		if(!ret)
+			printusage(argv[0], 1);
 	}
 
 	/* 
-	 * if timeout and retries are not set
-	 * from the command line or the config file,
-	 * we set the default values
+	 * if an option is defined in the config file and as a command line
+	 * option, we ignore the one config file value. Command line options
+	 * always have a higher priority.
 	 */
+	if(clo.port) {
+		final_opts->port = clo.port;
+		final_opts->addr = clo.addr;
+	}
+
+	if(clo.password) {
+		if(final_opts->password)
+			free(final_opts->password);
+		final_opts->password = clo.password;
+	}
+
+	/* 
+	 * if timeout, retries and no_work_wait are not set from the command
+	 * line or the config file, we set the default values.
+	 */
+
 	if(clo.timeout != -1)
-		pv.timeout = clo.timeout;
-	else if(pv.timeout == -1)
-		pv.timeout = DEFAULT_TIMEOUT;
+		final_opts->timeout = clo.timeout;
+	else if(final_opts->timeout == -1)
+		final_opts->timeout = DEFAULT_TIMEOUT;
 
 	if(clo.retries != -1)
-		pv.retries = clo.retries;
-	else if(pv.retries == -1)
-		pv.retries = DEFAULT_RETRIES;
+		final_opts->retries = clo.retries;
+	else if(final_opts->retries == -1)
+		final_opts->retries = DEFAULT_RETRIES;
 
 	if(clo.no_work_wait != -1)
-		pv.no_work_wait = clo.no_work_wait;
-	else if(pv.no_work_wait == -1)
-		pv.no_work_wait = DEFAULT_NO_WORK_WAIT;
+		final_opts->no_work_wait = clo.no_work_wait;
+	else if(final_opts->no_work_wait == -1)
+		final_opts->no_work_wait = DEFAULT_NO_WORK_WAIT;
 
 	/* 
 	 * Now that command line and config file options are set,
 	 * check if a required option is missing.
 	 * Required options are the connection info (IP/port & password)
 	 */
-	if(!pv.port) {
-		fprintf(stderr, "Server address and port are not set\n");
-		printusage(1);
+	if(!final_opts->port) {
+		fprintf(stderr, "Server address and port are not set.\n");
+		hlpmsg(final_opts->prog_name, 1);
 	}
 
-	if(!pv.password) {
-		fprintf(stderr, "No server password is set\n");
-		printusage(1);
+	if(!final_opts->password) {
+		fprintf(stderr, "No server password is set.\n");
+		hlpmsg(final_opts->prog_name, 1);
 	}
+
+	return final_opts;
+}
+
+void destroy_inputopts(InputOptions *opts)
+{
+	if(opts->password)
+		free(opts->password);
+
+	free(opts);
 }
 
 #if 0
@@ -385,19 +418,21 @@ void fill_progvars(int argc, char *argv[])
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-ProgVars pv;
-
 int main(int argc, char *argv[])
 {
-	fill_progvars(argc, argv);
+	InputOptions *in = fill_inputopts(argc, argv);
+
+	if(!in) return 1;
 
 	printf("Options:\n");
-	printf("Sever Address: %s\n", inet_ntoa(pv.addr));
-	printf("Server Port: %u\n", ntohs(pv.port));
-	printf("Password: %s\n", pv.password);
-	printf("Timeout: %d\n", pv.timeout);
-	printf("Retries: %d\n", pv.retries);
-	printf("No Work Wait: %d\n", pv.no_work_wait);
+	printf("Sever Address: %s\n", inet_ntoa(in->addr));
+	printf("Server Port: %u\n", ntohs(in->port));
+	printf("Password: %s\n", in->password);
+	printf("Timeout: %d\n", in->timeout);
+	printf("Retries: %d\n", in->retries);
+	printf("No Work Wait: %d\n", in->no_work_wait);
+
+	destroy_inputopts(in);
 
 	return 0;
 }
