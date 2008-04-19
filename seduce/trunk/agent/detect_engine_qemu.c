@@ -161,7 +161,7 @@ prepare_next_iter:
     return NEED_NEXT;
 }
 
-static int qemu_engine_init()
+static int qemu_engine_init(void)
 {
     struct sigaction sa;
 
@@ -185,7 +185,7 @@ static int qemu_engine_init()
     qv.zvalue.it_value.tv_usec = 0;
 
     qv.cpu = malloc(sizeof(CPUX86State));
-    if (qv == NULL) {
+    if (qv.cpu == NULL) {
 	perror("malloc CPUX86State");
 	return 0;
     }
@@ -209,3 +209,10 @@ static int qemu_engine_get_threat(Threat *t)
 	/* TODO: fill this function */
 	return 1;
 }
+
+static void qemu_engine_reset(void)
+{
+	/* TODO: fill this function */
+	return;
+}
+
