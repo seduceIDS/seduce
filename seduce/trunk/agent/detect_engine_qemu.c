@@ -25,7 +25,7 @@ Threat threat;
 sigjmp_buf env;
 
 
-static void sigvtalrm_handler(int signum)
+void sigvtalrm_handler(int signum)
 {
     tb_lock = SPIN_LOCK_UNLOCKED;
     siglongjmp(env, 100);
@@ -79,7 +79,7 @@ static char *getBlock(char *data, size_t len, int min, int reset)
  *            1 => Threat detected
  *           -1 => An error occured
  */
-static int qemu_engine_process(char *data, size_t len)
+int qemu_engine_process(char *data, size_t len)
 {
     char *p;
     void *block;
@@ -188,7 +188,7 @@ prepare_next_iter:
  * Returns:   0 => Error occured
  *            1 => Everything ok
  */
-static int qemu_engine_init(void)
+int qemu_engine_init(void)
 {
     struct sigaction sa;
 
@@ -231,7 +231,7 @@ static int qemu_engine_init(void)
  *
  * Returns:
  */
-static void qemu_engine_destroy(void)
+void qemu_engine_destroy(void)
 {
     free(qv.cpu);
 
@@ -253,7 +253,7 @@ static void qemu_engine_destroy(void)
  * Returns:   0 => An error occured
  *            1 => Everything ok
  */
-static int qemu_engine_get_threat(Threat *t)
+int qemu_engine_get_threat(Threat *t)
 {
     t->payload = threat.payload;
     t->length = threat.length;
@@ -271,7 +271,7 @@ static int qemu_engine_get_threat(Threat *t)
  *
  * Returns:
  */
-static void qemu_engine_reset(void)
+void qemu_engine_reset(void)
 {
 	/* We don't use this function but it is required by
      * the agent implementation.
