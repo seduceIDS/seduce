@@ -27,7 +27,7 @@
 typedef struct _ConnectionInfo {
 	unsigned int proto;
 	unsigned short s_port,d_port; /* In network byte order */
-	unsigned int   s_addr,d_addr; /* In network byte order */
+	unsigned long  s_addr,d_addr; /* In network byte order */
 } ConnectionInfo;
 
 typedef struct _Work {
