@@ -6,10 +6,8 @@
 #include <sys/stat.h>
 
 #include "detect_engine.h"
+#include "detect_engine_qemu.h"
 
-/* from detect_engine.c */
-extern char *threat_payload;
-extern size_t threat_length;
 
 void *load_file(const char *filename, unsigned long *fsize)
 {
@@ -45,7 +43,6 @@ int main(int argc, char **argv)
     unsigned long fsize;
     struct sigaction sa;
     int ret;
-    QemuVars qv;
 
     if (argc < 2) {
         fprintf(stderr,"usage %s file\n", argv[0]);
@@ -55,22 +52,26 @@ int main(int argc, char **argv)
     sa.sa_handler = sigvtalrm_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
-		perror("sigaction");
-		exit(-1);
-	}
+    if (sigaction(SIGVTALRM, &sa, NULL) == -1)
+    {
+        perror("sigaction");
+        exit(-1);
+    }
 
     buff = load_file(argv[1], &fsize);
 
-    detect_engine_init(&qv);
-    ret = execute_work(buff, fsize + 1, &qv);
-    detect_engine_stop(&qv);
+    qemu_engine_init();
+    ret = qemu_engine_process(buff, fsize + 1);
+    qemu_engine_destroy();
     free(buff);
 
-    if (ret == THREAT_DETECTED) {
-        printf("Threat detected - %s\n", threat_payload);
-        free(threat_payload);
-    } else if (ret == NEED_NEXT) 
+    if (ret == 1)
+    {
+        Threat t;
+        qemu_engine_get_threat(&t);
+        printf("Threat detected - %s\n", t.msg);
+        free(t.msg);
+    } else if (ret == 0)
         printf("No threat detected\n");
     else
         printf("Unknown return code\n");
