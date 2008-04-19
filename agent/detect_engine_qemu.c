@@ -21,8 +21,7 @@ extern unsigned long x86_stack_size;
 static QemuVars qv;
 
 /* Globals */
-char *threat_payload;
-size_t threat_length;
+Threat threat;
 sigjmp_buf env;
 
 
@@ -67,16 +66,29 @@ static char *getBlock(char *data, size_t len, int min, int reset)
     return NULL;
 }
 
+/*
+ * Function: qemu_engine_process()
+ *
+ * Purpose: Process a new data group with the Qemu emulator. 
+ *
+ * Arguments:
+ *           data => A character array with the data to process
+ *           len  => The character array length
+ *
+ * Returns:   0 => No threat detected
+ *            1 => Threat detected
+ *           -1 => An error occured
+ */
 static int qemu_engine_process(char *data, size_t len)
 {
     char *p;
     void *block;
     int reset = 1, blocksize, l = 0, i, ret;
-    char tmp[26];
-    memset(tmp, 0, 26);
+    char tmp[51];
+    memset(tmp, 0, 51);
 
     if((data == NULL) || (len == 0))
-        return WORK_DONE;
+        return 0;
  
     while ((p = getBlock(data, len, 30, reset)) != NULL)
     {
@@ -90,7 +102,8 @@ static int qemu_engine_process(char *data, size_t len)
             exit(1);
         }
 
-        for (i = 0; i < blocksize - 5; i++) {
+        for (i = 0; i < blocksize - 5; i++)
+        {
             memcpy(block, p, blocksize);
             DPRINTF("block %d - byte %.2d - ", l, i);
             if (sigsetjmp(env,1) == 100) {
@@ -102,15 +115,19 @@ static int qemu_engine_process(char *data, size_t len)
             ret = qemu_exec(block + i, blocksize - i, qv.stack_base, qv.cpu);
             setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
 
-            switch(ret) {
+            switch(ret)
+            {
                 case HIGH_RISK_SYSCALL:
                     DPRINTF("High risk syscall - %d\n", qv.cpu->regs[R_EAX]);
-                    snprintf(tmp, 25, "syscall - %d", qv.cpu->regs[R_EAX]);
-                    threat_length  = strlen(tmp);
-                    threat_payload = strndup(tmp, threat_length);
+                    threat.payload = calloc(1, blocksize + 1);
+                    memcpy(threat.payload, p, blocksize);
+                    threat.length = blocksize;
+                    threat.severity = SEVERITY_HIGH;
+                    snprintf(tmp, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
+                    threat.msg = strdup(tmp);
                     cleanup();
                     free(block);
-                    return THREAT_DETECTED;
+                    return 1;
                 case EXIT_SYSCALL:
                     DPRINTF("Syscall exit\n");
                     break;
@@ -158,9 +175,19 @@ prepare_next_iter:
         }
         free(block);
     }
-    return NEED_NEXT;
+    return 0;
 }
 
+/*
+ * Function: qemu_engine_init()
+ *
+ * Purpose: Initialize important structures for the Qemu engine.
+ *
+ * Arguments:
+ *
+ * Returns:   0 => Error occured
+ *            1 => Everything ok
+ */
 static int qemu_engine_init(void)
 {
     struct sigaction sa;
@@ -168,11 +195,11 @@ static int qemu_engine_init(void)
     sa.sa_handler = sigvtalrm_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
-	perror("sigaction sigvtalrm");
-	return 0;
+    if (sigaction(SIGVTALRM, &sa, NULL) == -1)
+    {
+        perror("sigaction sigvtalrm");
+        return 0;
     }
-
 
     qv.value.it_interval.tv_usec =
     qv.value.it_value.tv_usec = 1000;
@@ -185,34 +212,70 @@ static int qemu_engine_init(void)
     qv.zvalue.it_value.tv_usec = 0;
 
     qv.cpu = malloc(sizeof(CPUX86State));
-    if (qv.cpu == NULL) {
-	perror("malloc CPUX86State");
-	return 0;
+    if (qv.cpu == NULL)
+    {
+        perror("malloc CPUX86State");
+        return 0;
     }
     qv.stack_base = setup_stack();
 
     return 1;
 }
 
+/*
+ * Function: qemu_engine_destroy()
+ *
+ * Purpose: Shut down the qemu engine
+ *
+ * Arguments:
+ *
+ * Returns:
+ */
 static void qemu_engine_destroy(void)
 {
     free(qv.cpu);
 
-    if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size) == -1) {
+    if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size) == -1)
+    {
         perror("munmap stack_base");
         exit(1);
     }
 }
 
+/*
+ * Function: qemu_engine_get_threat()
+ *
+ * Purpose: Sends the threat to the agent.
+ *
+ * Arguments:
+ *           *t => Pointer to a Threat structure describing the threat
+ *
+ * Returns:   0 => An error occured
+ *            1 => Everything ok
+ */
 static int qemu_engine_get_threat(Threat *t)
 {
-	/* TODO: fill this function */
-	return 1;
+    t->payload = threat.payload;
+    t->length = threat.length;
+    t->severity = threat.severity;
+    t->msg = threat.msg;
+    return 1;
 }
 
+/*
+ * Function: qemu_engine_reset()
+ *
+ * Purpose: Not used by Qemu engine
+ *
+ * Arguments:
+ *
+ * Returns:
+ */
 static void qemu_engine_reset(void)
 {
-	/* TODO: fill this function */
+	/* We don't use this function but it is required by
+     * the agent implementation.
+     */
 	return;
 }
 
