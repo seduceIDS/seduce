@@ -7,7 +7,7 @@ srcdir		= .
 
 CC		= gcc
 CFLAGS		= -g -O2 -D_DEBUG -Wall -D_GNU_SOURCE
-CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/
+CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/ -I./
 
 LDFLAGS		= 
 LIBS_CFLAGS	= 
@@ -20,7 +20,7 @@ CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o
 ENGINE		= dummy
 
 ifeq ($(ENGINE), qemu)
-	CFLAFS += $(CFLAGS_QEMU)
+	CFLAGS += $(CFLAGS_QEMU)
 	LIBS += $(LIBS_QEMU)
 	OBJS = $(CORE_OBJS) detect_engine_qemu.o
 endif
