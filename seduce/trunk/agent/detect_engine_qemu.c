@@ -6,7 +6,7 @@
 #include "exec-all.h"
 #include "debug.h"
 #include "detect_engine.h"
-#include "detection_engine_qemu.h"
+#include "detect_engine_qemu.h"
 
 DetectEngine engine = {
 	.init = &qemu_engine_init,
