@@ -13,7 +13,7 @@
 #include "hash.h"
 #include "errors.h"
 #include "job.h"
-#include "alert.h"
+#include "alert_recv.h"
 
 
 extern  SensorList sensorlist;
@@ -80,9 +80,9 @@ static int cleanup_map(Agents *agents)
 }
 
 /* just check the password and return TRUE if it matches */
-static inline int check_password(char *pwd)
+int check_password(const char *pwd)
 {
-	return (strncmp(pwd, pv.password, MAX_PWD_SIZE))?0:1;
+	return (strncmp(pwd, pv.password, MAX_PWD_SIZE)) ? 0 : 1;
 }
 
 
@@ -588,178 +588,6 @@ static void udp_request(Agents *agents)
 
 
 /*
- * Function: recv_alert_data(int, unsigned int *)
- *
- * Purpose: Receive the alert data from a TCP Connection
- *
- * Arguments: socket=> The TCP connection Socket
- *            data_size=> A parameter we fill with the size of the alert data
- *
- * Returns: Pointer to a buffer filled with the collected alert data
- */
-static unsigned char *recv_alert_data(int socket, unsigned int *data_size)
-{
-	u_int32_t size;
-	unsigned char *alert_data;
-	ssize_t numbytes;
-	int flags = 0;
-
-	DPRINTF("\n");
-	flags = MSG_PEEK | MSG_WAITALL;
-	numbytes = recv(socket, &size, sizeof(u_int32_t), flags);
-	if (numbytes == -1) {
-		errno_cont("recv");
-		return NULL;
-	}
-	if (numbytes != sizeof(u_int32_t)) {
-		DPRINTF("Error in receiving the size\n");
-		return NULL;
-	}
-
-	size = ntohl(size);
-	DPRINTF("size is %u\n",size);
-
-	/* we allow zero payload */
-	if (size < UDP_HDR_SIZE + sizeof(u_int32_t)) {
-		DPRINTF("The alert message size is not sane\n");
-		return NULL;
-	}
-	/* TODO: Check about the MAX UDP packet size */
-
-	alert_data = malloc(size);
-	if (alert_data == NULL) {
-		errno_cont("malloc");
-		return NULL;
-	}
-
-	flags = MSG_WAITALL;
-	numbytes = recv(socket, alert_data, size, flags);
-	if (numbytes == -1)
-		errno_cont("recv");
-	else if(numbytes != size)
-		DPRINTF("Error in receiving the alert_data\n");
-	else { 
-		*data_size = size;
-		return alert_data;
-	}
-
-	/* On error */
-	free(alert_data);
-	return NULL;
-}
-
-/*
- * Function: process_alert_data(char *, int)
- *
- * Purpose: Process the alert data from a buffer, and push the alert to the
- *          alert list
- *
- * Arguments: data=> buffer that contains the alert data
- *            data_len=> size of the alert data buffer
- */
-static void process_alert_data(unsigned char *data, unsigned int data_len)
-{
-	struct tuple4 connection;
-	int proto;
-	unsigned char *payload;
-	int payload_len;
-	unsigned int size;
-
-	DPRINTF("\n");
-	size = ntohl(*(u_int32_t *)data);
-
-	payload_len = size - TCP_PCK_SIZE;
-
-	DPRINTF("size is %u, payload is %u\n",size, payload_len);
-	proto = ntohl(*(u_int32_t *)(data + 4));
-	connection.s_port = ntohs(*(u_int16_t *)(data + 8));
-	connection.d_port = ntohs(*(u_int16_t *)(data + 10));
-	connection.s_addr = ntohl(*(u_int32_t *)(data + 12));
-	connection.d_addr = ntohl(*(u_int32_t *)(data + 16));
-	payload = (payload_len)? (data + 20) : NULL;
-
-	/* send the alert */
-	DPRINTF("push alert\n");
-	push_alert(&connection, proto, payload, payload_len);
-
-	return;
-}
-
-typedef struct {
-	int socket;
-	unsigned long addr;
-	unsigned short port;
-} TCPConData;
-
-/*
- * Function: tcp_connection(TCPConData *)
- *
- * Purpose: Main thread function that handles a TCP connection to receive
- *          an alert
- *
- * Arguments: data=> Pointer to a TCP Connection info struct
- */
-static void *tcp_connection(TCPConData *data)
-{
-	struct timeval wait;
-	int ret;
-	fd_set readset;
-	char pwd[MAX_PWD_SIZE + 1];
-	unsigned char *buf = NULL;
-	unsigned int buf_len;
-	ssize_t numbytes;
-	size_t bytesleft = MAX_PWD_SIZE;
-
-	DPRINTF("\n");
-	FD_ZERO(&readset);
-	FD_SET(data->socket, &readset);
-
-select_again:
-	wait.tv_sec = 5;
-	wait.tv_usec = 0;
-	ret = select(data->socket + 1, &readset, NULL, NULL, &wait);
-	if (ret == -1) {
-		if (errno == EBADF) {
-			goto select_again;
-		}
-		else goto end;
-	}
-	else if (ret == 0) {
-		DPRINTF("Select timed out\n");
-		goto end;
-	}
-
-	numbytes = recv(data->socket, pwd + MAX_PWD_SIZE - bytesleft, bytesleft, 0);
-	if (numbytes == -1) {
-		errno_cont("recv");
-		goto end;
-	} else if (numbytes != bytesleft) {
-		bytesleft -= numbytes;
-		goto select_again;
-	}
-
-	pwd[MAX_PWD_SIZE] = '\0';
-	if(!check_password(pwd)) {
-		DPRINTF("Wrong Password\n");
-		goto end;
-	}
-	/* password is OK, now receive the alert */
-	buf = recv_alert_data(data->socket, &buf_len);
-	if (buf) {
-		DPRINTF("buf_len %u\n",buf_len);
-		process_alert_data(buf,buf_len);
-		free(buf);
-	}
-
-end:
-	close (data->socket);
-	free(data);
-	return NULL;
-}
-
-
-
-/*
  * Initialize an Agents struct
  */
 static void init_agents(Agents *agents)
@@ -775,7 +603,6 @@ static void init_agents(Agents *agents)
 	agents->hash = new_hash_table();
 }
 
-
 /*
  * Function: agents_contact(AgentsContactData *)
  *
@@ -786,13 +613,12 @@ static void init_agents(Agents *agents)
  */
 void *agents_contact(void)
 {
-	int newfd,maxfd;
+	int newfd,maxfd, one;
 	fd_set readset, allset;
 	int nready;
 	struct sockaddr_in my_addr, his_addr;
 	socklen_t addrlen;
 	Agents agents;
-	TCPConData *t_data;
 
 	init_agents(&agents);
 
@@ -811,6 +637,10 @@ void *agents_contact(void)
 	tcp_sock = socket(PF_INET, SOCK_STREAM, 0);
 	if (tcp_sock == -1)
 		errno_abort("socket");
+
+	if(setsockopt(tcp_sock, SOL_SOCKET, SO_REUSEADDR, (char *)&one, 
+							 sizeof(one)) == -1)
+		errno_abort("setsockopt");
 
 	if(bind(tcp_sock, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
 		errno_abort("bind");
@@ -831,39 +661,26 @@ select_restart:
 		if (nready == -1) {
 			if (errno == EINTR)
 				goto select_restart;
-			else errno_abort("select");
+			else
+				errno_abort("select");
 		}
+
 		if (FD_ISSET(udp_sock, &readset)) {
 			udp_request(&agents);
 
 			if(--nready <= 0)
 				continue;
 		}
-
 		if (FD_ISSET(tcp_sock, &readset)) {
 			addrlen = sizeof(his_addr);
 			newfd = accept(tcp_sock, (struct sockaddr *)&his_addr,
-								&addrlen);
+					&addrlen);
 			if(newfd == -1)
 				errno_cont("accept");
-			else {
-				t_data = malloc(sizeof(TCPConData));
-				if(t_data == NULL) {
-					errno_cont("malloc");
-					close(newfd);
-				} else {
-					t_data->socket = newfd;
-					t_data->addr = his_addr.sin_addr.s_addr;
-					t_data->port = his_addr.sin_port;
-
-					/* 
-					 * Create a new thread to handle the
-					 * TCP connection.
-					 */
-					create_thread((void *)tcp_connection,
-								t_data);
-				}
-			}
+			else 
+				create_thread((void *)alert_receiver, 
+								(void *) newfd);
+			
 			if(--nready <= 0)
 				continue;
 		}

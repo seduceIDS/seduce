@@ -12,6 +12,7 @@ static void dummy_engine_reset();
 static int  dummy_engine_get_threat();
 
 DetectEngine engine = {
+	.name = "Dummy Engine",
 	.init = &dummy_engine_init,
 	.destroy = &dummy_engine_destroy,
 	.reset = &dummy_engine_reset,
@@ -32,7 +33,7 @@ static void dummy_engine_destroy()
 
 static void dummy_engine_reset()
 {
-	printf("Dummy engine destroyed\n");
+	printf("Dummy engine reset\n");
 	return;
 }
 
@@ -56,9 +57,12 @@ static int dummy_engine_process(char *data, size_t len)
 
 static int dummy_engine_get_threat(Threat *t)
 {
-	memcpy(t->payload, "\x01\x02\x03\x04", 4); 
+	t->payload = malloc(4);
+	if(t->payload == NULL)
+		return 0;
+	memcpy(t->payload, "\x01\x02\x03\x04", 4);
 	t->length = 4;
 	t->severity = SEVERITY_HIGH;
 	t->msg = strdup("Example threat");
-	return 0;
+	return 1;
 }

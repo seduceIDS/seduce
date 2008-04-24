@@ -42,6 +42,9 @@ typedef struct _UDPPacket {
 	char pwd[MAX_PWD_SIZE];
 } UDPPacket;
 
+		/* function Decleration */
+int check_password(const char *p);
+
 		/* UDP Communication */
 /* receive */
 #define UDP_NEW_AGENT	1
@@ -81,8 +84,6 @@ typedef struct _UDPPacket {
 #define UDP_HDR_SIZE	16
 #define UDP_INFO_SIZE	16
 
-/* needed for alert */
-#define TCP_PCK_SIZE	20
-#define MAX_WAIT 5
+#define MAX_WAIT 300
 
 #endif /*_AGENT_CONTACT_H */

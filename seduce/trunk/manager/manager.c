@@ -19,6 +19,7 @@
 #include "job.h"
 #include "alert.h"
 #include "oom_handler.h"
+#include "alert_recv.h"
 
 extern void fill_progvars(int, char **);
 extern void *agents_contact();
@@ -95,6 +96,7 @@ int main(int argc, char *argv[])
 	init_joblist();
 	init_alertlist();
 	init_oom_handler();
+	init_alert_receiver();
 
 	/* thread starting functions */
 	start_alert_thread();

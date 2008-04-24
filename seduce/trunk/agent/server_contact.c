@@ -94,10 +94,10 @@ static inline void fill_hdr_info(Packet *dst, const char *src)
 static inline void fill_conn_info(ConnectionInfo *dst, const char *src)
 {
 	dst->proto = ntohl(*(u_int32_t *)(src +  0));
-	dst->s_port =      *(u_int16_t *)(src +  4);
-	dst->d_port =      *(u_int16_t *)(src +  6);
-	dst->s_addr =      *(u_int32_t *)(src +  8);
-	dst->d_addr =      *(u_int32_t *)(src + 12);
+	dst->s_port = ntohs(*(u_int16_t *)(src +  4));
+	dst->d_port = ntohs(*(u_int16_t *)(src +  6));
+	dst->s_addr = ntohl(*(u_int32_t *)(src +  8));
+	dst->d_addr = ntohl(*(u_int32_t *)(src + 12));
 }
 
 /*
