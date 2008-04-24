@@ -44,13 +44,13 @@ const struct {
 proto_tbl[] = {
 /*  Type    Header Size		Data		Handler           */
 /*----------------------------------------------------------------*/
-/*   0   */	8,		NO,		sensor_connect,
-/*   1   */	8,		NO,		sensor_disconnect,
-/*   2   */	24,		NO,		new_tcp,
-/*   3   */	12,		NO,		tcp_close,
-/*   4   */	12,		YES,		tcp_data,
-/*   5   */	12,		NO,		tcp_break,
-/*   6   */	24,		YES,		udp_data,
+{/*   0   */	8,		NO,		sensor_connect},
+{/*   1   */	8,		NO,		sensor_disconnect},
+{/*   2   */	24,		NO,		new_tcp},
+{/*   3   */	12,		NO,		tcp_close},
+{/*   4   */	12,		YES,		tcp_data},
+{/*   5   */	12,		NO,		tcp_break},
+{/*   6   */	24,		YES,		udp_data}
 /*-----------------------------------------------------------------*/
 };
 #define MAX_TYPE 6

@@ -25,14 +25,14 @@
 static AlertList alertlist;
 
 static prelude_client_t *client = NULL; /* Prelude Client Pointer */
-static char overflow_msg[]="A buffer overflow was detected";
+static char default_overflow_msg[] = "A buffer overflow was detected";
 
 
 /*
  * What Is the impact of the detected threat?
  * Since we deal with buffer overflows, we set the impact to be always high
  */
-static int fill_threat_impact(idmef_alert_t *alert)
+static int fill_threat_impact(idmef_alert_t *alert, int rank)
 {
         int ret;
         idmef_impact_t *impact;
@@ -47,14 +47,30 @@ static int fill_threat_impact(idmef_alert_t *alert)
         if ( ret < 0 )
                 return ret;
 
-        severity = IDMEF_IMPACT_SEVERITY_HIGH;
+	switch(rank) {
+	case 1: 
+		severity = IDMEF_IMPACT_SEVERITY_HIGH;
+		break;
+	case 2:
+		severity = IDMEF_IMPACT_SEVERITY_MEDIUM;
+		break;
+	case 3:
+		severity = IDMEF_IMPACT_SEVERITY_LOW;
+		break;
+	case 4:
+		severity = IDMEF_IMPACT_SEVERITY_INFO;
+		break;
+
+	default:
+		return -1;
+	}
 
         idmef_impact_set_severity(impact, severity);
 
         return 0;
 }
 
-static int fill_source_target(AlertNode *p, idmef_alert_t *alert)
+static int fill_source_target(Alert *p, idmef_alert_t *alert)
 {
         int ret;
         idmef_node_t *node;
@@ -197,11 +213,14 @@ static int add_byte_data(idmef_alert_t *alert, const char *meaning,
         return -1;
 }
 
-static int fill_data(AlertNode *p, idmef_alert_t *alert)
+static int fill_data(Alert *p, idmef_alert_t *alert)
 {
 
         if ( !p )
             return 0;
+
+	if(p->data == NULL)
+		return 0;
         
         add_int_data(alert, "ip_proto", p->proto);
 #if 0
@@ -215,9 +234,10 @@ static int fill_data(AlertNode *p, idmef_alert_t *alert)
         return 0;
 }
 
-static void send_alert(AlertNode *p)
+static void send_alert(Alert *p)
 {
         int ret;
+	const char *threat_msg;
         idmef_time_t *time;
         idmef_alert_t *alert;
         prelude_string_t *str;
@@ -243,9 +263,14 @@ static void send_alert(AlertNode *p)
         if ( ret < 0 )
                 goto err;
 
-        prelude_string_set_ref(str, overflow_msg);
+	if(p->msg)
+		threat_msg = p->msg;
+	else
+		threat_msg = default_overflow_msg;
 
-        ret = fill_threat_impact(alert);
+        prelude_string_set_ref(str, threat_msg);
+
+        ret = fill_threat_impact(alert, p->severity);
         if ( ret < 0 )
                 goto err;
 
@@ -382,17 +407,17 @@ void init_alertlist(void)
 	init_prelude();
 }
 
-void pop_alert(void (*func)(AlertNode *))
+void pop_alert(void (*func)(Alert *))
 {
-	AlertNode *alert_to_send;
+	AlertNode *node;
 
 	mutex_lock (&alertlist.mutex);
 
 	while (alertlist.cnt == 0)
 		cond_wait (&alertlist.empty_cond, &alertlist.mutex);
 
-	/* Removing the alert */
-	alert_to_send = alertlist.head;
+	/* Removing the alert Node */
+	node = alertlist.head;
 	alertlist.head = alertlist.head->next;
 	alertlist.cnt--;
 	if (alertlist.cnt == 0)
@@ -401,43 +426,37 @@ void pop_alert(void (*func)(AlertNode *))
 	mutex_unlock (&alertlist.mutex);
 
 	/* Execute the function on the alert data*/
-	(*func)(alert_to_send);
+	(*func)(node->alert);
 
-	free(alert_to_send);
+	if(node->alert->msg)
+		free(node->alert->msg);
+	if(node->alert->data)
+		free(node->alert->data);
+	free(node->alert);
+	free(node);
 }
 
-int push_alert(struct tuple4 *addr, int proto, unsigned char *data, int length)
+int push_alert(Alert *a)
 {
-	AlertNode *new_alert;
+	AlertNode *new_node;
 
-	new_alert = malloc(sizeof(AlertNode));
-	if (new_alert == NULL) {
+	new_node = malloc(sizeof(AlertNode));
+	if (new_node == NULL) {
 		errno_cont("Error in malloc");
 		return 0;
 	}
+
+	new_node->alert = a;
+	new_node->next = NULL;
 	
-	new_alert->addr = *addr;
-	new_alert->proto = proto;
-
-	if(data) {
-		new_alert->data = malloc(length);
-		if(new_alert->data)
-			memcpy(new_alert->data, data, length);
-		else errno_cont("malloc");
-	} else
-		new_alert->data = NULL;
-
-	new_alert->length = (new_alert->data) ? length : 0;
-	new_alert->next = NULL;
-
 	/* Now add it in the alert list */
 	mutex_lock (&alertlist.mutex);
 
 	if (alertlist.head == NULL)
-		alertlist.head = alertlist.tail = new_alert;
+		alertlist.head = alertlist.tail = new_node;
 	else {
-		alertlist.tail->next = new_alert;
-		alertlist.tail = new_alert;
+		alertlist.tail->next = new_node;
+		alertlist.tail = new_node;
 	}
 
 	alertlist.cnt++;

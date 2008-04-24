@@ -2,7 +2,7 @@
 #define _UTILS_H
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <netinet/in.h> /* for struct in_addr */
 
 #ifdef _DEBUG
 	#define DPRINTF(...) do {\
@@ -22,5 +22,11 @@
 /* Function Declarations */
 unsigned short find_first_zero(u_int8_t);
 unsigned int get_rand(void);
+
+ssize_t readline(int, void *, size_t);
+ssize_t writen(int, const void *, size_t);
+
+int str2num(const char *);
+int addrtok(char *buf, struct in_addr *addr, unsigned short *port);
 
 #endif

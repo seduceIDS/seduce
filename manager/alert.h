@@ -1,12 +1,18 @@
 #ifndef _ALERT_H
 #include "data.h"
 
-typedef struct _AlertNode {
-	struct _AlertNode *next;
-	struct tuple4 addr;
+typedef struct _Alert {
+	struct tuple4 addr; /*fields are in Network Byte Order*/
 	int proto;
+	int severity;
+	char *msg;
 	unsigned char *data;
 	int length;
+}Alert;
+
+typedef struct _AlertNode {
+	Alert *alert;
+	struct _AlertNode *next;
 } AlertNode;
 
 typedef struct _AlertList {
@@ -18,7 +24,7 @@ typedef struct _AlertList {
 } AlertList;
 
 void init_alertlist(void);
-int push_alert(struct tuple4 *, int, unsigned char *, int);
-void pop_alert(void (*func)(AlertNode *));
+int push_alert(Alert *);
+void pop_alert(void (*func)(Alert *));
 void *alert_thread(void *);
 #endif /* _ALERT_H */

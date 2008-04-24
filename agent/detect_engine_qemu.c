@@ -9,6 +9,7 @@
 #include "detect_engine_qemu.h"
 
 DetectEngine engine = {
+	.name = "QEMU Engine",
 	.init = &qemu_engine_init,
 	.destroy = &qemu_engine_destroy,
 	.reset = &qemu_engine_reset,

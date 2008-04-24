@@ -3,21 +3,20 @@
 
 #include <stddef.h> /* for size_t */
 
-typedef enum {
-	SEVERITY_HIGH = 1,
-	SEVERITY_MEDIUM = 2,
-	SEVERITY_LOW = 3,
-	SEVERITY_INFO = 4
-} ImpactSeverity;
+#define	SEVERITY_HIGH	1
+#define	SEVERITY_MEDIUM 2
+#define	SEVERITY_LOW	3
+#define	SEVERITY_INFO	4
 
 typedef struct _Threat{
 	unsigned char *payload;	 /* The payload that caused the alert */
 	size_t length;		 /* The length of the payload */
-	ImpactSeverity severity; /* Severity of the threat */
+	unsigned short severity; /* Severity of the threat */
 	char *msg;		 /* Null-Terminated, human-readable, message */
 } Threat;
 
 typedef struct _DetectEngine{
+	const char *name;
 	int  (*init)(void); 		/* Return 1|0 (0 on failure) */
 	void (*destroy)(void);
 	void (*reset)(void);
