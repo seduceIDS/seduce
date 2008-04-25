@@ -12,8 +12,8 @@
 typedef struct _ProtocolEntry {
 	char *command;
 /*
- * Does the command update members of the Alert struct ?
- * If yes, then we have to make sure NEW_ALERT was executed before.
+ * Does the command an alert struct?
+ * If yes, then we have to make sure the needed memory is allocated.
  */
 	int need_alert;
 /*
@@ -25,24 +25,25 @@ typedef struct _ProtocolEntry {
 	int (*handler)(int sock, Alert *, char *);
 } ProtocolEntry;
 
-#define NEW_ALRT	0
+#define RST		0
 #define SUBMIT		1
 #define QUIT		2
 #define PROTO		3
 #define SRC_ADDR	4
 #define DST_ADDR	5
 #define MSG		6
-#define SEVERITY	7
+#define SVRTY		7
 #define PAYLOAD		8
 #define HELP		9
+#define PRINT		10
 
-#define MAX_COMMAND 10
+#define MAX_COMMAND 11
 
 static const char *proto_usage[] = {
-/*0*/	"NEW_ALRT\n\tCreate a new alert.\n",
+/*0*/	"RST\n\tClear all alert data.\n",
 /*1*/	"SUBMIT\n\tSubmit the created alert.\n",
 /*2*/	"QUIT\n\tExit Alert Receiver.\n",
-/*3*/	"PROTO <protocol-number>\n\t Specify the threat's connection protocol"
+/*3*/	"PROTO <protocol-number>\n\t Specify the threat's connection protocol "
 	"(see /etc/protocol).\n",
 /*4*/	"SRC_ADDR <IP>:<PORT>\n\t Specify the source address of the suspicious "
 	"data.\n",
@@ -50,13 +51,14 @@ static const char *proto_usage[] = {
 	"suspicious data.\n",
 /*6*/	"MSG <message>\n\t Message describing the threat. If it is more than "
 	"one word, use quotes.\n",
-/*7*/	"SEVERITY 1-4\n\t Rank the impact of the threat. The highest is 1.\n",
+/*7*/	"SVRTY 1-4\n\t Rank the severity of the threat. The highest is 1.\n",
 /*8*/	"PAYLOAD <base64_encrypted_data>\n\t Adds the suspicious data payload "
 	"to the alert.\n",
-/*9*/	"HELP [<command>]\n\tThe HELP command gives help info.\n"
+/*9*/	"HELP [<command>]\n\tThe HELP command gives help info.\n",
+/*10*/  "PRINT\n\tPrint the currently supplied alert data\n"
 };
 
-static int exec_new_alrt(Alert **ap);
+static int new_alrt(Alert **ap);
 static int exec_submit(int sock, Alert **ap);
 static int exec_quit(int sock, Alert *p);
 
@@ -64,21 +66,23 @@ static int exec_proto(int sock, Alert *a, char *str);
 static int exec_src_addr(int sock, Alert *a, char *str);
 static int exec_dst_addr(int sock, Alert *a, char *str);
 static int exec_msg(int sock, Alert *a, char *str);
-static int exec_severity(int sock, Alert *a, char *str);
+static int exec_svrty(int sock, Alert *a, char *str);
 static int exec_payload(int sock, Alert *a, char *str);
 static int exec_help(int sock, Alert *a, char *str);
+static int exec_print(int socket, Alert *a, char *str);
 
 static ProtocolEntry proto_table[] = {
-/*0*/	{"NEW_ALRT",	0,	0,	NULL},
+/*0*/	{"RST",		0,	0,	NULL},
 /*1*/	{"SUBMIT",	1,	0,	NULL},
 /*2*/	{"QUIT",	0,	0,	NULL},
 /*3*/	{"PROTO",	1,	1,	exec_proto},
 /*4*/	{"SRC_ADDR",	1,	1,	exec_src_addr},
 /*5*/	{"DST_ADDR",	1,	1,	exec_dst_addr},
 /*6*/	{"MSG",		1,	1,	exec_msg},
-/*7*/	{"SEVERITY",	1,	1,	exec_severity},
+/*7*/	{"SVRTY",	1,	1,	exec_svrty},
 /*8*/	{"PAYLOAD",	1,	1,	exec_payload},
-/*9*/	{"HELP",	0,	2,	exec_help}
+/*9*/	{"HELP",	0,	2,	exec_help},
+/*10*/  {"PRINT",	1,	0,	exec_print}
 };
 
 /*
@@ -130,18 +134,33 @@ static int proto_reply(int fd, const char *msg)
 	return 0;
 }
 
+inline void free_alrt(Alert *a)
+{
+	if(a->data)
+		free(a->data);
+	if(a->msg)
+		free(a->msg);
+	free(a);
+}
+
 /*
- * Function: func_new_alrt(Alert **)
+ * Function: new_alrt(Alert **)
  *
- * Purpose: Execute a NEW_ALRT command
+ * Purpose: Create a new alert
  *
  * Arguments: ap=> Pointer to point to the Alert struct that will be created
  *
  * Returns:  1=> success, -1=> if an internal error occurs
  */
-static int exec_new_alrt(Alert **ap)
+static int new_alrt(Alert **ap)
 {
 	if(*ap != NULL) {
+		/* free any allocated field data */
+		if((*ap)->data)
+			free((*ap)->data);
+		if((*ap)->msg)
+			free((*ap)->msg);
+		/* zero the alert */
 		memset(*ap, '\0', sizeof(Alert));
 	} else {
 		*ap = calloc(1, sizeof(Alert));
@@ -214,7 +233,7 @@ static int exec_submit(int sock, Alert **ap)
 static int exec_quit(int sock, Alert *a)
 {
 	if(a != NULL)
-		free(a);
+		free_alrt(a);
 	
 	if(proto_reply(sock, "Quiting...\n"))
 		return -1;
@@ -239,11 +258,9 @@ static int exec_proto(int sock, Alert *a, char *arg)
 	int proto;
 
 	proto = str2num(arg);
-
-	DPRINTF("protocol: %d\n", proto);
 	if(proto < 0) {
 		if(proto_reply(sock, "ERROR: Supplied protocol does not seem "
-					"to be a number at all\n"))
+					"to be a natural number at all\n"))
 			return -1;
 		return 0;
 	} else if (proto == 0 || proto > 255) {
@@ -340,9 +357,9 @@ static int exec_msg(int sock, Alert *a, char *arg)
 }
 
 /*
- * Function:exec_severity(int, Alert *, char *)
+ * Function:exec_svrty(int, Alert *, char *)
  *
- * Purpose: Execute a SEVERITY command
+ * Purpose: Execute a SVRTY command
  *
  * Arguments: sock=> the socket of the connection with the client
  *            a=> A pointer to the Alert struct currently used
@@ -350,7 +367,7 @@ static int exec_msg(int sock, Alert *a, char *arg)
  *
  * Returns: 1=> Success, 0=> Failure, -1=> Internal Error
  */
-static int exec_severity(int sock, Alert *a, char *arg)
+static int exec_svrty(int sock, Alert *a, char *arg)
 {
 	int severity;
 
@@ -398,7 +415,7 @@ static int exec_payload(int sock, Alert *a, char *arg)
  *            a=> A pointer to the Alert struct currently used
  *            arg=> The argument supplied for this command
  *
- * Returns: 1=> Success, 0=> Failure, -1=> Internal Error
+ * Returns: 0=> Normal Exit, -1=> Internal Error
  */
 static int exec_help(int sock, Alert *a, char *arg)
 {
@@ -444,6 +461,59 @@ static int exec_help(int sock, Alert *a, char *arg)
 		if(proto_reply(sock, "\n"))
 			return -1;
 	}
+
+	return 0;
+}
+
+/*
+ * Function:exec_print(int, Alert *, char *)
+ *
+ * Purpose: Execute a PRINT command
+ *
+ * Arguments: sock=> the socket of the connection with the client
+ *            a=> A pointer to the Alert struct currently used
+ *            arg=> The argument supplied for this command
+ *
+ * Returns:  0=> Normal Exit, -1=> Internal Error
+ */
+static int exec_print(int sock, Alert *a, char *arg)
+{
+	char buf[75];
+	struct in_addr tmp_addr;
+	int ret;
+
+	if(proto_reply(sock, "\nCurrent Alert Data\n")) return -1;
+
+	tmp_addr.s_addr = a->addr.s_addr;
+	sprintf(buf, "Source Address:\t%s\n",inet_ntoa(tmp_addr));
+	if(proto_reply(sock, buf)) return -1;
+
+	sprintf(buf, "Source Port:\t%d\n", a->addr.s_port);
+	if(proto_reply(sock, buf)) return -1;
+
+	tmp_addr.s_addr = a->addr.d_addr;
+	sprintf(buf, "Dest. Address:\t%s\n",inet_ntoa(tmp_addr));
+	if(proto_reply(sock, buf)) return -1;
+
+	sprintf(buf, "Dest. Port:\t%d\n", a->addr.d_port);
+	if(proto_reply(sock, buf)) return -1;
+
+	sprintf(buf, "Protocol Num.:\t%d\n", a->proto);
+	if(proto_reply(sock, buf)) return -1;
+
+	sprintf(buf, "Severity:\t%d\n", a->severity);
+	if(proto_reply(sock, buf)) return -1;
+
+	ret = snprintf(buf, 70, "Message:\t%s\n", a->msg);
+	if(buf[69] == '\0') {
+		buf[69] = buf[70] = buf[71] = '.';
+		buf[72] = '\n';
+		buf[73] = '\0';
+	}
+	if(proto_reply(sock, buf)) return -1;
+
+	sprintf(buf, "Payload Length:\t%d\n", a->length);
+	if(proto_reply(sock, buf)) return -1;
 
 	return 0;
 }
@@ -600,12 +670,10 @@ static void protocol_decode(int sock)
 			continue;
 		}
 
-		/* Check if the command needs NEW_ALERT to have run first */
+		/* Check if the command needs to create a new alert */
 		if((ep->need_alert == 1) && (a == NULL)) {
-			if(proto_reply(sock, "ERROR: you need to run "
-						"NEW_ALRT first\n"))
-				return;
-			continue;
+			if(new_alrt(&a) == -1)
+		       		goto internal_error;
 		}
 
 	/*
@@ -614,8 +682,8 @@ static void protocol_decode(int sock)
 		code = ep - proto_table; /* proto table index */
 		if(ep->handler != NULL) {
 			ret = ep->handler(sock, a, arg);
-		} else if(code == NEW_ALRT) {
-			ret = exec_new_alrt(&a);
+		} else if(code == RST) {
+			ret = new_alrt(&a);
 		} else if(code == SUBMIT) {
 			ret = exec_submit(sock, &a);
 		} else if(code == QUIT) {
@@ -628,9 +696,13 @@ static void protocol_decode(int sock)
 				ret = -1;
 
 		if(ret == -1)
-			if(proto_reply(sock, "ERROR: Internal Server Error\n"))
-				return;
+			goto internal_error;
+			
 	}
+
+internal_error:
+	proto_reply(sock, "ERROR: Internal Server Error\n");
+	return;
 }
 
 void *alert_receiver(int sock)
@@ -639,7 +711,7 @@ void *alert_receiver(int sock)
 	ssize_t numbytes;
 	int longline = 0;
 
-	if(proto_reply(sock, "Password:\n"))
+	if(proto_reply(sock, "Please supply the Password:\n"))
 		goto end;
 
 again:
@@ -682,6 +754,7 @@ again:
 
 	protocol_decode(sock);
 end:
+	DPRINTF("Closing the socket\n");
 	close(sock);
 	return NULL;
 }
