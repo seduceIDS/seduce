@@ -9,10 +9,10 @@
 #define	SEVERITY_INFO	4
 
 typedef struct _Threat{
-	unsigned char *payload;	 /* The payload that caused the alert */
-	size_t length;		 /* The length of the payload */
-	unsigned short severity; /* Severity of the threat */
-	char *msg;		 /* Null-Terminated, human-readable, message */
+	char *payload;	 	/* The payload that caused the alert */
+	size_t length;		/* The length of the payload */
+	unsigned short severity;/* Severity of the threat */
+	char *msg;		/* Null-Terminated, human-readable, message */
 } Threat;
 
 typedef struct _DetectEngine{

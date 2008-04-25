@@ -482,7 +482,7 @@ static int line_process(char *line, char **arg1, char **arg2)
 		;
 
 	if(*arg1 == p) /* arg1 is missing */ {
-		fprintf(stderr, "arg1 missing\n");
+		DPRINTF("Arg1 missing\n");
 		return -1;
 	}
 

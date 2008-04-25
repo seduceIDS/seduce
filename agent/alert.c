@@ -106,7 +106,7 @@ static char *addr_to_str(char *str, unsigned int addr, unsigned short port)
 	return str;
 }
 
-static char *proper_msg(char *msg)
+static char *prepare_msg(char *msg)
 {
 	size_t len;
 	char *tmp;
@@ -229,6 +229,7 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 	int ret;
 	char *tmp;
 
+	/* TODO: I need to check if some threat fields are missing */
 
 	fprintf(stderr, "Connecting to the manager...");
 	
@@ -282,7 +283,7 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 		goto err;
 	}
 
-	tmp = proper_msg(t->msg);
+	tmp = prepare_msg(t->msg);
 	if(tmp == NULL)
 		goto err;
 	fprintf(stderr, "PROPER_MSG: %s", tmp);
@@ -307,7 +308,7 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 		goto err;
 	}
 
-//	close(sock);
+	close(sock);
 	return 1;
 
 err:
