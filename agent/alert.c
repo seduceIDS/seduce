@@ -244,15 +244,13 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 
 	/* first send the password */
 	ret = readline(sock, arg, 127);
-	if(ret <= 0)
-		fprintf(stderr, "skata!\n");
-	else
-		fprintf(stderr, "%d: %s",ret, arg);
-	ret = do_request_response(sock, s->password, NULL);
-	if(!ret)
+	if(ret <= 0) {
+		fprintf(stderr, "Error wile executing readline\n");
 		goto err;
+	} else
+		fprintf(stderr, "%d: %s",ret, arg);
 
-	ret = do_request_response(sock, "NEW_ALRT", NULL);
+	ret = do_request_response(sock, s->password, NULL);
 	if(!ret)
 		goto err;
 
