@@ -15,8 +15,12 @@
 
 #undef  MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
+#undef	MIN
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
+#undef	YES
 #define YES (1==1)
+#undef	NO
 #define NO (!YES)
 
 /* Function Declarations */
@@ -28,5 +32,6 @@ ssize_t writen(int, const void *, size_t);
 
 int str2num(const char *);
 int addrtok(char *buf, struct in_addr *addr, unsigned short *port);
+int get_empty_line(int sock);
 
 #endif
