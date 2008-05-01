@@ -47,8 +47,7 @@ static int dummy_engine_process(char *data, size_t len)
 	if(times++ < TIMES) {
 		fprintf(stderr, "work done\n");
 		return 0;
-	}
-	else {
+	} else {
 		fprintf(stderr,"Thread detected\n");
 		times = 0;
 		return 1;
@@ -57,11 +56,20 @@ static int dummy_engine_process(char *data, size_t len)
 
 static int dummy_engine_get_threat(Threat *t)
 {
-	t->payload = malloc(4);
+	static const char shellcode[] =
+		"\xbe\x2d\x62\x03\xe1\xda\xc5\xd9\x74\x24\xf4\x5a\x31\xc9\xb1"
+		"\x0c\x31\x72\x12\x83\xc2\x04\x03\x5f\x6c\xe1\x14\xf5\x7b\xbd"
+		"\x4f\x5b\x1a\x55\x5d\x38\x6b\x42\xf5\x91\x18\xe5\x06\x85\xf1"
+		"\x97\x6f\x3b\x87\xbb\x22\x2b\x9f\x3b\xc3\xab\x8f\x59\xaa\xc5"
+		"\xe0\xee\x44\x19\xa8\x43\x1c\xf8\x9b\xe4\x1e";
+	const size_t size = 71;
+
+	t->payload = malloc(size);
 	if(t->payload == NULL)
 		return 0;
-	memcpy(t->payload, "\x01\x02\x03\x04", 4);
-	t->length = 4;
+
+	memcpy(t->payload, shellcode, size);
+	t->length = size;
 	t->severity = SEVERITY_HIGH;
 	t->msg = strdup("Example threat");
 	return 1;

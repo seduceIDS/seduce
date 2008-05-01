@@ -209,3 +209,29 @@ int addrtok(char *buf, struct in_addr *addr, unsigned short *port)
 
 	return 1;
 }
+
+int get_empty_line(int sock)
+{
+	ssize_t numbytes;
+	char buf[128];
+	int i, empty = 1;
+
+again:
+	numbytes = readline(sock, buf, 127);
+	if(numbytes <= 0)
+		return -1;
+
+	if(empty) {
+		for(i = 0; i < numbytes; i++) {
+			if(!isspace(buf[i])) {
+				empty = 0;
+				break;
+			}
+		}
+	}
+
+	if(buf[numbytes - 1] != '\n') //longline
+		goto again;
+
+	return empty;
+}

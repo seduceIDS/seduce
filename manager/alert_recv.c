@@ -43,19 +43,19 @@ static const char *proto_usage[] = {
 /*0*/	"RST\n\tClear all alert data.\n",
 /*1*/	"SUBMIT\n\tSubmit the created alert.\n",
 /*2*/	"QUIT\n\tExit Alert Receiver.\n",
-/*3*/	"PROTO <protocol-number>\n\t Specify the threat's connection protocol "
+/*3*/	"PROTO <protocol-number>\n\tSpecify the threat's connection protocol "
 	"(see /etc/protocol).\n",
-/*4*/	"SRC_ADDR <IP>:<PORT>\n\t Specify the source address of the suspicious "
+/*4*/	"SRC_ADDR <IP>:<PORT>\n\tSpecify the source address of the suspicious "
 	"data.\n",
-/*5*/	"DST_ADDR <IP>:<PORT>\n\t Specify the destination address of the "
+/*5*/	"DST_ADDR <IP>:<PORT>\n\tSpecify the destination address of the "
 	"suspicious data.\n",
-/*6*/	"MSG <message>\n\t Message describing the threat. If it is more than "
+/*6*/	"MSG <message>\n\tMessage describing the threat. If it is more than "
 	"one word, use quotes.\n",
-/*7*/	"SVRTY 1-4\n\t Rank the severity of the threat. The highest is 1.\n",
-/*8*/	"PAYLOAD <base64_encrypted_data>\n\t Adds the suspicious data payload "
-	"to the alert.\n",
+/*7*/	"SVRTY 1-4\n\tRank the severity of the threat. The highest is 1.\n",
+/*8*/	"PAYLOAD <size>\n\tAdds the data that triggered the alert. The base64 "
+	"encrypted data\n\tshould follow in the next lines.\n",
 /*9*/	"HELP [<command>]\n\tThe HELP command gives help info.\n",
-/*10*/  "PRINT\n\tPrint the currently supplied alert data\n"
+/*10*/  "PRINT\n\tPrint the currently supplied alert data.\n"
 };
 
 static int new_alrt(Alert **ap);
@@ -130,9 +130,106 @@ static int proto_reply(int fd, const char *msg)
 		DPRINTF("Error while writing...\n");
 		return -1;
 	}
+	DPRINTF(msg);
 
 	return 0;
 }
+
+/*
+ * Function: get_payload(Alert **)
+ *
+ * Purpose: Get the base64 encrypted payload
+ *
+ `* Arguments: ap=> Pointer to point to the Alert struct that will be created
+ *
+ * Returns:  1=> success, 0=> failure, -1=>if an internal error occurs
+ */
+static int get_payload(int sock, Alert *a, size_t length)
+{
+	ssize_t numbytes;
+	char line[128];
+	guchar tmp[128];
+	unsigned char *payload;
+	gint state; 
+	guint save;
+	int longline = 0;
+	size_t decoded_len, len;
+	int ret;
+
+	payload = malloc(length);
+	if(payload == NULL) {
+		perror("malloc");
+		return -1;
+	}
+	
+	state = save = 0;
+	decoded_len = 0;
+	while(decoded_len < length)
+	{
+again:
+		numbytes = readline(sock, line, 127);
+		if(numbytes <= 0) {
+			DPRINTF("Error while reading...\n");
+			goto error;
+		}
+
+		if(line[numbytes - 1]  != '\n') {
+			/* very long line. Call readline again to get it all */
+			longline = 1;
+			goto again;
+		}
+
+		if(longline) {
+			if(proto_reply(sock, "ERROR: Line too long\n"))
+				goto error;
+
+			goto failed;
+		}
+
+		len = g_base64_decode_step(line, numbytes, tmp, &state, &save);
+		if(len == 0)
+			break;
+
+		memcpy(payload + decoded_len, tmp,
+						MIN(len, length - decoded_len));
+		decoded_len += len;
+	}
+
+	if(decoded_len < length) {
+		if(proto_reply(sock, "ERROR: Payload shorter than expected\n"))
+			goto error;
+
+		goto failed;
+	}
+
+	/* Is the next line empty? */
+	ret = get_empty_line(sock);
+	if(ret == 0) {
+		if(proto_reply(sock, "ERROR: Payload larger than expected\n"))
+			goto error;
+
+		goto failed;
+	} else if(ret < 0) {
+		goto error;
+	}
+
+	/* Everything is OK, fill the data */
+	if(a->data)
+		free(a->data);
+	a->data = payload;
+	a->length = length;
+
+	return 1;
+
+failed:
+	free(payload);
+	return 0;
+
+error:
+	free(payload);
+	return -1;
+}
+
 
 inline void free_alrt(Alert *a)
 {
@@ -258,6 +355,7 @@ static int exec_proto(int sock, Alert *a, char *arg)
 	int proto;
 
 	proto = str2num(arg);
+	DPRINTF("Proto: %d\n", proto);
 	if(proto < 0) {
 		if(proto_reply(sock, "ERROR: Supplied protocol does not seem "
 					"to be a natural number at all\n"))
@@ -372,8 +470,7 @@ static int exec_svrty(int sock, Alert *a, char *arg)
 	int severity;
 
 	severity = str2num(arg);
-	DPRINTF("severity %d\n", severity);
-
+	DPRINTF("Severity: %d\n", severity);
 	if(severity < 0) {
 		if(proto_reply(sock, "ERROR: SEVERITY's argument must be a "
 					"natural number\n")) return -1;
@@ -384,7 +481,6 @@ static int exec_svrty(int sock, Alert *a, char *arg)
 		return 0;
 	}
 
-	DPRINTF("severity = %d\n", severity);
 	a->severity = severity;
 	return 1;
 }
@@ -402,8 +498,29 @@ static int exec_svrty(int sock, Alert *a, char *arg)
  */
 static int exec_payload(int sock, Alert *a, char *arg)
 {
-	DPRINTF("Not Implemented yet\n");
-	return 1;
+	int length;
+
+	length = str2num(arg);
+	DPRINTF("Payload length: %d\n", length);
+	if(length <= 0) {
+		if(proto_reply(sock, "ERROR: The argument does not look like a "
+					"valid size to me\n"))
+			return -1;
+		return 0;
+	} else if(length >  2048) {
+		if(proto_reply(sock, "ERROR: Size is too long\n"))
+			return -1;
+		return 0;
+	} else {
+		if(proto_reply(sock, "ADD PAYLOAD\n"))
+		return -1;
+	}
+
+	/*
+	 * We have a valid length, now collect the base64 encoded payload
+	 */
+
+	return get_payload(sock, a, length);
 }
 
 /*
@@ -552,7 +669,7 @@ static int line_process(char *line, char **arg1, char **arg2)
 		;
 
 	if(*arg1 == p) /* arg1 is missing */ {
-		DPRINTF("Arg1 missing\n");
+		DPRINTF("Arg1 is missing\n");
 		return -1;
 	}
 
@@ -643,8 +760,7 @@ static void protocol_decode(int sock)
 			continue;
 
 		if(ret < 0) {
-			if(proto_reply(sock, "ERROR: Acceptable line: "
-						"<command> [arg]\n"))
+			if(proto_reply(sock, "ERROR: Acceptable line: <command>"			   " [arg]. If arg is more than 1 word, use quotes.\n"))
 				return;
 			continue;
 		}
@@ -718,7 +834,7 @@ again:
 	/* read the password */
 	numbytes = readline(sock, buf, 64);
 	if(numbytes <= 0) {
-		fprintf(stderr, "Error while reading...\n");
+		DPRINTF("Error while reading...\n");
 		goto end;
 	}
 
@@ -743,11 +859,9 @@ again:
 
 
 	if(!check_password(buf)) {
-		DPRINTF("Autentication Failed\n");
 		proto_reply(sock, "Authentication Failed\n");
 		goto end;
 	} else {
-		DPRINTF("Autentication OK\n");
 		if(proto_reply(sock, "OK\n"))
 			goto end;
 	}

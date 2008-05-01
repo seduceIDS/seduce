@@ -15,7 +15,7 @@ LIBS_CFLAGS	=
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
 
-CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o
+CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o base64_encoder.o
 
 ENGINE		= dummy
 
@@ -57,7 +57,7 @@ seduce.o: seduce.c
 agent.o: agent.c agent.h alert.h error.h options.h detect_engine.h server_contact.h
 	$(CC) $(CFLAGS) -c agent.c
 
-alert.o: alert.c agent.h
+alert.o: alert.c agent.h base64_encoder.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
@@ -71,6 +71,9 @@ server_contact.o: server_contact.c server_contact.h error.h utils.h
 
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c
+
+base64_encoder.o: base64_encoder.c base64_encoder.h
+	$(CC) $(CFLAGS) -c base64_encoder.c
 
 detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
 	$(CC) $(CFLAGS) -c detect_engine_qemu.c 

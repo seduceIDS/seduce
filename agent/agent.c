@@ -148,14 +148,20 @@ static void main_loop(int wait_time)
 			if(ret == 1) {
 				printf("Threat Detected\n");
 				pv.detect_engine->get_threat(&t);
+
 				/* send the treat */
-				submit_alert(pv.server_session, &w->info, &t);
+				ret = submit_alert(pv.server_session,
+								&w->info, &t);
 				destroy_threat(&t);
+				if(ret <= 0) {
+					fprintf(stderr,"Couln't send alert\n");
+					quit_handler(0);
+				}
 			} else if(ret == -1) {
 	
 				/* detection engine error */
 			}
-		}while((w = get_next_work()) != NULL);
+		} while((w = get_next_work()) != NULL);
 	}
 }
 

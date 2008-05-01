@@ -10,6 +10,9 @@
 
 #include "server_contact.h"
 #include "detect_engine.h"
+#include "base64_encoder.h"
+
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
 static int tcp_connect(const ServerSession *s)
 {
@@ -28,6 +31,27 @@ static int tcp_connect(const ServerSession *s)
 	}
 
 	return sock;
+}
+
+ssize_t writeall(int fd, const char *buf, size_t len)
+{
+	ssize_t numbytes, written = 0;
+	const char *p = buf;
+
+	while(written < len) {
+		numbytes = write(fd, p, len - written);
+		if(numbytes < 0) {
+			if(errno == EINTR)
+				continue;
+			else
+				return -1;
+		}
+
+		written += numbytes;
+		p += numbytes;
+	}
+
+	return written;
 }
 
 static ssize_t do_read(int sock, char *ptr)
@@ -125,7 +149,7 @@ static char *prepare_msg(char *msg)
 	return tmp;
 }
 
-static int check_reply(int sock)
+static int check_reply(int sock, const char *rep)
 {
 	char buf[128];
 	int longline = 0;
@@ -150,7 +174,68 @@ again:
 	/* remove the new line */
 	buf[numbytes - 1] = '\0';
 
-	return (strcmp(buf, "OK")) ? 0 : 1;
+	if(strcmp(buf, rep) == 0)
+		return 1;
+	else {
+		fprintf(stderr, "Error. Server Replied: %s\n", buf);
+		return 0;
+	}
+}
+
+static int send_payload(int sock, const Threat* t)
+{
+	const size_t default_block = 32;
+	/* 
+	 * The max output size is len*4/3 + len*4/(3*72) + 7
+	 * So, for len = 64, the b[128] should be enough.
+	 */
+	char buf[128];
+	size_t block_size;
+	ssize_t numbytes;
+	const unsigned char *p;
+	size_t encoded_len, input_len;
+	int state, save;
+
+	if(t == NULL)
+		return 0;
+
+	p = t->payload;
+	input_len = 0;
+	encoded_len = 0;
+	save = 0;
+	state = 0;
+	while(input_len < t->length) {
+		block_size = MIN(default_block, t->length - input_len);
+
+		numbytes = base64_encode_step(p + input_len, block_size, buf,
+								&state, &save);
+		if(numbytes <= 0)
+			return -1;
+
+		encoded_len += numbytes;
+		input_len += block_size;
+
+		numbytes = writeall(sock, buf, numbytes);
+		if(numbytes < 0)
+			return -1;
+	}
+
+	numbytes = base64_encode_close(buf, &state, &save);
+	if(numbytes < 0)
+		return -1;
+	else if(numbytes > 0) {
+		numbytes = writeall(sock, buf, numbytes);
+		if(numbytes < 0)
+			return -1;
+	}
+
+	/* At the end, send an empty line */
+	numbytes = writeall(sock, "\n", 1);
+	if(numbytes < 0)
+		return -1;
+
+
+	return check_reply(sock, "OK");
 }
 
 static int send_command(int sock, const char *com, const char *arg)
@@ -208,7 +293,7 @@ int do_request_response(int sock, const char *com, const char *arg)
 		return 0;
 	}
 
-	ret = check_reply(sock);
+	ret = check_reply(sock, "OK");
 	if(ret < 0) {
 		fprintf(stderr, "Error when waiting servers reply");
 		return 0;
@@ -284,18 +369,30 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 	tmp = prepare_msg(t->msg);
 	if(tmp == NULL)
 		goto err;
-	fprintf(stderr, "PROPER_MSG: %s", tmp);
+
 	ret = do_request_response(sock, "MSG", tmp);
 	free(tmp);
 	if(!ret)
 		goto err;
 
 	uint_to_str(arg, t->severity);
-	ret = do_request_response(sock, "SEVERITY", arg);
+	ret = do_request_response(sock, "SVRTY", arg);
 	if(!ret)
 		goto err;
 
-	/*TODO: Payload Command is missing */
+	uint_to_str(arg, t->length);
+	if((ret = send_command(sock, "PAYLOAD", arg)) <= 0) {
+		fprintf(stderr, "Unable to send PAYLOAD command\n");
+		goto err;
+	} else {
+		if(check_reply(sock,"ADD PAYLOAD") == 0)
+			goto err;
+	}
+
+	if((ret = send_payload(sock, t)) <= 0) {
+		fprintf(stderr,"Unable to send the Payload data\n");
+		goto err;
+	}
 
 	ret = do_request_response(sock, "SUBMIT", NULL);
 	if(!ret)
