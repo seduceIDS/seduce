@@ -1,4 +1,6 @@
 #ifndef _ALERT_H
+#define _ALERT_H
+
 #include "data.h"
 
 typedef struct _Alert {
@@ -27,4 +29,5 @@ void init_alertlist(void);
 int push_alert(Alert *);
 void pop_alert(void (*func)(Alert *));
 void *alert_thread(void *);
+
 #endif /* _ALERT_H */
