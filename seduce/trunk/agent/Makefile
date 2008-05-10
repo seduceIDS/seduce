@@ -2,8 +2,19 @@
 # Makefile for the agent
 #
 
-srcdir		= .
+NAME		= agent
 
+INSTALL		= /usr/bin/install
+INSTALL_USER	= root
+INSTALL_GROUP	= root
+DESTDIR		= /usr/local
+BINDIR		= $(DESTDIR)/bin
+SYSCONFDIR	= $(DESTDIR)/etc/seduce
+
+INSTALL_PROG_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
+INSTALL_PROG	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
+INSTALL_CONF_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
+INSTALL_CONF	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 640
 
 CC		= gcc
 CFLAGS		= -g -O2 -D_DEBUG -Wall -D_GNU_SOURCE
@@ -28,8 +39,9 @@ ifeq ($(ENGINE), dummy)
 	OBJS = $(CORE_OBJS) detect_engine_dummy.o
 endif
 
+.PHONY: all dummy qemu clean install install-bin install-conf
+
 all: agent 
-.PHONY: all dummy qemu clean
 
 dummy:
 	$(MAKE) ENGINE=dummy
@@ -82,6 +94,19 @@ detect_engine_dummy.o: detect_engine_dummy.c
 	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
 
 clean:
-	rm -f *.o *~ agent seduce 
+	@rm -f *.o *~ agent seduce 
+
+install: install-bin install-conf
+	@echo $(NAME) installation completed
+
+install-bin:
+	@echo Installing binaries under $(BINDIR) ...
+#	$(INSTALL_PROG_DIR) $(BINDIR)
+	$(INSTALL_PROG) $(NAME) $(BINDIR)
+
+install-conf:
+	@echo Installing configuration files under $(SYSCONFDIR)
+	-$(INSTALL_CONF_DIR) $(SYSCONFDIR)
+	$(INSTALL_CONF) $(NAME).conf $(SYSCONFDIR)
 
 # EOF
