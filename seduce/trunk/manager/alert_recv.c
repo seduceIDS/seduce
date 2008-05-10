@@ -72,6 +72,7 @@ static int exec_help(int sock, Alert *a, char *str);
 static int exec_print(int socket, Alert *a, char *str);
 
 static ProtocolEntry proto_table[] = {
+/*	COMMAND	      ALERT ARGUMENT    HANDLER 	*/ 
 /*0*/	{"RST",		0,	0,	NULL},
 /*1*/	{"SUBMIT",	1,	0,	NULL},
 /*2*/	{"QUIT",	0,	0,	NULL},
@@ -760,7 +761,8 @@ static void protocol_decode(int sock)
 			continue;
 
 		if(ret < 0) {
-			if(proto_reply(sock, "ERROR: Acceptable line: <command>"			   " [arg]. If arg is more than 1 word, use quotes.\n"))
+			if(proto_reply(sock, "ERROR: Acceptable line: <command>"
+		     	   " [arg]. If arg is more than 1 word, use quotes.\n"))
 				return;
 			continue;
 		}
