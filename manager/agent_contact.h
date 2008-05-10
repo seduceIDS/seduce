@@ -9,28 +9,19 @@
 
 
 typedef struct _AgentInfo {
-	u_int32_t id; /* The agent ID	*/
-
-	u_int32_t seq; /* Seq.Num. of the last packet send */
-
-	struct sockaddr_in addr; /* Agent's address info	*/
-
-	DataInfo history; /* Struct with info about the last data sent */
-
+	u_int32_t id;		/* The agent ID	*/
+	u_int32_t seq;		/* Seq.Num. of the last packet send */
+	struct sockaddr_in addr;/* Agent's address info	*/
+	DataInfo history;	/* Struct with info about the last data sent */
 	time_t timestamp;
 } AgentInfo;
 
 typedef struct _Agents {
 	AgentInfo *table; /* A table of Agent Info structs    */
-
-	u_int8_t *map; /* A bit map of used entries in the table */
-
-	size_t map_size; /* Map's size in bytes */
-
-	int max; /* The max number of agent connections allowed */
-
-	GHashTable *hash; /* Hash table associating Agent ID's with table
-			   * entries */
+	u_int8_t *map; 	  /* A bit map of used entries in the table */
+	size_t map_size;  /* Map's size in bytes */
+	int max; 	  /* The max number of agent connections allowed */
+	GHashTable *hash; /* Hash-table associating ID's with table entries */
 } Agents;
 
 typedef struct _UDPPacket {

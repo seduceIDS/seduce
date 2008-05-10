@@ -21,12 +21,12 @@ typedef struct _CommandLineOptions {
 /* 
  * The next 2 values define the acceptable port range for the agent and sensor
  * servers. The values were not picked randomly. Actually to open a port which 
- * in the range 1-1024 you need root permission and manager is not supposed to
- * run with root priveleges. On the other hand at least for the 2.6 version of
- * the linux kernel, the ephemeral port range is 32768-61000, so we picked the
- * inbetween to be the acceptable port range. Feel free to change the bellow
- * values.
- */ 
+ * is in the range 1-1024 you need root permission and manager is not supposed
+ * to be running with root priveleges. On the other hand at least for the 2.6
+ * version of the linux kernel, the ephemeral port range is 32768-61000, so we 
+ * picked the inbetween to be the acceptable port range. Feel free to change
+ * the bellow values.
+ */
 #define MIN_PORT_LIMIT 1025
 #define MAX_PORT_LIMIT 32768
 
@@ -273,8 +273,6 @@ static int parse_file(char *filename)
 
 	return 1;
 }
-
-
 
 void fill_progvars(int argc, char *argv[])
 {
