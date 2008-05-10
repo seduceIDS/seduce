@@ -4,7 +4,7 @@ INSTALL		= /usr/bin/install
 INSTALL_USER	= root
 INSTALL_GROUP	= root
 DESTDIR		= /usr/local
-BINDIR		= $(DESTDIR)/bin
+BINDIR		= $(DESTDIR)/sbin
 SYSCONFDIR	= $(DESTDIR)/etc/seduce
 
 INSTALL_PROG_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
