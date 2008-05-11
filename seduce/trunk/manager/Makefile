@@ -32,9 +32,9 @@ HEADERS		= data.h sensor_contact.h agent_contact.h hash.h errors.h \
 .c.o:
 	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $<
 
-all: manager
+all: $(NAME)
 
-manager: $(OBJS) $(HEADERS)
+$(NAME): $(OBJS) $(HEADERS)
 	$(CC) -o $@ $(OBJS) $(LIBS)
 
 clean:
@@ -43,7 +43,7 @@ clean:
 install: install-bin install-conf
 	@echo $(NAME) installation completed
 
-install-bin:
+install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
 #	$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)

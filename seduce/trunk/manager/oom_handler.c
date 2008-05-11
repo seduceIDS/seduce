@@ -51,8 +51,7 @@ static int free_memory(int limit_to_reach)
 		if(ret == -1) {
 			/* joblist is empty, couldn't delete enough data */
 			return 0;
-		} else if(ret == 2)
-		{
+		} else if(ret == 2) {
 			/* 
 			 * TODO: this is really important!!! I need to destroy
 			 * a sensor but I don't know which. I think I cannot
