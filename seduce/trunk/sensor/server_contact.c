@@ -23,7 +23,7 @@ static int sockfd;
  * buffer and the length. It returns 0 on success, -1 on
  * failure.
  */ 
-static int sendall(int s, char *buf, unsigned int len)
+static int sendall(int s, const void *buf, size_t len)
 {
 	int total = 0;
 	size_t bytesleft = len;
@@ -174,7 +174,7 @@ int server_disconnect(void)
  * |________|__type__|___ID___|________________________|
  *
  */
-int new_tcp_connection(unsigned int stream_id, struct tuple4 *tcp_addr)
+int new_tcp_connection(unsigned stream_id, const struct tuple4 *tcp_addr)
 {
 	unsigned int msglen;
 	char buf[24];
@@ -209,7 +209,7 @@ int new_tcp_connection(unsigned int stream_id, struct tuple4 *tcp_addr)
  * |________|__type__|___ID___|
  *
  */
-int close_tcp_connection(unsigned int stream_id)
+int close_tcp_connection(unsigned stream_id)
 {
 	unsigned int msglen;
 	char buf[12];
@@ -242,7 +242,7 @@ int close_tcp_connection(unsigned int stream_id)
  *
  */
 
-int send_tcp_data(unsigned int stream_id, u_char *data, int datalen)
+int send_tcp_data(unsigned stream_id, const void *data, size_t datalen)
 {
 	unsigned int msglen;
 	unsigned int hdrlen;
@@ -319,8 +319,8 @@ int tcp_data_break(unsigned int stream_id)
  *
  */
 
-int send_udp_data(struct tuple4 *udp_addr, u_char *data,
-		int datalen, unsigned int id)
+int send_udp_data(const struct tuple4 *udp_addr, const void *data, 
+						size_t datalen, unsigned id)
 {
 	unsigned int msglen;
 	unsigned int hdrlen;
