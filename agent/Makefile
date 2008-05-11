@@ -41,7 +41,7 @@ endif
 
 .PHONY: all dummy qemu clean install install-bin install-conf
 
-all: agent 
+all: $(NAME)
 
 dummy:
 	$(MAKE) ENGINE=dummy
@@ -49,7 +49,7 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-agent:	$(OBJS) agent.h server_contact.h alert.h error.h options.h
+$(NAME):$(OBJS) agent.h server_contact.h alert.h error.h options.h
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
 	@echo The agent is linked against the $(ENGINE) detection engine. If you
@@ -99,7 +99,7 @@ clean:
 install: install-bin install-conf
 	@echo $(NAME) installation completed
 
-install-bin:
+install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
 #	$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)

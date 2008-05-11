@@ -31,9 +31,9 @@ HDRS		= sensor.h server_contact.h
 .c.o:
 	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $<
 
-all: sensor
+all: $(NAME)
 
-sensor: $(OBGS) $(HDRS)
+$(NAME):$(OBGS) $(HDRS)
 	$(CC) -o $@  $(OBGS) $(LDFLAGS) $(LIBS)
 
 clean:
@@ -42,7 +42,7 @@ clean:
 install: install-bin install-conf
 	@echo $(NAME) installation completed
 
-install-bin:
+install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
 #	$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)
