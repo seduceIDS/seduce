@@ -32,8 +32,8 @@ static void printusage(int rc)
 	fprintf(stderr, 
 		"\nUsage:\n%s [-c <config_file>] [-h] [-i<interface>] "
 		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  h : Print this help message.\n"
+		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  i : Network interface. E.g. `eth0', `eth1'.\n"
 		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
 		"  s : Server Address in HOST:Port format. "
