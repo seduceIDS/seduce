@@ -13,7 +13,9 @@ INSTALL_CONF_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
 INSTALL_CONF	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 640
 
 CC		= gcc
-CFLAGS		= -g -O2 -D_BSD_SOURCE -D_DEBUG -Wall
+DEBUG		= -g -D_DEBUG
+RELEASE		= -O2
+CFLAGS		= -D_BSD_SOURCE -Wall $(DEBUG)
 LDFLAGS		= 
 
 PCAP_CFLAGS	= 
@@ -44,7 +46,7 @@ install: install-bin install-conf
 
 install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
-#	$(INSTALL_PROG_DIR) $(BINDIR)
+	-$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)
 
 install-conf:

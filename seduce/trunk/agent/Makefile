@@ -17,7 +17,9 @@ INSTALL_CONF_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
 INSTALL_CONF	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 640
 
 CC		= gcc
-CFLAGS		= -g -O2 -D_DEBUG -Wall -D_GNU_SOURCE
+DEBUG		= -g -D_DEBUG
+RELEASE		= -O2
+CFLAGS		= -Wall -D_GNU_SOURCE $(DEBUG)
 CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/ -I./
 
 LDFLAGS		= 
@@ -101,7 +103,7 @@ install: install-bin install-conf
 
 install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
-#	$(INSTALL_PROG_DIR) $(BINDIR)
+	-$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)
 
 install-conf:
