@@ -13,7 +13,9 @@ INSTALL_CONF_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
 INSTALL_CONF	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 640
 
 CC		= gcc
-CFLAGS		= -g -O2 -D_BSD_SOURCE -Wall -D_DEBUG
+DEBUG		= -g -D_DEBUG
+RELEASE		= -O2
+CFLAGS		= -D_BSD_SOURCE -Wall $(DEBUG)
 LDFLAGS		= 
 LIBS_CFLAGS	= `pkg-config --cflags glib-2.0`
 LIBS		= `pkg-config --libs glib-2.0` \
