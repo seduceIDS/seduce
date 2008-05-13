@@ -21,16 +21,16 @@ static void printusage(const char *prog_name, int rc)
 		"\nUsage:\n%s [-c <config_file>] [-h] [-p<password>] "
 		"[-r<retries>]\n       [-s<senver_address]> [-t<timeout>] "
 		"[-w<no_work_wait>]\n\n"
-		"  c : Specify a config file. `E.g. agent.conf'.\n"
 		"  h : Print this help message.\n"
-		"  p : Password to use to connecting with the scheduler.\n"
+		"  c : Specify a config file. `E.g. agent.conf'.\n"
+		"  p : Password to use to connecting with the manager.\n"
 		"  r : Maximum numbers of times to retry when sending a "
-		      "request to the scheduler.\n"
+		      "request to the manager.\n"
 		"  s : Server Address in Hostname:Port format. "
 		      "E.g. `12.0.0.1:3540'.\n"
-		"  t : Time in sec to wait for an answer by the scheduler.\n"
+		"  t : Time in sec to wait for an answer by the manager.\n"
 		"  w : Time in sec to wait before requesting again when the "
-		      "scheduler has no work\n      available.\n\n",
+		      "manager has no work\n      available.\n\n",
 		prog_name);
 	exit(rc);
 }
