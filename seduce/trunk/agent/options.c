@@ -19,7 +19,7 @@ static void printusage(const char *prog_name, int rc)
 {
 	fprintf(stderr, 
 		"\nUsage:\n%s [-c <config_file>] [-h] [-p<password>] "
-		"[-r<retries>]\n       [-s<senver_address]> [-t<timeout>] "
+		"[-r<retries>]\n       [-s<server_address]> [-t<timeout>] "
 		"[-w<no_work_wait>]\n\n"
 		"  h : Print this help message.\n"
 		"  c : Specify a config file. `E.g. agent.conf'.\n"
