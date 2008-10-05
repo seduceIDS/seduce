@@ -17,11 +17,12 @@ typedef struct _Threat{
 
 typedef struct _DetectEngine{
 	const char *name;
-	int  (*init)(void); 		/* Return 1|0 (0 on failure) */
+	int  (*init)(void); 			/* Returns 0 on failure */
 	void (*destroy)(void);
 	void (*reset)(void);
-	int  (*process)(char *, size_t);/* Return 1|0|-1 (-1 on faulure) */
-	int  (*get_threat)(Threat *);	/* Return 0|1 (0 on failure) */
+	int  (*process)(char *, size_t, Threat *); /* Returns -1 on failure,
+						      1 on threat detection,
+						      0 otherwise */
 	void *params;
 } DetectEngine;
 

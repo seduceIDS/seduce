@@ -4,6 +4,6 @@
 #include "server_contact.h"
 #include "detect_engine.h"
 
-int submit_alert(const ServerSession *, const ConnectionInfo *,const Threat *t);
+int submit_alert(const ServerSession *, const ConnectionInfo *,const Threat *);
 
 #endif /* _ALERT_H */

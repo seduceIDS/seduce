@@ -6,15 +6,50 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-#include "agent.h"
+#include "detect_engine.h"
+#include "server_contact.h"
 #include "alert.h"
 #include "error.h"
 #include "options.h"
 
+struct ProgVars {
+        DetectEngine *detect_engine;
+        ServerSession *server_session;		    /* current server session */
+	Manager *(*select_manager)(int, Manager *); /* manager selection
+						       strategy */
+} pv;
 
-/* Globals */
-static ProgVars pv;
+/* The linked-in engine will export this */
+extern DetectEngine engine;
+
+static Manager *select_manager_rnd(int num_servers, Manager *servers)
+{
+	int new_idx;
+
+	new_idx = (int) (num_servers * (rand()/(RAND_MAX + 1.0)));
+
+	return &servers[new_idx];
+}
+
+static Manager *select_manager_rr(int num_servers, Manager *servers)
+{
+	static Manager *current = NULL;
+	Manager *last_on_list;
+
+	last_on_list = servers + num_servers - 1;
+
+	if (!current || current == last_on_list){
+		current = &servers[0];
+		return current;
+	}
+
+	current++;
+
+	return current;
+}
 
 /*
  * Function: manager_connect()
@@ -26,14 +61,16 @@ static ProgVars pv;
  * Returns:  1 => Connected 
  *           0 => Not Connected
  */
-static int manager_connect(struct in_addr addr, unsigned short port,
-				const char * pwd, int timeout, int retries)
+static int manager_connect(Manager *m, const char * pwd, int timeout, 
+			   int retries)
 {
 	int ret;
 	
-	pv.server_session = init_session(addr, port, pwd, timeout, retries);
+	pv.server_session = init_session(m->addr, m->port, pwd, timeout, 
+					 retries);
 	if(pv.server_session == NULL)
-		critical_error(1, "Unable to initialize the connection info");
+		critical_error(1, "Unable to connect to: %s:%u\n", 
+			       inet_ntoa(m->addr), ntohs(m->port));
 
 	ret = server_request(pv.server_session, SEND_NEW_AGENT);
 	if(ret == -1) {
@@ -42,7 +79,8 @@ static int manager_connect(struct in_addr addr, unsigned short port,
 		 * If something needs to be cleaned up before quiting,
 		 * here is the place to do it.
 		 */
-		critical_error(1, "The communication with the server is bad");
+		critical_error(1, "Bad communication with server: %s:%u\n",
+			       inet_ntoa(m->addr), ntohs(m->port));
 	}
 
 	return ret;
@@ -59,8 +97,10 @@ static int manager_connect(struct in_addr addr, unsigned short port,
  */
 static void manager_disconnect(void)
 {
-	server_request(pv.server_session, SEND_QUIT);
-	destroy_session(pv.server_session);
+	if (pv.server_session){
+		server_request(pv.server_session, SEND_QUIT);
+		destroy_session(&pv.server_session);
+	}
 }
 
 /*
@@ -89,9 +129,9 @@ static const Work * get_new_work()
 }
 
 /*
- * Function: get_new_work()
+ * Function: get_next_work()
  *
- * Purpose: Get a new data group by the manager
+ * Purpose: Get the next data of a particular work group from the manager
  *
  * Arguments:
  *
@@ -113,6 +153,60 @@ static const Work * get_next_work(void)
 	return NULL;
 }
 
+/* returns NULL only when there was a problem connecting to a server */
+
+static const Work * find_work(InputOptions *in)
+{
+	static Manager *last_server = NULL;
+	int failed_polls = 0;
+	const Work *w;
+
+	do {
+		Manager *m;
+
+		m = pv.select_manager(in->num_servers, in->servers);
+
+		/* this happens both in the random case, and when there's
+		 * a single server in the list */
+		if (last_server && m == last_server){
+			if (!(w = get_new_work())){
+                                fprintf(stdout, "No work available on %s:%u. "
+						"I'll sleep\n", 
+						inet_ntoa(m->addr),
+						ntohs(m->port));
+				fflush(stdout);
+				sleep(in->no_work_wait);
+				w = get_new_work();
+				/*
+				 * If this second try fails,
+				 * we look for a new server
+				 */
+			} 
+		} else {
+			/* a new server was selected */
+			manager_disconnect();
+
+			if(!manager_connect(m, in->password, in->timeout, 
+					    in->retries))
+				return NULL;
+
+			last_server = m;
+			
+			if (!(w = get_new_work())){
+				failed_polls++;
+				if (failed_polls >= in->max_polls){
+					failed_polls = 0;
+					fprintf(stdout, "max_polls reached, "
+							"going to sleep...\n");
+					sleep(in->no_work_wait);
+				}
+			}
+		}
+	} while(w == NULL);
+
+	return w;
+}
+
 void quit_handler(int s)
 {
 	pv.detect_engine->destroy();
@@ -121,101 +215,96 @@ void quit_handler(int s)
 	exit(0);
 }
 
-static void main_loop(int wait_time)
+/* returns 0 if there's an error contacting a server,
+  	   1 if there's an error during alert submission */
+
+static int main_loop(InputOptions *in)
 {
 	const Work *w;
-	Threat t;
 	int ret;
+	Threat t;
+	int retval = 0;
+	int alert_ret;
 
 	pv.detect_engine->init();
-	for (;;) {
-		w = get_new_work();
-		if(w == NULL) {
-			printf("No work is available, I'll sleep\n");
-			fflush(stdout);
-			sleep(wait_time);
-			continue;	
-		}
 
+	while((w = find_work(in))) {
 		printf("Got a new data_group\n");
 
 		/* reset the detect engine */
 		pv.detect_engine->reset();
 	
 		do {
-			printf("Detect data\n");
-			ret = pv.detect_engine->process(w->payload, w->length);
-			if(ret == 1) {
+			printf("Inspecting Data\n");
+			ret = pv.detect_engine->process(w->payload,
+							w->length,&t);
+			if (ret == 1) {
 				printf("Threat Detected\n");
-				pv.detect_engine->get_threat(&t);
 
-				/* send the treat */
-				ret = submit_alert(pv.server_session,
-								&w->info, &t);
+				/* send the threat */
+				alert_ret = submit_alert(pv.server_session,
+						 	 &w->info,&t);
+						 
 				destroy_threat(&t);
-				if(ret <= 0) {
+			 	if (alert_ret <= 0) {
 					fprintf(stderr,"Couln't send alert\n");
-					quit_handler(0);
+					retval = 1;
+					goto err;
 				}
-			} else if(ret == -1) {
-	
+			} else if (ret == -1) {
 				/* detection engine error */
+				/* TODO: we consider this non-lethal ... */
+				fprintf(stderr, "Error processing packet\n");
 			}
 		} while((w = get_next_work()) != NULL);
 	}
-}
+err:
+	pv.detect_engine->destroy();
+	manager_disconnect();
 
-/* Someone should export this */
-extern DetectEngine engine;
+	return retval;
+}
 
 int main(int argc, char *argv[])
 {
 	struct sigaction sa;
 	InputOptions *in;
-	int no_work_wait;
 	
 	pv.detect_engine = &engine;
 	
 	/* get the input options */
-	in = fill_inputopts(argc, argv);
-	if(in == NULL)
-		goto err1;
+	if ((in = fill_inputopts(argc, argv)) == NULL)
+		return 1;
 
-	pv.prog_name = in->prog_name;
+	if (in->sched_algo == RANDOM)
+		pv.select_manager = &select_manager_rnd;
+	else
+		pv.select_manager = &select_manager_rr;
+		
 
-	no_work_wait = in->no_work_wait;
-
-	/* Try to connect to the sceduler */
-	if(!manager_connect(in->addr, in->port, in->password, in->timeout,
-								in->retries)) {
-		fprintf(stderr, "Can't connect to the scheduler\n");
-		goto err2;
-	}
-
-	/* no longer needed */
-	destroy_inputopts(in);
-
-	/* if connected, initialize handlers for quiting */
+	/* initialize handlers for quiting */
 	sa.sa_handler = quit_handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
+
 	if (sigaction(SIGINT, &sa, NULL) == -1) {
 		perror("sigaction");
-		exit(1);
+		return 1;
 	}
+
 	if (sigaction(SIGTERM, &sa, NULL) == -1) {
 		perror("sigaction");
-		exit(1);
+		return 1;
 	}
 
-	/* Everything is initialized, go to the main loop */
-	main_loop(no_work_wait);
+	/* this MUST happen within the context of the process that 
+	   will call main_loop */
+	srand((unsigned int) getpid());
 
-	/* never reached */
-	return 0;
+	/* Everything is ready, go to the main loop */
+	main_loop(in);
 
-err2:
 	destroy_inputopts(in);
-err1:
+
 	return 1;
 }

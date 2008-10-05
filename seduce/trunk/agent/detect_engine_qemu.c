@@ -13,8 +13,7 @@ DetectEngine engine = {
 	.init = &qemu_engine_init,
 	.destroy = &qemu_engine_destroy,
 	.reset = &qemu_engine_reset,
-	.process = &qemu_engine_process,
-	.get_threat = &qemu_engine_get_threat
+	.process = &qemu_engine_process
 };
 
 extern unsigned long x86_stack_size;
@@ -22,7 +21,6 @@ extern unsigned long x86_stack_size;
 static QemuVars qv;
 
 /* Globals */
-Threat threat;
 sigjmp_buf env;
 
 
@@ -75,12 +73,14 @@ static char *getBlock(char *data, size_t len, int min, int reset)
  * Arguments:
  *           data => A character array with the data to process
  *           len  => The character array length
+ *           threat => The threat data structure to be filled in if a
+ *           		threat has been detected (see return value 1)
  *
  * Returns:   0 => No threat detected
  *            1 => Threat detected
  *           -1 => An error occured
  */
-int qemu_engine_process(char *data, size_t len)
+int qemu_engine_process(char *data, size_t len, Threat *threat)
 {
     char *p;
     void *block;
@@ -120,12 +120,12 @@ int qemu_engine_process(char *data, size_t len)
             {
                 case HIGH_RISK_SYSCALL:
                     DPRINTF("High risk syscall - %d\n", qv.cpu->regs[R_EAX]);
-                    threat.payload = calloc(1, blocksize + 1);
-                    memcpy(threat.payload, p, blocksize);
-                    threat.length = blocksize;
-                    threat.severity = SEVERITY_HIGH;
+                    threat->payload = calloc(1, blocksize + 1);
+                    memcpy(threat->payload, p, blocksize);
+                    threat->length = blocksize;
+                    threat->severity = SEVERITY_HIGH;
                     snprintf(tmp, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
-                    threat.msg = strdup(tmp);
+                    threat->msg = strdup(tmp);
                     cleanup();
                     free(block);
                     return 1;
@@ -241,26 +241,6 @@ void qemu_engine_destroy(void)
         perror("munmap stack_base");
         exit(1);
     }
-}
-
-/*
- * Function: qemu_engine_get_threat()
- *
- * Purpose: Sends the threat to the agent.
- *
- * Arguments:
- *           *t => Pointer to a Threat structure describing the threat
- *
- * Returns:   0 => An error occured
- *            1 => Everything ok
- */
-int qemu_engine_get_threat(Threat *t)
-{
-    t->payload = threat.payload;
-    t->length = threat.length;
-    t->severity = threat.severity;
-    t->msg = threat.msg;
-    return 1;
 }
 
 /*

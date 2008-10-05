@@ -5,6 +5,8 @@
 #include <ctype.h>
 #include <netdb.h>
 #include <confuse.h>
+#include <sys/types.h>
+#include <regex.h>
 
 #include "options.h"
 
@@ -14,25 +16,39 @@ static void hlpmsg(const char *prog_name, int rc)
 	exit(rc);
 }
 
-
-static void printusage(const char *prog_name, int rc)
+static void print_usage(const char *prog_name, int rc)
 {
-	fprintf(stderr, 
-		"\nUsage:\n%s [-c <config_file>] [-h] [-p<password>] "
-		"[-r<retries>]\n       [-s<server_address]> [-t<timeout>] "
-		"[-w<no_work_wait>]\n\n"
-		"  h : Print this help message.\n"
-		"  c : Specify a config file. `E.g. agent.conf'.\n"
-		"  p : Password to use to connecting with the manager.\n"
-		"  r : Maximum numbers of times to retry when sending a "
-		      "request to the manager.\n"
-		"  s : Server Address in Hostname:Port format. "
-		      "E.g. `12.0.0.1:3540'.\n"
-		"  t : Time in sec to wait for an answer by the manager.\n"
-		"  w : Time in sec to wait before requesting again when the "
-		      "manager has no work\n      available.\n\n",
+	fprintf(stderr,
+		"\n"
+		"usage: %s [-h] [-c <config_file>] [-p <password>]\n"
+		"\t[-s <srv_addr1,srv_addr2>] [-a <sched_algo>] [-t <timeout>]"
+		"\n"
+		"\t[-r <retries>] [-w <no_work_wait>] [-m <max_polls>]\n"
+		"\n"
+		"  h : Prints this help message.\n"
+		"  c : Specify a config file. `E.g. /etc/agent.conf'.\n"
+		"  p : Password to use for connecting with the manager.\n"
+		"  s : Server Addresses for Managers in Hostname:Port format\n"
+		"      e.g. `12.0.0.1:3540,194.233.11.1:4444'.\n"
+		"  a : Scheduling Algorithm (0: Round Robin, 1: Random)\n"
+		"  t : Time in sec to wait for a manager to answer.\n"
+		"  r : Maximum numbers of retries when sending a request to "
+		      "a manager.\n"
+		"  w : Time in sec to wait before requesting more work from "
+		      "an idle manager.\n"
+		"  m : Max number of idle servers to poll prior to "
+		      "sleeping.\n"
+		"\n",
 		prog_name);
 	exit(rc);
+}
+
+static int regexp_match(const char *pattern, const char *string){
+	regex_t compiled;
+
+	regcomp(&compiled, pattern, REG_EXTENDED | REG_NOSUB);
+
+	return (regexec(&compiled, string, 0, NULL, 0) != REG_NOMATCH);
 }
 
 static int str_to_natural(const char *str)
@@ -56,6 +72,18 @@ static int str_to_natural(const char *str)
 	return natural;
 }
 
+static Scheduling get_valid_sched_algo(const char *str){
+	Scheduling sched_algo;
+
+	sched_algo = str_to_natural(str);
+	if (sched_algo != ROUND_ROBIN && sched_algo != RANDOM){
+		fprintf(stderr, "invalid scheduling algorithm specified\n");
+		return -1;
+	}
+
+	return sched_algo; 
+}
+
 static int get_valid_retries(const char *str)
 {
 	int retries;
@@ -77,7 +105,7 @@ static unsigned short get_valid_port(const char *str)
 	port = str_to_natural(str);
 
 	if(port <= 1 || port > 65535) {
-		fprintf(stderr,"Not a valid port number\n");
+		fprintf(stderr,"%u is not a valid port number\n", port);
 		return 0;
 	}
 
@@ -110,7 +138,18 @@ static int get_valid_no_work_wait(const char *str)
 	return no_work_wait;
 }
 
+static int get_valid_max_polls(const char *str)
+{
+	int max_polls;
 
+	max_polls = str_to_natural(str);
+	if (max_polls < 1) {
+		fprintf(stderr, "max_polls cannot be less than 1\n");
+		return -1;
+	}
+
+	return max_polls;
+}
 
 static int validate_password(const char *pwd)
 {
@@ -126,69 +165,143 @@ static int validate_password(const char *pwd)
 	return 1;
 }
 
-#define VALIDATE_SERVERINFO(x) fill_serverinfo(x, NULL, NULL)
+#define HOST_ATOM "[a-zA-Z0-9_-]+"
+#define FQDN_PATTERN HOST_ATOM "(\\." HOST_ATOM ")*"
+#define HOST_PORT_PATTERN FQDN_PATTERN ":[0-9]{1,5}"
 
-static int fill_serverinfo(const char *serverinfo, struct in_addr *addr,
-							   unsigned short *port)
+static int validate_manager(const char *str){
+	char pattern[] = "^" HOST_PORT_PATTERN "$";
+
+	if (regexp_match(pattern, str))
+		return 1;
+	else
+		return 0;
+}
+
+static int validate_managers_str(const char *str){
+	char pattern[] = "^" HOST_PORT_PATTERN "(," HOST_PORT_PATTERN ")*$";
+
+	if (regexp_match(pattern, str))
+		return 1;
+	else
+		return 0;
+}
+
+static char **split_serverinfo(const char *cmdline_arg, const char delimiter,
+			       int *count)
 {
-	char *tmp;
-	unsigned short tmp_port;
-	char *port_str;
-	char *host_str;
-	struct hostent *he;
+	char *p, *tmp;
+	int delimiter_count = 0;
+	char **managers;
+	int i;
+	char delim_str[2] = { delimiter, '\0' };
 
-	tmp = strdup(serverinfo);
-	if(!tmp) {
-		perror("strdup");
+	tmp = strdup(cmdline_arg);
+	p = tmp;
+
+	for(;*p;p++) {
+		if (*p == delimiter)
+			delimiter_count++;
+	}
+
+	if (!(managers = malloc((delimiter_count+1) * sizeof(char *)))) {
+		fprintf(stderr, "error allocating memory for manager "
+				"string pointers\n");
+		return NULL;
+	}
+
+	for(i=0; i< delimiter_count + 1; i++) {
+		managers[i] = strsep(&tmp, delim_str);
+	}
+	*count = i;
+
+	return managers;
+}
+
+static int extract_serverinfo(int num_managers, 
+			      const char **managers,
+			      InputOptions *input)
+{
+	int i;
+
+	if (input->servers){
+		fprintf(stderr, "extract_serverinfo called, but input->servers"
+				" was already filled in!\n");
 		return 0;
 	}
 
-	host_str = strtok(tmp,":");
-	port_str = strtok(NULL,"");
-
-	if(!(tmp_port = get_valid_port(port_str)))
-		goto err;
-
-	if(port)
-		*port = tmp_port;
-
-	if((he = gethostbyname(host_str)) == NULL) {
-		herror("gethostbyname");
-		goto err;
+	if (!(input->servers = malloc(num_managers * sizeof(Manager)))) {
+		perror("error allocating space for Manager structs");
+		return 0;
 	}
+	
+	input->num_servers = 0;
 
-	if(addr)
-		*addr = *((struct in_addr *)he->h_addr);
+	for (i = 0; i<num_managers; i++) {
+		char *tmp;
+		unsigned short tmp_port;
+		char *port_str;
+		char *host_str;
+		struct hostent *he;
 
-	free(tmp);
+		if (!(tmp = strdup(managers[i]))) {
+			perror("error while duplicating manager string");
+			goto err;
+		}
+
+		host_str = strtok(tmp,":");
+		port_str = strtok(NULL,"");
+
+		if (!(tmp_port = get_valid_port(port_str))) {
+			free(tmp);
+			goto err;
+		}
+
+		if ((he = gethostbyname(host_str)) == NULL) {
+			herror("gethostbyname");
+			free(tmp);
+			goto err;
+		}
+		
+		input->servers[i].addr = *((struct in_addr *) he->h_addr);
+		input->servers[i].port = tmp_port;					
+		input->num_servers += 1;
+
+		free(tmp);
+	}
 	return 1;
-
 err:
-	free(tmp);
+	free(input->servers);
+	input->num_servers = 0;
 	return 0;
 }
 
 #define PRINT_SPECIFY_ONCE(x) \
 	fprintf(stderr, "The -%c option should be specified only once\n", x)
+
 static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 {
 	int c;
 	int c_arg = 0;
 	int p_arg = 0;
+	int a_arg = 0;
 	int r_arg = 0;
 	int s_arg = 0;
 	int t_arg = 0;
 	int w_arg = 0;
+	int m_arg = 0;
 
+	int mgr_count;
+	char **managers;
 
-	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:")) != -1) {
+	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:a:m:")) != -1) {
 		switch(c) {
 		case 'h':
-			printusage(opts->prog_name, 0);
+			print_usage(opts->prog_name, 0);
 			break;
 
 		case 'c':
-			if(c_arg) {
+			if (c_arg++) {
 				PRINT_SPECIFY_ONCE('c');
 				return 0;
 			}
@@ -196,7 +309,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 			break;
 
 		case 'p':
-			if(p_arg) {
+			if (p_arg++) {
 				PRINT_SPECIFY_ONCE('p');
 				return 0;
 			}
@@ -205,8 +318,18 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				return 0;
 			break;
 
+		case 'a':
+			if (a_arg++) {
+				PRINT_SPECIFY_ONCE('a');
+				return 0;
+			}
+			opts->sched_algo = get_valid_sched_algo(optarg);
+			if (opts->sched_algo == -1)
+				return 0;
+			break;
+
 		case 'r':
-			if(r_arg) {
+			if (r_arg++) {
 				PRINT_SPECIFY_ONCE('r');
 				return 0;
 			}
@@ -216,16 +339,30 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 			break;
 
 		case 's':
-			if(s_arg) {
+			if (s_arg++) {
 				PRINT_SPECIFY_ONCE('s');
 				return 0;
 			}
-			if(!fill_serverinfo(optarg, &opts->addr, &opts->port))
+
+			if (!validate_managers_str(optarg)){
+				fprintf(stderr, 
+					"syntax error at -s argument\n");
 				return 0;
+			}
+
+			managers = split_serverinfo(optarg, ',', &mgr_count);
+			if (!managers)
+				return 0;
+
+			if (!extract_serverinfo(mgr_count,
+			                        (const char **) managers,
+						opts))
+				return 0;
+
 			break;
 
 		case 't':
-			if(t_arg) {
+			if (t_arg++) {
 				PRINT_SPECIFY_ONCE('t');
 				return 0;
 			}
@@ -235,7 +372,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 			break;
 
 		case 'w':
-			if(w_arg) {
+			if (w_arg++) {
 				PRINT_SPECIFY_ONCE('w');
 				return 0;
 			}
@@ -244,49 +381,66 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				return 0;
 			break;
 
+		case 'm':
+			if (m_arg++){
+				PRINT_SPECIFY_ONCE('m');
+				return 0;
+			}
+			opts->max_polls = get_valid_max_polls(optarg);
+			if (opts->max_polls == -1)
+				return 0;
+			break;
+
 		default:
-			printusage(opts->prog_name, 1);
+			print_usage(opts->prog_name, 1);
 		}
 	}
 
 	return 1;
 }
 
+
 static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 {
 	int ret;
 
-	if (strcmp(opt->name, "server_addr") == 0)
-		ret = VALIDATE_SERVERINFO(*(char **)opt->simple_value);
-	else if (strcmp(opt->name, "password") == 0)
+	if (strcmp(opt->name, "password") == 0)
 		ret = validate_password(*(char **)opt->simple_value);
+	else if (strcmp(opt->name, "sched_algo") == 0)
+		ret = (*(int *)opt->simple_value != ROUND_ROBIN && 
+		       *(int *)opt->simple_value != RANDOM) ? 0 : 1;
 	else if (strcmp(opt->name, "timeout") == 0)
-		ret = (*(int **)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "retries") == 0)
-		ret = (*(int **)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "no_work_wait") == 0)
-		ret = (*(int **)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
+	else if (strcmp(opt->name, "max_polls") == 0)
+		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
 	else
 		ret = 0;
 
 	if(!ret)
 		cfg_error(cfg, "Error while parsing parameter \"%s\".",
-								opt->name);
+		   	  opt->name);
+
 	return (ret) ? 0 : -1;
 }
 
 
 static int parse_fileoptions(const char *filename, InputOptions *opts)
 {
-	char *server_addr = NULL;
-	int ret;
+	char **managers = NULL;
+	int num_managers, i, ret, retval = 1;
 
 	cfg_opt_t cfg_opts[] = {
-		CFG_SIMPLE_STR("server_addr",&server_addr),
-		CFG_SIMPLE_STR("password",&opts->password),
-		CFG_SIMPLE_INT("timeout",&opts->timeout),
-		CFG_SIMPLE_INT("retries",&opts->retries),
-		CFG_SIMPLE_INT("no_work_wait",&opts->no_work_wait),
+		CFG_STR_LIST("managers", NULL, CFGF_NONE),
+		CFG_SIMPLE_STR("password", &opts->password),
+		CFG_SIMPLE_INT("sched_algo", &opts->sched_algo),
+		CFG_SIMPLE_INT("timeout", &opts->timeout),
+		CFG_SIMPLE_INT("retries", &opts->retries),
+		CFG_SIMPLE_INT("no_work_wait", &opts->no_work_wait),
+		CFG_SIMPLE_INT("max_polls", &opts->max_polls),
 		CFG_END()
 	};
 
@@ -295,28 +449,55 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 	cfg = cfg_init(cfg_opts,0);
 
 	/* set validation callback functions */
-	cfg_set_validate_func(cfg,"server_addr",cfg_validate);
+	
+	/* "managers" option gets validated later */
 	cfg_set_validate_func(cfg,"password",cfg_validate);
+	cfg_set_validate_func(cfg,"sched_algo", cfg_validate);
 	cfg_set_validate_func(cfg,"timeout",cfg_validate);
 	cfg_set_validate_func(cfg,"retries",cfg_validate);
 	cfg_set_validate_func(cfg,"no_work_wait",cfg_validate);
+	cfg_set_validate_func(cfg,"max_polls", cfg_validate);
 
 	ret = cfg_parse(cfg,filename);
 	
 	if(ret != CFG_SUCCESS) {
 		if (ret == CFG_FILE_ERROR)
 			fprintf(stderr, "Can't open config file %s\n",filename);
-		cfg_free(cfg);
-		return 0;
+		else if (ret == CFG_PARSE_ERROR)
+			fprintf(stderr, "parse error: %s\n", filename);
+		retval = 0;
+		goto exit;
 	}
 
-	if(server_addr) {
-		fill_serverinfo(server_addr, &opts->addr, &opts->port);
-		free(server_addr);
+	if (!(num_managers = cfg_size(cfg, "managers"))) {
+		fprintf(stderr, "No value given for `managers' option in config"
+				" file %s\n", filename);
+		retval = 0;
+		goto exit;
+	}
+	
+	if (!(managers = malloc(num_managers * sizeof(char *)))) {
+		perror("malloc error while creating array of managers");
+		retval = 0;
+		goto exit;
 	}
 
+	for(i=0; i<num_managers; i++) {
+		managers[i] = cfg_getnstr(cfg, "managers", i);
+		if (!validate_manager(managers[i])) {
+			fprintf(stderr,"invalid manager string: %s\n",
+				managers[i]);
+			retval = 0;
+			goto exit;
+		}
+	}
+
+	if (!extract_serverinfo(num_managers, (const char **) managers, opts))
+		retval = 0;
+exit:
+	free(managers);
 	cfg_free(cfg);
-	return 1;
+	return retval;
 }
 
 
@@ -335,19 +516,21 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	memset(&clo, '\0', sizeof(InputOptions));
 	
 	final_opts->prog_name = clo.prog_name = argv[0];
+	final_opts->sched_algo = clo.sched_algo = -1;
 	final_opts->timeout = clo.timeout = -1;
 	final_opts->retries = clo.retries = -1;
 	final_opts->no_work_wait = clo.no_work_wait = -1;
-	
+	final_opts->max_polls = clo.max_polls = -1;
+
 	ret = get_cloptions(argc, argv, &clo);
 	if (!ret)
-		printusage(argv[0], 1);
+		print_usage(argv[0], 1);
 
-	if(clo.config_file) {
+	if (clo.config_file) {
 		ret = parse_fileoptions(clo.config_file, final_opts);
 		free(clo.config_file);
 		if(!ret)
-			printusage(argv[0], 1);
+			print_usage(argv[0], 1);
 	}
 
 	/* 
@@ -355,9 +538,13 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	 * option, we ignore the one config file value. Command line options
 	 * always have a higher priority.
 	 */
-	if(clo.port) {
-		final_opts->port = clo.port;
-		final_opts->addr = clo.addr;
+
+	if (clo.servers) {
+		if (final_opts->servers)
+			free(final_opts->servers);
+		
+		final_opts->servers = clo.servers;
+		final_opts->num_servers = clo.num_servers;
 	}
 
 	if(clo.password) {
@@ -366,10 +553,18 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 		final_opts->password = clo.password;
 	}
 
+
 	/* 
-	 * if timeout, retries and no_work_wait are not set from the command
-	 * line or the config file, we set the default values.
+	 * if timeout, retries, no_work_wait, sched_algo and max_polls
+	 * are not set from the command line or the config file, we set the 
+	 * default values.
 	 */
+
+
+	if (clo.sched_algo != -1)
+		final_opts->sched_algo = clo.sched_algo;
+	else if (final_opts->sched_algo == -1)
+		final_opts->sched_algo = DEFAULT_SCHED_ALGO;
 
 	if(clo.timeout != -1)
 		final_opts->timeout = clo.timeout;
@@ -386,13 +581,20 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	else if(final_opts->no_work_wait == -1)
 		final_opts->no_work_wait = DEFAULT_NO_WORK_WAIT;
 
+	if(clo.max_polls != -1)
+		final_opts->max_polls = clo.max_polls;
+	else if(final_opts->max_polls == -1)
+		final_opts->max_polls = DEFAULT_MAX_POLLS;
+
+
 	/* 
 	 * Now that command line and config file options are set,
 	 * check if a required option is missing.
 	 * Required options are the connection info (IP/port & password)
 	 */
-	if(!final_opts->port) {
-		fprintf(stderr, "Server address and port are not set.\n");
+
+	if (!final_opts->servers){
+		fprintf(stderr, "Server address(es) are not set.\n");
 		hlpmsg(final_opts->prog_name, 1);
 	}
 
@@ -406,35 +608,52 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 
 void destroy_inputopts(InputOptions *opts)
 {
-	if(opts->password)
+	if (opts->servers)
+		free(opts->servers);
+
+	if (opts->password)
 		free(opts->password);
 
 	free(opts);
 }
 
 #if 0
-
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
 int main(int argc, char *argv[])
 {
+	Manager m;
 	InputOptions *in = fill_inputopts(argc, argv);
+	int i;
 
 	if(!in) return 1;
 
 	printf("Options:\n");
-	printf("Sever Address: %s\n", inet_ntoa(in->addr));
-	printf("Server Port: %u\n", ntohs(in->port));
+	printf("Server Address(es): ");
+	for(i=0; i < in->num_servers; i++){
+		m = in->servers[i];
+		printf("%s:%u ", inet_ntoa(m.addr), ntohs(m.port));
+	}
+	printf("\n");
+
+	printf("Scheduling Algorithm: ");
+	if (in->sched_algo == RANDOM){
+		printf("Random\n");
+	} else if (in->sched_algo == ROUND_ROBIN) {
+		printf("Round Robin\n");
+	} else {
+		printf("Unknown\n");
+	}
 	printf("Password: %s\n", in->password);
 	printf("Timeout: %d\n", in->timeout);
 	printf("Retries: %d\n", in->retries);
 	printf("No Work Wait: %d\n", in->no_work_wait);
+	printf("Max Polls before sleep: %d\n", in->max_polls);
 
 	destroy_inputopts(in);
 
 	return 0;
 }
-
 #endif

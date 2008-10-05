@@ -58,8 +58,9 @@ typedef struct _ServerSession {
 /* function Declarations */
 
 ServerSession *init_session(struct in_addr addr, unsigned short port,
-				     const char *pwd, int timeout, int retries);
-void destroy_session(ServerSession *);
+			    const char *pwd, int timeout, int retries);
+
+void destroy_session(ServerSession **);
 
 int server_request(ServerSession *, int req_type);
 const Work *fetch_current_work(const ServerSession *);
