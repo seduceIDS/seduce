@@ -569,14 +569,14 @@ err1:
 	return NULL;
 }
 
-void destroy_session(ServerSession *srv_session)
+void destroy_session(ServerSession **srv_session)
 {
-	if(srv_session) {
-		if(srv_session->password)
-			free(srv_session->password);
+	if (*srv_session) {
+		if((*srv_session)->password)
+			free((*srv_session)->password);
 
-		free(srv_session);
-		srv_session = NULL;
+		free(*srv_session);
+		*srv_session = NULL;
 	}
 }
 

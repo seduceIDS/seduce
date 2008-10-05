@@ -51,27 +51,27 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-$(NAME):$(OBJS) agent.h server_contact.h alert.h error.h options.h
+$(NAME):$(OBJS) server_contact.h alert.h error.h options.h
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
-	@echo The agent is linked against the $(ENGINE) detection engine. If you
-	@echo want to use another engine, either modify the ENGINE variable or
-	@echo use the engine name as a target like this":"
+	@echo The agent is linked against the '*'$(ENGINE)'*' detection engine. 
+	@echo If you want to use another engine, either modify the ENGINE 
+	@echo variable or use the engine name as a target like this":"
 	@echo
 	@echo -e "\t make qemu"
 	@echo -e "\t make dummy"
 	@echo
 
 seduce: seduce.o detect_engine.o detect_engine_qemu.o
-	$(CC) -o $@ seduce.o detect_engine.o detect_engine_qemu.o $(LIBS_QEMU)
+	$(CC) -c $(CFLAGS) -o $@ $^ $(LIBS_QEMU)
 
 seduce.o: seduce.c
-	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
+	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $^
 
-agent.o: agent.c agent.h alert.h error.h options.h detect_engine.h server_contact.h
+agent.o: agent.c alert.h error.h options.h detect_engine.h server_contact.h
 	$(CC) $(CFLAGS) -c agent.c
 
-alert.o: alert.c agent.h base64_encoder.h
+alert.o: alert.c base64_encoder.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
