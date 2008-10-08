@@ -28,7 +28,7 @@ LIBS_CFLAGS	=
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
 
-CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o base64_encoder.o
+CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o base64_encoder.o md5.o utils.o
 
 ENGINE		= dummy
 
@@ -66,7 +66,7 @@ $(NAME):$(OBJS) server_contact.h alert.h error.h options.h
 seduce: seduce.c detect_engine.o detect_engine_qemu.o
 	$(CC) $(CFLAGS) $(CFLAGS_QEMU) -o $@ $^ $(LIBS_QEMU)
 
-agent.o: agent.c alert.h error.h options.h detect_engine.h server_contact.h
+agent.o: agent.c alert.h error.h options.h detect_engine.h server_contact.h utils.h
 	$(CC) $(CFLAGS) -c agent.c
 
 alert.o: alert.c base64_encoder.h
@@ -92,6 +92,13 @@ detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
 
 detect_engine_dummy.o: detect_engine_dummy.c
 	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
+
+utils.o: utils.c
+	$(CC) $(CFLAGS) -c $^
+
+# I need this for testing
+md5.o: md5.c
+	$(CC) $(CFLAGS) -c $^
 
 clean:
 	@rm -f *.o *~ agent seduce 

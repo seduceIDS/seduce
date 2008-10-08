@@ -14,6 +14,7 @@
 #include "alert.h"
 #include "error.h"
 #include "options.h"
+#include "utils.h"
 
 struct ProgVars {
         DetectEngine *detect_engine;
@@ -238,11 +239,22 @@ static int main_loop(InputOptions *in)
 		pv.detect_engine->reset();
 	
 		do {
-			printf("Inspecting Data\n");
+			char md5sum[33];
+			struct in_addr src_addr;
+
+			src_addr.s_addr = w->info.s_addr;
+
+			compute_md5(w->payload, w->length, md5sum);
+
+			printf("Inspecting Data [src:%s] [%i bytes] %s\n",
+ 			       inet_ntoa(src_addr), w->length, md5sum);
+
 			ret = pv.detect_engine->process(w->payload,
 							w->length,&t);
 			if (ret == 1) {
-				printf("Threat Detected\n");
+			     	printf("Threat Detected [src:%s] [%i bytes]"
+				       " [%s]\n", inet_ntoa(src_addr), 
+				       w->length, md5sum);
 
 				/* send the threat */
 				alert_ret = submit_alert(pv.server_session,
