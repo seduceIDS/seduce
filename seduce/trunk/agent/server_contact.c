@@ -573,7 +573,8 @@ void destroy_session(ServerSession **srv_session)
 	if (*srv_session) {
 		if((*srv_session)->password)
 			free((*srv_session)->password);
-
+		
+		close((*srv_session)->sock);
 		free(*srv_session);
 		*srv_session = NULL;
 	}

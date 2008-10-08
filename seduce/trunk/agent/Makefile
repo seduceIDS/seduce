@@ -22,8 +22,8 @@ RELEASE		= -O2
 CFLAGS		= -Wall -D_GNU_SOURCE $(DEBUG)
 CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/ -I./
 
-LDFLAGS		= 
-LIBS_CFLAGS	= 
+LDFLAGS		=
+LIBS_CFLAGS	=
 
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
@@ -37,6 +37,7 @@ ifeq ($(ENGINE), qemu)
 	LIBS += $(LIBS_QEMU)
 	OBJS = $(CORE_OBJS) detect_engine_qemu.o
 endif
+
 ifeq ($(ENGINE), dummy)
 	OBJS = $(CORE_OBJS) detect_engine_dummy.o
 endif
@@ -62,11 +63,8 @@ $(NAME):$(OBJS) server_contact.h alert.h error.h options.h
 	@echo -e "\t make dummy"
 	@echo
 
-seduce: seduce.o detect_engine.o detect_engine_qemu.o
-	$(CC) -c $(CFLAGS) -o $@ $^ $(LIBS_QEMU)
-
-seduce.o: seduce.c
-	$(CC) -c $(CFLAGS) -I. $(LIBS_CFLAGS) $^
+seduce: seduce.c detect_engine.o detect_engine_qemu.o
+	$(CC) $(CFLAGS) $(CFLAGS_QEMU) -o $@ $^ $(LIBS_QEMU)
 
 agent.o: agent.c alert.h error.h options.h detect_engine.h server_contact.h
 	$(CC) $(CFLAGS) -c agent.c
