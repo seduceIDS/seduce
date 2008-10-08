@@ -12,5 +12,7 @@
 	#define DPRINTF(...)
 #endif
 
+void compute_md5(void *buffer, int len, char md5str[33]);
+
 #endif /* _UTILS_H */
 
