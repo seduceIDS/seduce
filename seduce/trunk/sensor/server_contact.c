@@ -84,6 +84,7 @@ int server_connect(in_addr_t addr,unsigned short port)
 	if (connect(sockfd, (struct sockaddr *)&server_addr,
 				sizeof(struct sockaddr)) == -1) {
 		perror("connect");
+		close(sockfd);
 		return 0;
 	}
 
@@ -95,6 +96,7 @@ int server_connect(in_addr_t addr,unsigned short port)
 	/* send the data */
 	if (sendall(sockfd, buf, msglen) == -1) {
 		fprintf(stderr,"Error in sendall\n");
+		close(sockfd);
 		return 0;
 	}
 	
@@ -104,12 +106,14 @@ int server_connect(in_addr_t addr,unsigned short port)
 	bytenum = recv(sockfd, buf, msglen, MSG_WAITALL);
 	if (bytenum == -1) {
 		perror("recv");
+		close(sockfd);
 		return 0;
 	}
 
 	if (bytenum != msglen) {
 		fprintf(stderr, "Error in receiving data\n");
-	       return 0;
+		close(sockfd);
+	        return 0;
 	}	       
 
 	size = ntohl(*(u_int32_t *)(buf + 0));
@@ -117,6 +121,7 @@ int server_connect(in_addr_t addr,unsigned short port)
 
 	if(size != bytenum) {
 		fprintf(stderr, "Error in the size of the reply\n");
+		close(sockfd);
 		return 0;
 	}
 
@@ -125,11 +130,13 @@ int server_connect(in_addr_t addr,unsigned short port)
 		return 1;
 		
 	case 1: 
-		fprintf(stderr, "Too many connection\n");
+		fprintf(stderr, "Too many connections\n");
+		close(sockfd);
 		return 0;
 
 	default:
 		fprintf(stderr, "Undefined Error\n");
+		close(sockfd);
 		return 0;
 	}
 }
@@ -158,9 +165,11 @@ int server_disconnect(void)
 	/* Send the data */
 	if (sendall(sockfd, buf, msglen) == -1) {
 		fprintf(stderr,"Error in sendall\n");
+		close(sockfd);
 		return 0;
 	}
 
+	close(sockfd);
 	return 1;
 }
 
