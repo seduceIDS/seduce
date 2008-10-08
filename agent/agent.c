@@ -166,6 +166,9 @@ static const Work * find_work(InputOptions *in)
 
 		m = pv.select_manager(in->num_servers, in->servers);
 
+		fprintf(stdout, "polling manager: %s:%u\n",
+				inet_ntoa(m->addr), ntohs(m->port));
+
 		/* this happens both in the random case, and when there's
 		 * a single server in the list */
 		if (last_server && m == last_server){

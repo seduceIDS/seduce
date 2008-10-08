@@ -388,7 +388,7 @@ static int handle_connect_reply(ServerSession *s, Packet *pck)
 {
 	switch(pck->type) {
 	case RECV_CONNECTED:
-		printf("Connected with ID %d\n", pck->id);
+		// printf("Connected with ID %d\n", pck->id);
 		/* save the new id and seq*/
 		s->id = pck->id;
 		s->seq = pck->seq;
@@ -477,16 +477,15 @@ retry:
 		return -1;
 	}
 
-	printf("Request submitted\n");
-
-	printf("Examining the reply...");
+	// printf("Request submitted\n");
+	// printf("Examining the reply...");
 
 	switch(req_type) {
 	case SEND_NEW_AGENT:
 		ret = handle_connect_reply(s, &pck);
 		break;
 	case SEND_QUIT:
-		printf("nothing to examin. We are quitting\n");
+		// printf("nothing to examin. We are quitting\n");
 		ret = 1;
 		break;
 	case SEND_NEW_WORK:
@@ -534,7 +533,7 @@ ServerSession *init_session(struct in_addr addr, unsigned short port,
 		goto err1;
 	}
 
-	printf("Passsword: %s@\n", srv_session->password);
+	// printf("Passsword: %s@\n", srv_session->password);
 
 	/* initialize the socket */
 	srv_session->sock = socket(AF_INET, SOCK_DGRAM, 0);
