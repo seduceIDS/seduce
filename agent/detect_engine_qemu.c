@@ -4,9 +4,10 @@
 
 #include "qemu.h"
 #include "exec-all.h"
-#include "debug.h"
 #include "detect_engine.h"
 #include "detect_engine_qemu.h"
+
+#include "utils.h"
 
 DetectEngine engine = {
 	.name = "QEMU Engine",

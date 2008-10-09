@@ -167,18 +167,16 @@ static const Work * find_work(InputOptions *in)
 
 		m = pv.select_manager(in->num_servers, in->servers);
 
-		fprintf(stdout, "polling manager: %s:%u\n",
-				inet_ntoa(m->addr), ntohs(m->port));
+		DPRINTF("polling manager: %s:%u\n",
+			inet_ntoa(m->addr), ntohs(m->port));
 
 		/* this happens both in the random case, and when there's
 		 * a single server in the list */
 		if (last_server && m == last_server){
 			if (!(w = get_new_work())){
-                                fprintf(stdout, "No work available on %s:%u. "
-						"I'll sleep\n", 
-						inet_ntoa(m->addr),
-						ntohs(m->port));
-				fflush(stdout);
+                                DPRINTF("No work available on %s:%u. "
+					"I'll sleep\n", inet_ntoa(m->addr),
+					ntohs(m->port));
 				sleep(in->no_work_wait);
 				w = get_new_work();
 				/*
@@ -200,8 +198,8 @@ static const Work * find_work(InputOptions *in)
 				failed_polls++;
 				if (failed_polls >= in->max_polls){
 					failed_polls = 0;
-					fprintf(stdout, "max_polls reached, "
-							"going to sleep...\n");
+					DPRINTF("max_polls reached, "
+						"going to sleep...\n");
 					sleep(in->no_work_wait);
 				}
 			}
@@ -214,7 +212,7 @@ static const Work * find_work(InputOptions *in)
 void quit_handler(int s)
 {
 	pv.detect_engine->destroy();
-	printf("Sending QUIT Message...\n");
+	DPRINTF("Sending QUIT Message...\n");
 	manager_disconnect();
 	exit(0);
 }
@@ -233,7 +231,7 @@ static int main_loop(InputOptions *in)
 	pv.detect_engine->init();
 
 	while((w = find_work(in))) {
-		printf("Got a new data_group\n");
+		DPRINTF("Got new data_group\n");
 
 		/* reset the detect engine */
 		pv.detect_engine->reset();
@@ -246,15 +244,15 @@ static int main_loop(InputOptions *in)
 
 			compute_md5(w->payload, w->length, md5sum);
 
-			printf("Inspecting Data [src:%s] [%i bytes] %s\n",
+			DPRINTF("Inspecting Data [src:%s] [%i bytes] [%s]\n",
  			       inet_ntoa(src_addr), w->length, md5sum);
 
 			ret = pv.detect_engine->process(w->payload,
 							w->length,&t);
 			if (ret == 1) {
-			     	printf("Threat Detected [src:%s] [%i bytes]"
-				       " [%s]\n", inet_ntoa(src_addr), 
-				       w->length, md5sum);
+			     	DPRINTF("Threat Detected [src:%s] [%i bytes]"
+				        " [%s]\n", inet_ntoa(src_addr), 
+				        w->length, md5sum);
 
 				/* send the threat */
 				alert_ret = submit_alert(pv.server_session,
