@@ -69,7 +69,7 @@ seduce: seduce.c detect_engine.o detect_engine_qemu.o
 agent.o: agent.c alert.h error.h options.h detect_engine.h server_contact.h utils.h
 	$(CC) $(CFLAGS) -c agent.c
 
-alert.o: alert.c base64_encoder.h
+alert.o: alert.c base64_encoder.h utils.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
@@ -90,15 +90,15 @@ base64_encoder.o: base64_encoder.c base64_encoder.h
 detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
 	$(CC) $(CFLAGS) -c detect_engine_qemu.c 
 
-detect_engine_dummy.o: detect_engine_dummy.c
+detect_engine_dummy.o: detect_engine_dummy.c utils.h
 	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
 
-utils.o: utils.c
-	$(CC) $(CFLAGS) -c $^
+utils.o: utils.c utils.h md5.h
+	$(CC) $(CFLAGS) -c utils.c
 
 # I need this for testing
-md5.o: md5.c
-	$(CC) $(CFLAGS) -c $^
+md5.o: md5.c md5.h
+	$(CC) $(CFLAGS) -c md5.c
 
 clean:
 	@rm -f *.o *~ agent seduce 

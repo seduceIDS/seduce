@@ -11,6 +11,7 @@
 #include "server_contact.h"
 #include "detect_engine.h"
 #include "base64_encoder.h"
+#include "utils.h"
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
@@ -316,14 +317,14 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 
 	/* TODO: I need to check if some threat fields are missing */
 
-	fprintf(stderr, "Connecting to the manager...");
+	DPRINTF("Connecting to the manager...");
 	
 	sock = tcp_connect(s);
 	if(sock == 0) {
-		fprintf(stderr, "connection failed\n");
+		fprintf(stderr, "connection to manager failed\n");
 		return 0;
 	} else
-		fprintf(stderr, "done\n");
+		DPRINTF("done\n");
 
 	//sock = 1;
 
@@ -333,7 +334,7 @@ int submit_alert(const ServerSession *s, const ConnectionInfo *c,
 		fprintf(stderr, "Error wile executing readline\n");
 		goto err;
 	} else
-		fprintf(stderr, "%d: %s",ret, arg);
+		DPRINTF("%d: %s",ret, arg);
 
 	ret = do_request_response(sock, s->password, NULL);
 	if(!ret)

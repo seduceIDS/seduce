@@ -271,7 +271,7 @@ static int recv_pck(const ServerSession *s, Packet *pck)
 	 */
 	if((size != numbytes) || (msg.msg_flags & MSG_TRUNC)) {
 		/* the package is fucked up... */
-		fprintf(stderr, "Size = %d, numbytes = %d\n", size, numbytes);
+		DPRINTF("Size = %d, numbytes = %d\n", size, numbytes);
 		proto_violation("The actual packet size"
 				"and the packet size field don't match");
 		ret = -2;
@@ -388,7 +388,7 @@ static int handle_connect_reply(ServerSession *s, Packet *pck)
 {
 	switch(pck->type) {
 	case RECV_CONNECTED:
-		// printf("Connected with ID %d\n", pck->id);
+		DPRINTF("Connected with ID %d\n", pck->id);
 		/* save the new id and seq*/
 		s->id = pck->id;
 		s->seq = pck->seq;
@@ -396,7 +396,7 @@ static int handle_connect_reply(ServerSession *s, Packet *pck)
 
 	case RECV_NOT_CONN:
 		/* the server does not connect us... */
-		printf("Server rejected me.\n");
+		DPRINTF("Server rejected me.\n");
 		return 0;
 
 	default:
@@ -466,26 +466,25 @@ retry:
 	if(ret == 0)
 		critical_error(1, "Unable to communicate with the manager");
 	else if(ret == -1) {
-		printf("timed out.\n");
+		DPRINTF("timed out.\n");
 
 		if(--retries_left) {
-			printf("Retrying...\n");
+			DPRINTF("Retrying...\n");
 			goto retry;
 		}
 
-		printf("No more retries left...\n");
+		DPRINTF("No more retries left...\n");
 		return -1;
 	}
 
-	// printf("Request submitted\n");
-	// printf("Examining the reply...");
+	DPRINTF("Request submitted. Examining the reply...\n");
 
 	switch(req_type) {
 	case SEND_NEW_AGENT:
 		ret = handle_connect_reply(s, &pck);
 		break;
 	case SEND_QUIT:
-		// printf("nothing to examin. We are quitting\n");
+		DPRINTF("nothing to examine. We are quitting\n");
 		ret = 1;
 		break;
 	case SEND_NEW_WORK:
@@ -506,11 +505,11 @@ retry:
 		 * server will send the same reply back or will ignore me.
 		 */
 		if(--retries_left) {
-			printf("Retrying...\n");
+			DPRINTF("Retrying...\n");
 			goto retry;
 		}
 
-		printf("No more retries left...\n");
+		DPRINTF("No more retries left...\n");
 		return -1;
 	}
 }
@@ -532,8 +531,6 @@ ServerSession *init_session(struct in_addr addr, unsigned short port,
 		perror("strdup");
 		goto err1;
 	}
-
-	// printf("Passsword: %s@\n", srv_session->password);
 
 	/* initialize the socket */
 	srv_session->sock = socket(AF_INET, SOCK_DGRAM, 0);

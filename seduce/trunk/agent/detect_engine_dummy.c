@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "detect_engine.h"
+#include "utils.h"
 
 #define TIMES	10
 
@@ -20,7 +21,7 @@ DetectEngine engine = {
 
 static int dummy_engine_init()
 {
-	printf("Dummy engine initialized\n");
+	DPRINTF("Dummy engine initialized\n");
 	return 1;
 }
 
@@ -31,7 +32,7 @@ static void dummy_engine_destroy()
 
 static void dummy_engine_reset()
 {
-	printf("Dummy engine reset\n");
+	DPRINTF("Dummy engine reset\n");
 	return;
 }
 
@@ -65,7 +66,7 @@ static int dummy_engine_process(char *data, size_t len, Threat *t)
 	t->severity = SEVERITY_HIGH;
 	t->msg = strdup("Example threat");
 
-	fprintf(stderr,"Threat detected\n");
+	DPRINTF("Threat detected\n");
 
 	times = 0;
 	return 1;
