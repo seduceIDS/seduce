@@ -107,7 +107,7 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
         for (i = 0; i < blocksize - 5; i++)
         {
             memcpy(block, p, blocksize);
-            DPRINTF("block %d - byte %.2d - ", l, i);
+            DPRINTF("block %d - byte %.2d\n", l, i);
             if (sigsetjmp(env,1) == 100) {
                 DPRINTF("Endless Loop detected!\n");
                 setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
