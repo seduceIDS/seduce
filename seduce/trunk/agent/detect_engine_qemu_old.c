@@ -42,63 +42,28 @@ static void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-static char *getBlock(char *data, size_t len, int min_len, int *block_len)
+static char *getBlock(char *data, size_t len, int min, int reset)
 {
-	static char *block_start = NULL;
-	char *p, *ret_val;
+    data[len - 1] = 0;
 
-	if (!block_start){
-    		block_start = data;
-	} else if (block_start >= data + len){
-		/* WATCHOUT: this is the case where the last call to getBlock
-		 * returned the final block */
-		block_start = NULL;
-		return NULL;
-	}
+    static char *p = NULL;
+    if (reset) p = data;
+    char *last;
     
-	for (p = block_start; p < data + len; p++)
-	{
-		char *block_end = NULL;
-		char *block_next = NULL;
-
-		if (!*p){
-			block_end = p - 1;
-		} else if (p == data + len -1) { /* last byte but not NUL */
-			block_end = p;
-		}
-
-		if (!block_end)  /* no terminator found */
-			continue;
-		
-		/* from here on we assume we have found a terminator */
-
-		*block_len = block_end - block_start + 1;
-
-		/* yes, it might point outside the buffer */
-	 	block_next = p + 1;
-	
-		if ((*block_len < min_len) && (block_next >= data + len)){
-			/* found small block, no other blocks follow */
-			block_start = NULL;
-			ret_val = NULL;
-			break;
-		} else if (block_next >= data + len) {
-			/* found ok block, no other blocks follow */
-			ret_val = block_start;
-			block_start = block_next; /* see WATCHOUT */
-			break;
-		} else if (*block_len >= min_len) {
-			/* found ok block, other blocks follow */
-			ret_val = block_start;
-			block_start = block_next;
-			break;
-		} else {
-			/* found small block, other blocks follow */
-			block_start = block_next;
-		}
-	}
-
-    	return ret_val;
+    for (last = p; p < data + len; p++)
+    {
+        if (!*p)
+        {
+            if (p - last < min)
+                last = p + 1;
+            else
+            {
+                p++;
+                return last;
+            }
+        }
+    }
+    return NULL;
 }
 
 /*
@@ -120,107 +85,92 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 {
     char *p;
     void *block;
-    int block_size, block_num = 0, i, ret;
-    char threat_msg[51];
-
-    memset(threat_msg, 0, 51);
+    int reset = 1, blocksize, l = 0, i, ret;
+    char tmp[51];
+    memset(tmp, 0, 51);
 
     if((data == NULL) || (len == 0))
         return 0;
  
-    while ((p = getBlock(data, len, MIN_BLOCK_LENGTH, &block_size)) != NULL)
+    while ((p = getBlock(data, len, 30, reset)) != NULL)
     {
-//    	char md5str[33];
-        block_num++;
+        reset = 0;
+        l++;
 
-        block = calloc(1, block_size);
+        blocksize = strlen(p);
+        block = calloc(1, blocksize + 1);
         if (block == NULL) {
-            fprintf(stderr,"calloc failed while building block\n");
+            fprintf(stderr,"calloc failed\n");
             exit(1);
         }
-	memcpy(block, p, block_size);
 
-        for (i = 0; i < block_size - 5; i++)
+        for (i = 0; i < blocksize - 5; i++)
         {
-            // memcpy(block, p, block_size);
+            memcpy(block, p, blocksize);
+            DPRINTF("block %d - byte %.2d\n", l, i);
             if (sigsetjmp(env,1) == 100) {
-                DPRINTF("block %d byte %.2d - Endless Loop detected!\n",
-			block_num, i);
+                DPRINTF("Endless Loop detected!\n");
                 setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
             }
-
     	    setitimer(ITIMER_VIRTUAL, &qv.value, (struct itimerval*) NULL);
-            ret = qemu_exec(block + i, block_size - i, qv.stack_base, qv.cpu);
+            ret = qemu_exec(block + i, blocksize - i, qv.stack_base, qv.cpu);
             setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
 
             switch(ret)
             {
                 case HIGH_RISK_SYSCALL:
-                    DPRINTF("block %d byte %d - High risk syscall - %d\n", 
-		    	    block_num, i, qv.cpu->regs[R_EAX]);
-                    threat->payload = calloc(1, block_size);
-                    memcpy(threat->payload, p, block_size);
-                    threat->length = block_size;
+                    DPRINTF("High risk syscall - %d\n", qv.cpu->regs[R_EAX]);
+                    threat->payload = calloc(1, blocksize + 1);
+                    memcpy(threat->payload, p, blocksize);
+                    threat->length = blocksize;
                     threat->severity = SEVERITY_HIGH;
-                    snprintf(threat_msg, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
-                    threat->msg = strdup(threat_msg);
+                    snprintf(tmp, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
+                    threat->msg = strdup(tmp);
                     cleanup();
                     free(block);
                     return 1;
                 case EXIT_SYSCALL:
-                    DPRINTF("block %d byte %d - Syscall exit\n", block_num, i);
+                    DPRINTF("Syscall exit\n");
                     break;
                 case EXCEPTION_INTERRUPT:
-                    DPRINTF("block %d byte %d - exception - INTERRUPT\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INTERRUPT\n");
                     break;
                 case EXCEPTION_NOSEG:
-                    DPRINTF("block %d byte %d - exception - NOSEG\n",
-		    	    block_num, i);
+                    DPRINTF("exception - NOSEG\n");
                     break;
                 case EXCEPTION_STACK:
-                    DPRINTF("block %d byte %d - exception - Stack Fault\n",
-		    	    block_num, i);
+                    DPRINTF("exception - Stack Fault\n");
                     break;
                 case EXCEPTION_GPF:
-                    DPRINTF("block %d byte %d - exception - General Protection"
-		    	    " Fault\n",block_num, i);
+                    DPRINTF("exception - General Protection Fault\n");
                     break;
                 case EXCEPTION_PAGE:
-                    DPRINTF("block %d byte %d - exception - Page Fault\n",
-		    	    block_num, i);
+                    DPRINTF("exception - Page Fault\n");
                     break;
                 case EXCEPTION_DIVZ:
-                    DPRINTF("block %d byte %d - exception - Division by Zero\n",			    block_num, i);
+                    DPRINTF("exception - Division by Zero\n");
                     break;
                 case EXCEPTION_SSTP:
-                    DPRINTF("block %d byte %d - exception - SSTP\n",
-		    	   block_num, i);
+                    DPRINTF("exception - SSTP\n");
                     break;
                 case EXCEPTION_INT3:
-                    DPRINTF("block %d byte %d - exception - INT3\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INT3\n");
                     break;
                 case EXCEPTION_INTO:
-                    DPRINTF("block %d byte %d - exception - INTO\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INTO\n");
                     break;
                 case EXCEPTION_BOUND:
-                    DPRINTF("block %d byte %d - exception - BOUND\n",
-		    	    block_num, i);
+                    DPRINTF("exception - BOUND\n");
                     break;
                 case EXCEPTION_ILLOP:
-                    DPRINTF("block %d byte %d - exception - Illegal Operation\n"
-		    	    ,block_num, i);
+                    DPRINTF("exception - Illegal Operation\n");
                     break;
                 case EXCEPTION_DEBUG:
-                    DPRINTF("block %d byte %d - exception - DEBUG\n",
-		    	    block_num, i);
+                    DPRINTF("exception - DEBUG\n");
                     break;
                 default:
-                    DPRINTF("block %d byte %d - unknown exception\n",
-		    	    block_num, i);
+                    DPRINTF("unknown exception\n");
             }
 prepare_next_iter:
             cleanup();
