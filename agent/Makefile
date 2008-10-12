@@ -28,7 +28,7 @@ LIBS_CFLAGS	=
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
 
-CORE_OBJS	= agent.o detect_engine.o sensor_contact.o sensor_election.o error.o alert.o options.o base64_encoder.o md5.o utils.o
+CORE_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
 
 ENGINE		= dummy
 
@@ -44,7 +44,7 @@ endif
 
 .PHONY: all dummy qemu clean install install-bin install-conf
 
-all: $(NAME) seduce
+all: $(NAME) 
 
 dummy:
 	$(MAKE) ENGINE=dummy
@@ -66,7 +66,7 @@ $(NAME):$(OBJS) sensor_contact.h alert.h error.h options.h
 seduce: seduce.c detect_engine.o detect_engine_qemu.o
 	$(CC) $(CFLAGS) $(CFLAGS_QEMU) -o $@ $^ $(LIBS_QEMU)
 
-agent.o: agent.c alert.h error.h options.h detect_engine.h sensor_contact.h utils.h
+agent.o: agent.c alert.h error.h options.h detect_engine.h sensor_contact.h item_selection.h utils.h
 	$(CC) $(CFLAGS) -c agent.c
 
 alert.o: alert.c base64_encoder.h utils.h
@@ -81,8 +81,8 @@ options.o: options.c options.h
 sensor_contact.o: sensor_contact.c sensor_contact.h error.h utils.h
 	$(CC) $(CFLAGS) -c sensor_contact.c
 
-sensor_election.o: sensor_election.c sensor_election.h options.h
-	$(CC) $(CFLAGS) -c sensor_election.c
+item_election.o: item_selection.c item_selection.h options.h
+	$(CC) $(CFLAGS) -c item_selection.c
 
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c

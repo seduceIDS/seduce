@@ -1,27 +1,27 @@
-#include "sensor_election.h"
+#include <stdlib.h>
 
-void *random_election(int num_servers, void *sensors)
+void *random_selection(int num_items, void *items, int item_size)
 {
         int new_idx;
 
-        new_idx = (int) (num_sensors * (rand()/(RAND_MAX + 1.0)));
+        new_idx = (int) (num_items * (rand()/(RAND_MAX + 1.0)));
 
-        return &sensors[new_idx];
+        return items + new_idx * item_size;
 }
 
-void *round_robin_election(int num_sensors, void *sensors)
+void *round_robin_selection(int num_items, void *items, int item_size)
 {
         static void *current = NULL;
         void *last_on_list;
 
-        last_on_list = sensors + num_sensors - 1;
+        last_on_list = items + (num_items - 1) * item_size;
 
         if (!current || current == last_on_list){
-                current = &sensors[0];
+                current = items;
                 return current;
         }
 
-        current++;
+        current += item_size;
 
         return current;
 }

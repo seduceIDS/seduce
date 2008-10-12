@@ -9,7 +9,7 @@
 #include <regex.h>
 
 #include "options.h"
-#include "sensor_election.h"
+#include "item_selection.h"
 
 static void hlpmsg(const char *prog_name, int rc)
 {
@@ -31,7 +31,7 @@ static void print_usage(const char *prog_name, int rc)
 		"  p : Password to use for connecting with the sensors.\n"
 		"  s : Server Addresses for Sensors in Hostname:Port format\n"
 		"      e.g. `12.0.0.1:3540,194.233.11.1:4444'.\n"
-		"  P : PollingMethod Algorithm (0: Round Robin, 1: Random)\n"
+		"  P : Session polling order (0: Round Robin, 1: Random)\n"
 		"  t : Time in sec to wait for a sensor to answer.\n"
 		"  r : Maximum numbers of retries when sending a request to "
 		      "a sensor.\n"
@@ -73,8 +73,8 @@ static int str_to_natural(const char *str)
 	return natural;
 }
 
-static ElectionType get_valid_polling(const char *str){
-	ElectionType polling;
+static SelectionType get_valid_polling(const char *str){
+	SelectionType polling;
 
 	polling = str_to_natural(str);
 	if (polling != ROUND_ROBIN && polling != RANDOM){
@@ -565,7 +565,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	if (clo.polling != -1)
 		final_opts->polling = clo.polling;
 	else if (final_opts->polling == -1)
-		final_opts->polling = DEFAULT_ELECTION_TYPE;
+		final_opts->polling = DEFAULT_SELECTION_TYPE;
 
 	if(clo.timeout != -1)
 		final_opts->timeout = clo.timeout;
