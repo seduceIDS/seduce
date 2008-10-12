@@ -11,7 +11,7 @@
 
 #include "detect_engine.h"
 #include "sensor_contact.h"
-#include "sensor_election.h"
+#include "item_selection.h"
 #include "alert.h"
 #include "error.h"
 #include "options.h"
@@ -20,7 +20,7 @@
 struct ProgVars {
         DetectEngine *detect_engine;	/* registered detection engine */
         SensorSession *sensor_session;	/* current sensor session */
-	ElectionMethod select_sensor; 	/* "Next sensor" election method */
+	SelectionMethod select_sensor; 	/* "Next sensor" election method */
 } pv;
 
 /* The linked-in engine will export this */
@@ -133,12 +133,13 @@ static const Work * find_work(InputOptions *in)
 {
 	static Sensor *last_sensor = NULL;
 	int failed_polls = 0;
+	int sensor_sz = sizeof(Sensor);
 	const Work *w;
 
 	do {
 		Sensor *m;
 
-		m = pv.select_sensor(in->num_sensors, in->sensors);
+		m = pv.select_sensor(in->num_sensors, in->sensors, sensor_sz);
 
 		DPRINTF("polling sensor: %s:%u\n",
 			inet_ntoa(m->addr), ntohs(m->port));
@@ -260,9 +261,9 @@ int main(int argc, char *argv[])
 		return 1;
 
 	if (in->polling == RANDOM)
-		pv.select_sensor = &random_election;
+		pv.select_sensor = &random_selection;
 	else
-		pv.select_sensor = &round_robin_election;
+		pv.select_sensor = &round_robin_selection;
 		
 
 	/* initialize handlers for quiting */

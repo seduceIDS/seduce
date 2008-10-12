@@ -2,7 +2,7 @@
 #define _OPTIONS_H
 
 #include <netinet/in.h>
-#include "sensor_election.h"
+#include "item_selection.h"
 
 typedef struct {
 	struct in_addr addr;    /* Sensor Address */
@@ -14,7 +14,7 @@ typedef struct _InputOptions {
 	char *config_file;	/* Configuration File*/
 	Sensor *sensors;	/* Array of sensor nodes to contact */
 	int num_sensors;	/* Number of members in sensor array */
-	ElectionType polling;	/* Order in which to poll the sensors */
+	SelectionType polling;	/* Order in which to poll the sensors */
 	char *password;		/* Connection password */
 	int timeout;		/* Seconds to wait before timeout */
 	int retries;		/* Number of allowed retries */
@@ -24,7 +24,7 @@ typedef struct _InputOptions {
 } InputOptions;
 
 /* Default Options */
-#define DEFAULT_ELECTION_TYPE	ROUND_ROBIN
+#define DEFAULT_SELECTION_TYPE	ROUND_ROBIN
 #define DEFAULT_TIMEOUT		5
 #define DEFAULT_RETRIES		5
 #define DEFAULT_NO_WORK_WAIT	5
