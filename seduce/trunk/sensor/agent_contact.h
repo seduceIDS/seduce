@@ -34,7 +34,7 @@ typedef struct _UDPPacket {
 } UDPPacket;
 
 		/* function Decleration */
-void *agents_contact(void);
+void *agents_contact(void *thread_params);
 int check_password(const char *p);
 
 		/* UDP Communication */

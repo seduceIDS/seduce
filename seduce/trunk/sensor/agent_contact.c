@@ -591,7 +591,7 @@ static void init_agents(Agents *agents)
  *
  * Arguments: data=> Connection parameters
  */
-void *agents_contact(void)
+void *agents_contact(void *thread_params)
 {
 	int newfd,maxfd, one;
 	fd_set readset, allset;
