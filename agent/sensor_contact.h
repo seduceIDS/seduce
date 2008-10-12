@@ -1,5 +1,5 @@
-#ifndef _SERVER_CONTACT_H
-#define _SERVER_CONTACT_H
+#ifndef _SENSOR_CONTACT_H
+#define _SENSOR_CONTACT_H
 
 #define PROTO_HDR_SIZE	16
 #define PROTO_PWD_SIZE	16
@@ -44,7 +44,7 @@ typedef struct _Packet {
 	Work work;
 } Packet;
 
-typedef struct _ServerSession {
+typedef struct _SensorSession {
 	struct sockaddr_in addr;/* udp connection info */
 	int sock; 		/* UDP Socket */
 	char * password;
@@ -53,17 +53,17 @@ typedef struct _ServerSession {
 	unsigned int seq; 	/* Sequence Number */
 	unsigned int id;	/* Agents ID */
 	Work current;		/* Current Work */
-} ServerSession;
+} SensorSession;
 
 /* function Declarations */
 
-ServerSession *init_session(struct in_addr addr, unsigned short port,
+SensorSession *init_session(struct in_addr addr, unsigned short port,
 			    const char *pwd, int timeout, int retries);
 
-void destroy_session(ServerSession **);
+void destroy_session(SensorSession **);
 
-int server_request(ServerSession *, int req_type);
-const Work *fetch_current_work(const ServerSession *);
-inline char * pwdcpy(const ServerSession *, char *buf);
+int sensor_request(SensorSession *, int req_type);
+const Work *fetch_current_work(const SensorSession *);
+inline char * pwdcpy(const SensorSession *, char *buf);
 
-#endif /* _SERVER_CONTACT_H */
+#endif /* _SENSOR_CONTACT_H */
