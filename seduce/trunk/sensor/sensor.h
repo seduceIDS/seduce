@@ -1,7 +1,7 @@
 #ifndef _SENSOR_H
 #define _SENSOR_H
 
-#include <stdint.h> /* unint8_t */
+#include <inttypes.h> /* unint8_t */
 
 /* Program variables */
 typedef struct _ProgVars {
