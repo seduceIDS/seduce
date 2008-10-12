@@ -34,12 +34,12 @@ LIBS_CFLAGS	= $(GLIB_CFLAGS) $(NIDS_CFLAGS) $(CONFUSE_CFLAGS) \
 LIBS		= $(GLIB) $(NIDS) $(CONFUSE) $(PRELUDE) -lm
 
 OBJS		= sensor.o chksum_ctl.o data.o hash.o sensor_contact.o \
-		  sniffer.o options.o thread.o utils.o data_group.o \
-		  oom_handler.o agent_contact.o alert.o alert_recv.o
+		  sniffer.o options.o thread.o utils.o oom_handler.o \
+		  agent_contact.o alert.o alert_recv.o
 
 HDRS		= sensor.h data.h hash.h sensor_contact.h options.h sniffer.h \
-		  thread.h utils.h errors.h data_group.h oom_handler.h \
-		  agent_contact.h alert.h alert_recv.h
+		  thread.h utils.h errors.h oom_handler.h agent_contact.h \
+		  alert.h alert_recv.h
 
 
 .PHONY: all clean install install-bin install-conf

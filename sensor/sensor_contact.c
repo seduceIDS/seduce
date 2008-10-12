@@ -8,7 +8,6 @@
 
 #include "sensor_contact.h"
 #include "errors.h"
-#include "data_group.h"
 #include "data.h"
 #include "utils.h"
 

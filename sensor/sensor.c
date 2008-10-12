@@ -3,7 +3,6 @@
 #include "agent_contact.h"
 #include "options.h"
 #include "data.h"
-#include "data_group.h"
 #include "alert.h"
 #include "oom_handler.h"
 #include "alert_recv.h"
@@ -35,7 +34,6 @@ int main(int argc, char *argv[])
 	if(init_sniffer() == 0)
 		return 1;
 	init_datalists();
-	init_grouplist();
 	init_alertlist();
 	init_oom_handler();
 	init_alert_receiver();

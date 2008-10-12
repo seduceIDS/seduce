@@ -2,7 +2,7 @@
 
 #include "oom_handler.h"
 #include "sensor.h"
-#include "data_group.h"
+#include "data.h"
 #include "utils.h"
 
 pthread_mutex_t oom_mutex;
