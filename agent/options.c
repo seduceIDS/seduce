@@ -192,6 +192,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('c');
 				return 0;
 			}
+			c_arg = 1;
 			opts->config_file = strdup(optarg);
 			break;
 
@@ -200,6 +201,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('p');
 				return 0;
 			}
+			p_arg = 1;
 			opts->password = strdup(optarg);
 			if(!validate_password(opts->password))
 				return 0;
@@ -210,6 +212,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('r');
 				return 0;
 			}
+			r_arg = 1;
 			opts->retries = get_valid_retries(optarg);
 			if (opts->retries == -1)
 				return 0;
@@ -220,6 +223,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('s');
 				return 0;
 			}
+			s_arg = 1;
 			if(!fill_serverinfo(optarg, &opts->addr, &opts->port))
 				return 0;
 			break;
@@ -229,6 +233,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('t');
 				return 0;
 			}
+			t_arg = 1;
 			opts->timeout = get_valid_timeout(optarg);
 			if (opts->timeout == -1)
 				return 0;
@@ -239,6 +244,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('w');
 				return 0;
 			}
+			w_arg = 1;
 			opts->no_work_wait = get_valid_no_work_wait(optarg);
 			if (opts->no_work_wait == -1)
 				return 0;
