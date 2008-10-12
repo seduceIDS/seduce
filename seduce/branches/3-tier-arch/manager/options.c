@@ -136,6 +136,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('a');
 				goto err;
 			}
+			a_arg = 1;
 			clo->agent_port = strdup(optarg);
 			break;
 
@@ -144,6 +145,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('A');
 				goto err;
 			}
+			A_arg = 1;
 			clo->max_agents = strdup(optarg);
 			break;
 
@@ -152,6 +154,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('c');
 				goto err;
 			}
+			c_arg = 1;
 			clo->conf_file = strdup(optarg);
 			break;
 
@@ -160,6 +163,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('l');
 				goto err;
 			}
+			l_arg = 1;
 			clo->mem_softlimit = strdup(optarg);
 			break;
 
@@ -168,6 +172,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('L');
 				goto err;
 			}
+			L_arg = 1;
 			clo->mem_hardlimit = strdup(optarg);
 			break;
 
@@ -176,6 +181,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('s');
 				goto err;
 			}
+			s_arg = 1;
 			clo->sensor_port = strdup(optarg);
 			break;
 
@@ -184,6 +190,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('S');
 				goto err;
 			}
+			S_arg = 1;
 			clo->max_sensors = strdup(optarg);
 			break;
 
@@ -192,6 +199,7 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('p');
 				goto err;
 			}
+			p_arg = 1;
 			clo->password = strdup(optarg);
 			break;
 
@@ -271,6 +279,7 @@ static int parse_file(char *filename)
 		return 0;
 	}
 
+	cfg_free(cfg);
 	return 1;
 }
 
