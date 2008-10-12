@@ -16,6 +16,9 @@
 /* The Sensor */
 Sensor sensor;
 
+/* The grouplist (not to be viewed outside the file) */
+static GroupList grouplist;
+
 /*
  * Function: init_datalists()
  *
@@ -23,6 +26,7 @@ Sensor sensor;
  */
 void init_datalists(void)
 {
+	/* Initialize the Sensor struct */
 	sensor.sessionlist_head = NULL;
 	sensor.sessionlist_tail = NULL;
 
@@ -33,6 +37,12 @@ void init_datalists(void)
 		fprintf(stderr,"Can't create sensor hash table\n");
 		abort();
 	}
+
+	/* Initialize the Group list */
+	grouplist.head = grouplist.tail = NULL;
+	grouplist.cnt = 0;
+
+	mutex_init (&grouplist.mutex);
 }
 
 /*
@@ -263,6 +273,123 @@ void *add_data(Session *session, void *payload, size_t len)
 	return ret;
 }
 
+/*
+ * Function: consume_group(int (*)(), void *)
+ *
+ * Purpose: Removes the oldest group of the list and exetute the function passed
+ *          as argument on the heading data of the group just removed.
+ *
+ * Arguments: func=> Pointer to a function which will be aplied on the data.  
+ *            params=> Optional parameter for the function func points to.
+ *
+ * Returns: Whatever the function returns or -1 if an error occures before the
+ *          function is applied.
+ */
+
+int consume_group(int (*func)(), void *params)
+{
+	int ret;
+	Group *group_to_remove;
+
+	DPRINTF("\n");
+	mutex_lock (&grouplist.mutex);
+
+	while (grouplist.cnt == 0) {
+		DPRINTF("No Groups available...\n");
+		mutex_unlock (&grouplist.mutex);
+		return -1;
+	}
+
+	/* Remove the Group from the list...*/
+	DPRINTF("Removing the group...\n");
+	group_to_remove = grouplist.head;
+	grouplist.head = grouplist.head->next;
+
+	grouplist.cnt--;
+	if (grouplist.cnt == 0)
+		grouplist.tail = NULL;
+	else
+		grouplist.head->prev = NULL;
+	
+	mutex_unlock (&grouplist.mutex);
+
+	/* Executing the Group */
+	mutex_lock(&sensor.mutex);
+
+	DPRINTF("Execute the Group...\n");
+	DPRINTF("Session ID: %u\n",group_to_remove->grouphead.session->id);
+
+	/* Those data are the heading data of a group */
+	group_to_remove->grouphead.is_grouphead = 1;
+
+	/* Execute the function on this group */
+	if (params)
+		ret = (*func) (params, &group_to_remove->grouphead);
+	else
+		ret = (*func) (&group_to_remove->grouphead);
+	
+	DPRINTF("Group executed\n");
+
+	mutex_unlock(&sensor.mutex);
+
+	free(group_to_remove);
+	return ret;
+}
+
+/*
+ * Function: add_group(Session *, void *)
+ *
+ * Purpose: Add a new group to the grouplist
+ *
+ * Arguments: this_session=> The session the data belong to.
+ *            data=> TCP or UDP data.
+ *            ATTENTION: the void pointer should be TCPData* or UDPDATA* and
+ *                       nothing else...
+ *
+ * Returns: 0=> An error occured
+ *          1=> Data have been successfully added
+ */
+int add_group(Session *this_session, void *data)
+{
+	Group *group_to_add;
+
+	DPRINTF("\n");
+	group_to_add = malloc(sizeof(Group));
+	if (group_to_add == NULL) {
+		errno_cont("Error in malloc\n");
+		return 0;
+	}
+
+	group_to_add->grouphead.session = this_session;
+
+	if (this_session->proto == IPPROTO_TCP)
+		group_to_add->grouphead.data.tcp = data;
+	else
+		group_to_add->grouphead.data.udp = data;
+
+
+	DPRINTF("Adding Group for Session: %u\n",this_session->id);
+	/* Now put it in the group list...*/
+	mutex_lock (&grouplist.mutex);
+
+	group_to_add->prev = grouplist.tail;
+	group_to_add->next = NULL;
+
+	if (grouplist.tail != NULL) {
+		grouplist.tail->next = group_to_add;
+		grouplist.tail = group_to_add;
+	} else
+		grouplist.head = grouplist.tail = group_to_add;
+
+	grouplist.cnt++;
+
+	mutex_unlock (&grouplist.mutex);
+
+	DPRINTF("Finished Adding....\n");
+
+	return 1;
+}
+
 inline TCPData *get_next_data(const TCPData *data)
 {
 	if(!data->next)
@@ -282,8 +409,6 @@ inline TCPData *get_next_data(const TCPData *data)
  *
  * Returns: 0=> An error occured
  *          1=> Data have been removed, maybe session too
- *          2=> Data have been removed, session too and it's safe to remove the
- *              the sensor too.
  */
 int destroy_data(DataInfo *d)
 {
