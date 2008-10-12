@@ -130,7 +130,6 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
  
     while ((p = getBlock(data, len, MIN_BLOCK_LENGTH, &block_size)) != NULL)
     {
-//    	char md5str[33];
         block_num++;
 
         block = calloc(1, block_size);

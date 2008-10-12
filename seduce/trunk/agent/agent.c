@@ -10,77 +10,50 @@
 #include <arpa/inet.h>
 
 #include "detect_engine.h"
-#include "server_contact.h"
+#include "sensor_contact.h"
+#include "sensor_election.h"
 #include "alert.h"
 #include "error.h"
 #include "options.h"
 #include "utils.h"
 
 struct ProgVars {
-        DetectEngine *detect_engine;
-        ServerSession *server_session;		    /* current server session */
-	Manager *(*select_manager)(int, Manager *); /* manager selection
-						       strategy */
+        DetectEngine *detect_engine;	/* registered detection engine */
+        SensorSession *sensor_session;	/* current sensor session */
+	ElectionMethod select_sensor; 	/* "Next sensor" election method */
 } pv;
 
 /* The linked-in engine will export this */
 extern DetectEngine engine;
 
-static Manager *select_manager_rnd(int num_servers, Manager *servers)
-{
-	int new_idx;
-
-	new_idx = (int) (num_servers * (rand()/(RAND_MAX + 1.0)));
-
-	return &servers[new_idx];
-}
-
-static Manager *select_manager_rr(int num_servers, Manager *servers)
-{
-	static Manager *current = NULL;
-	Manager *last_on_list;
-
-	last_on_list = servers + num_servers - 1;
-
-	if (!current || current == last_on_list){
-		current = &servers[0];
-		return current;
-	}
-
-	current++;
-
-	return current;
-}
-
 /*
- * Function: manager_connect()
+ * Function: sensor_connect()
  *
- * Purpose: use the server address/port info of pv and connect to the manager
+ * Purpose: use the sensor address/port info of pv and connect to the sensor
  *
  * Arguments:
  *
  * Returns:  1 => Connected 
  *           0 => Not Connected
  */
-static int manager_connect(Manager *m, const char * pwd, int timeout, 
-			   int retries)
+static int sensor_connect(Sensor *m, const char * pwd, int timeout, int retries)
 {
 	int ret;
 	
-	pv.server_session = init_session(m->addr, m->port, pwd, timeout, 
+	pv.sensor_session = init_session(m->addr, m->port, pwd, timeout, 
 					 retries);
-	if(pv.server_session == NULL)
+	if(pv.sensor_session == NULL)
 		critical_error(1, "Unable to connect to: %s:%u\n", 
 			       inet_ntoa(m->addr), ntohs(m->port));
 
-	ret = server_request(pv.server_session, SEND_NEW_AGENT);
+	ret = sensor_request(pv.sensor_session, SEND_NEW_AGENT);
 	if(ret == -1) {
 		
 		/* 
 		 * If something needs to be cleaned up before quiting,
 		 * here is the place to do it.
 		 */
-		critical_error(1, "Bad communication with server: %s:%u\n",
+		critical_error(1, "Bad communication with sensor: %s:%u\n",
 			       inet_ntoa(m->addr), ntohs(m->port));
 	}
 
@@ -88,26 +61,26 @@ static int manager_connect(Manager *m, const char * pwd, int timeout,
 }
 
 /*
- * Function: manager_disconnect()
+ * Function: sensor_disconnect()
  *
- * Purpose: Disconnect from the manager and release all resources
+ * Purpose: Disconnect from the sensor and release all resources
  *
  * Arguments:
  *
  * Returns: 
  */
-static void manager_disconnect(void)
+static void sensor_disconnect(void)
 {
-	if (pv.server_session){
-		server_request(pv.server_session, SEND_QUIT);
-		destroy_session(&pv.server_session);
+	if (pv.sensor_session){
+		sensor_request(pv.sensor_session, SEND_QUIT);
+		destroy_session(&pv.sensor_session);
 	}
 }
 
 /*
  * Function: get_new_work()
  *
- * Purpose: Get a new data group by the manager
+ * Purpose: Get a new data group by the sensor
  *
  * Arguments:
  *
@@ -118,12 +91,12 @@ static const Work * get_new_work()
 {
 	int ret;
 
-	ret = server_request(pv.server_session, SEND_NEW_WORK);
+	ret = sensor_request(pv.sensor_session, SEND_NEW_WORK);
 
 	if(ret == 1)
-		return fetch_current_work(pv.server_session);
+		return fetch_current_work(pv.sensor_session);
 	else if(ret == -1)
-		critical_error(1, "The communication with the server is bad");
+		critical_error(1, "The communication with the sensor is bad");
 
 	/* ret == 0 */
 	return NULL;
@@ -132,7 +105,7 @@ static const Work * get_new_work()
 /*
  * Function: get_next_work()
  *
- * Purpose: Get the next data of a particular work group from the manager
+ * Purpose: Get the next data of a particular work group from the sensor
  *
  * Arguments:
  *
@@ -143,36 +116,36 @@ static const Work * get_next_work(void)
 {
 	int ret;
 
-	ret = server_request(pv.server_session, SEND_GET_NEXT);
+	ret = sensor_request(pv.sensor_session, SEND_GET_NEXT);
 
 	if(ret == 1)
-		return fetch_current_work(pv.server_session);
+		return fetch_current_work(pv.sensor_session);
 	else if(ret == -1)
-		critical_error(1, "The communication with the server is bad");
+		critical_error(1, "The communication with the sensor is bad");
 
 	/* ret == 0 */
 	return NULL;
 }
 
-/* returns NULL only when there was a problem connecting to a server */
+/* returns NULL only when there was a problem connecting to a sensor */
 
 static const Work * find_work(InputOptions *in)
 {
-	static Manager *last_server = NULL;
+	static Sensor *last_sensor = NULL;
 	int failed_polls = 0;
 	const Work *w;
 
 	do {
-		Manager *m;
+		Sensor *m;
 
-		m = pv.select_manager(in->num_servers, in->servers);
+		m = pv.select_sensor(in->num_sensors, in->sensors);
 
-		DPRINTF("polling manager: %s:%u\n",
+		DPRINTF("polling sensor: %s:%u\n",
 			inet_ntoa(m->addr), ntohs(m->port));
 
 		/* this happens both in the random case, and when there's
-		 * a single server in the list */
-		if (last_server && m == last_server){
+		 * a single sensor in the list */
+		if (last_sensor && m == last_sensor){
 			if (!(w = get_new_work())){
                                 DPRINTF("No work available on %s:%u. "
 					"I'll sleep\n", inet_ntoa(m->addr),
@@ -181,18 +154,18 @@ static const Work * find_work(InputOptions *in)
 				w = get_new_work();
 				/*
 				 * If this second try fails,
-				 * we look for a new server
+				 * we look for a new sensor
 				 */
 			} 
 		} else {
-			/* a new server was selected */
-			manager_disconnect();
+			/* a new sensor was selected */
+			sensor_disconnect();
 
-			if(!manager_connect(m, in->password, in->timeout, 
+			if(!sensor_connect(m, in->password, in->timeout, 
 					    in->retries))
 				return NULL;
 
-			last_server = m;
+			last_sensor = m;
 			
 			if (!(w = get_new_work())){
 				failed_polls++;
@@ -213,11 +186,11 @@ void quit_handler(int s)
 {
 	pv.detect_engine->destroy();
 	DPRINTF("Sending QUIT Message...\n");
-	manager_disconnect();
+	sensor_disconnect();
 	exit(0);
 }
 
-/* returns 0 if there's an error contacting a server,
+/* returns 0 if there's an error contacting a sensor,
   	   1 if there's an error during alert submission */
 
 static int main_loop(InputOptions *in)
@@ -233,29 +206,26 @@ static int main_loop(InputOptions *in)
 	while((w = find_work(in))) {
 		DPRINTF("Got new data_group\n");
 
-		/* reset the detect engine */
+		/* reset the detection engine */
 		pv.detect_engine->reset();
 	
 		do {
-			char md5sum[33];
 			struct in_addr src_addr;
-
 			src_addr.s_addr = w->info.s_addr;
 
-			compute_md5(w->payload, w->length, md5sum);
-
-			DPRINTF("Inspecting Data [src:%s] [%i bytes] [%s]\n",
- 			       inet_ntoa(src_addr), w->length, md5sum);
+			DPRINTF_MD5(w->payload, w->length, 
+				    "Inspecting new work [src:%s]\n",
+				    inet_ntoa(src_addr));
 
 			ret = pv.detect_engine->process(w->payload,
 							w->length,&t);
 			if (ret == 1) {
-			     	DPRINTF("Threat Detected [src:%s] [%i bytes]"
-				        " [%s]\n", inet_ntoa(src_addr), 
-				        w->length, md5sum);
+			     	DPRINTF_MD5(w->payload, w->length, 
+					    "Threat Detected [src:%s]\n",
+					    inet_ntoa(src_addr));
 
 				/* send the threat */
-				alert_ret = submit_alert(pv.server_session,
+				alert_ret = submit_alert(pv.sensor_session,
 						 	 &w->info,&t);
 						 
 				destroy_threat(&t);
@@ -273,7 +243,7 @@ static int main_loop(InputOptions *in)
 	}
 err:
 	pv.detect_engine->destroy();
-	manager_disconnect();
+	sensor_disconnect();
 
 	return retval;
 }
@@ -289,10 +259,10 @@ int main(int argc, char *argv[])
 	if ((in = fill_inputopts(argc, argv)) == NULL)
 		return 1;
 
-	if (in->sched_algo == RANDOM)
-		pv.select_manager = &select_manager_rnd;
+	if (in->polling == RANDOM)
+		pv.select_sensor = &random_election;
 	else
-		pv.select_manager = &select_manager_rr;
+		pv.select_sensor = &round_robin_election;
 		
 
 	/* initialize handlers for quiting */

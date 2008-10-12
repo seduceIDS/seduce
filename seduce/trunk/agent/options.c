@@ -9,6 +9,7 @@
 #include <regex.h>
 
 #include "options.h"
+#include "sensor_election.h"
 
 static void hlpmsg(const char *prog_name, int rc)
 {
@@ -21,22 +22,22 @@ static void print_usage(const char *prog_name, int rc)
 	fprintf(stderr,
 		"\n"
 		"usage: %s [-h] [-c <config_file>] [-p <password>]\n"
-		"\t[-s <srv_addr1,srv_addr2>] [-a <sched_algo>] [-t <timeout>]"
-		"\n"
+		"\t[-s <sens_addr1,sens_addr2>] [-P <PollingOrder>] "
+		"[-t <timeout>]\n"
 		"\t[-r <retries>] [-w <no_work_wait>] [-m <max_polls>]\n"
 		"\n"
 		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. /etc/agent.conf'.\n"
-		"  p : Password to use for connecting with the manager.\n"
-		"  s : Server Addresses for Managers in Hostname:Port format\n"
+		"  p : Password to use for connecting with the sensors.\n"
+		"  s : Server Addresses for Sensors in Hostname:Port format\n"
 		"      e.g. `12.0.0.1:3540,194.233.11.1:4444'.\n"
-		"  a : Scheduling Algorithm (0: Round Robin, 1: Random)\n"
-		"  t : Time in sec to wait for a manager to answer.\n"
+		"  P : PollingMethod Algorithm (0: Round Robin, 1: Random)\n"
+		"  t : Time in sec to wait for a sensor to answer.\n"
 		"  r : Maximum numbers of retries when sending a request to "
-		      "a manager.\n"
+		      "a sensor.\n"
 		"  w : Time in sec to wait before requesting more work from "
-		      "an idle manager.\n"
-		"  m : Max number of idle servers to poll prior to "
+		      "an idle sensor.\n"
+		"  m : Max number of idle sensors to poll prior to "
 		      "sleeping.\n"
 		"\n",
 		prog_name);
@@ -72,16 +73,16 @@ static int str_to_natural(const char *str)
 	return natural;
 }
 
-static Scheduling get_valid_sched_algo(const char *str){
-	Scheduling sched_algo;
+static ElectionType get_valid_polling(const char *str){
+	ElectionType polling;
 
-	sched_algo = str_to_natural(str);
-	if (sched_algo != ROUND_ROBIN && sched_algo != RANDOM){
-		fprintf(stderr, "invalid scheduling algorithm specified\n");
+	polling = str_to_natural(str);
+	if (polling != ROUND_ROBIN && polling != RANDOM){
+		fprintf(stderr, "invalid polling order option specified\n");
 		return -1;
 	}
 
-	return sched_algo; 
+	return polling; 
 }
 
 static int get_valid_retries(const char *str)
@@ -169,7 +170,7 @@ static int validate_password(const char *pwd)
 #define FQDN_PATTERN HOST_ATOM "(\\." HOST_ATOM ")*"
 #define HOST_PORT_PATTERN FQDN_PATTERN ":[0-9]{1,5}"
 
-static int validate_manager(const char *str){
+static int validate_sensor(const char *str){
 	char pattern[] = "^" HOST_PORT_PATTERN "$";
 
 	if (regexp_match(pattern, str))
@@ -178,7 +179,7 @@ static int validate_manager(const char *str){
 		return 0;
 }
 
-static int validate_managers_str(const char *str){
+static int validate_sensors_str(const char *str){
 	char pattern[] = "^" HOST_PORT_PATTERN "(," HOST_PORT_PATTERN ")*$";
 
 	if (regexp_match(pattern, str))
@@ -187,12 +188,12 @@ static int validate_managers_str(const char *str){
 		return 0;
 }
 
-static char **split_serverinfo(const char *cmdline_arg, const char delimiter,
+static char **split_sensorinfo(const char *cmdline_arg, const char delimiter,
 			       int *count)
 {
 	char *p, *tmp;
 	int delimiter_count = 0;
-	char **managers;
+	char **sensors;
 	int i;
 	char delim_str[2] = { delimiter, '\0' };
 
@@ -204,48 +205,48 @@ static char **split_serverinfo(const char *cmdline_arg, const char delimiter,
 			delimiter_count++;
 	}
 
-	if (!(managers = malloc((delimiter_count+1) * sizeof(char *)))) {
-		fprintf(stderr, "error allocating memory for manager "
+	if (!(sensors = malloc((delimiter_count+1) * sizeof(char *)))) {
+		fprintf(stderr, "error allocating memory for sensor "
 				"string pointers\n");
 		return NULL;
 	}
 
 	for(i=0; i< delimiter_count + 1; i++) {
-		managers[i] = strsep(&tmp, delim_str);
+		sensors[i] = strsep(&tmp, delim_str);
 	}
 	*count = i;
 
-	return managers;
+	return sensors;
 }
 
-static int extract_serverinfo(int num_managers, 
-			      const char **managers,
+static int extract_sensorinfo(int num_sensors, 
+			      const char **sensors,
 			      InputOptions *input)
 {
 	int i;
 
-	if (input->servers){
-		fprintf(stderr, "extract_serverinfo called, but input->servers"
+	if (input->sensors){
+		fprintf(stderr, "extract_sensorinfo called, but input->sensors"
 				" was already filled in!\n");
 		return 0;
 	}
 
-	if (!(input->servers = malloc(num_managers * sizeof(Manager)))) {
-		perror("error allocating space for Manager structs");
+	if (!(input->sensors = malloc(num_sensors * sizeof(Sensor)))) {
+		perror("error allocating space for Sensor structs");
 		return 0;
 	}
 	
-	input->num_servers = 0;
+	input->num_sensors = 0;
 
-	for (i = 0; i<num_managers; i++) {
+	for (i = 0; i<num_sensors; i++) {
 		char *tmp;
 		unsigned short tmp_port;
 		char *port_str;
 		char *host_str;
 		struct hostent *he;
 
-		if (!(tmp = strdup(managers[i]))) {
-			perror("error while duplicating manager string");
+		if (!(tmp = strdup(sensors[i]))) {
+			perror("error while duplicating sensor string");
 			goto err;
 		}
 
@@ -263,16 +264,16 @@ static int extract_serverinfo(int num_managers,
 			goto err;
 		}
 		
-		input->servers[i].addr = *((struct in_addr *) he->h_addr);
-		input->servers[i].port = tmp_port;					
-		input->num_servers += 1;
+		input->sensors[i].addr = *((struct in_addr *) he->h_addr);
+		input->sensors[i].port = tmp_port;					
+		input->num_sensors += 1;
 
 		free(tmp);
 	}
 	return 1;
 err:
-	free(input->servers);
-	input->num_servers = 0;
+	free(input->sensors);
+	input->num_sensors = 0;
 	return 0;
 }
 
@@ -284,7 +285,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 	int c;
 	int c_arg = 0;
 	int p_arg = 0;
-	int a_arg = 0;
+	int P_arg = 0;
 	int r_arg = 0;
 	int s_arg = 0;
 	int t_arg = 0;
@@ -292,9 +293,9 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 	int m_arg = 0;
 
 	int mgr_count;
-	char **managers;
+	char **sensors;
 
-	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:a:m:")) != -1) {
+	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:P:m:")) != -1) {
 		switch(c) {
 		case 'h':
 			print_usage(opts->prog_name, 0);
@@ -318,13 +319,13 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				return 0;
 			break;
 
-		case 'a':
-			if (a_arg++) {
-				PRINT_SPECIFY_ONCE('a');
+		case 'P':
+			if (P_arg++) {
+				PRINT_SPECIFY_ONCE('P');
 				return 0;
 			}
-			opts->sched_algo = get_valid_sched_algo(optarg);
-			if (opts->sched_algo == -1)
+			opts->polling = get_valid_polling(optarg);
+			if (opts->polling == -1)
 				return 0;
 			break;
 
@@ -344,18 +345,18 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				return 0;
 			}
 
-			if (!validate_managers_str(optarg)){
+			if (!validate_sensors_str(optarg)){
 				fprintf(stderr, 
 					"syntax error at -s argument\n");
 				return 0;
 			}
 
-			managers = split_serverinfo(optarg, ',', &mgr_count);
-			if (!managers)
+			sensors = split_sensorinfo(optarg, ',', &mgr_count);
+			if (!sensors)
 				return 0;
 
-			if (!extract_serverinfo(mgr_count,
-			                        (const char **) managers,
+			if (!extract_sensorinfo(mgr_count,
+			                        (const char **) sensors,
 						opts))
 				return 0;
 
@@ -406,7 +407,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 	if (strcmp(opt->name, "password") == 0)
 		ret = validate_password(*(char **)opt->simple_value);
-	else if (strcmp(opt->name, "sched_algo") == 0)
+	else if (strcmp(opt->name, "polling_order") == 0)
 		ret = (*(int *)opt->simple_value != ROUND_ROBIN && 
 		       *(int *)opt->simple_value != RANDOM) ? 0 : 1;
 	else if (strcmp(opt->name, "timeout") == 0)
@@ -430,13 +431,13 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 static int parse_fileoptions(const char *filename, InputOptions *opts)
 {
-	char **managers = NULL;
-	int num_managers, i, ret, retval = 1;
+	char **sensors = NULL;
+	int num_sensors, i, ret, retval = 1;
 
 	cfg_opt_t cfg_opts[] = {
-		CFG_STR_LIST("managers", NULL, CFGF_NONE),
+		CFG_STR_LIST("sensors", NULL, CFGF_NONE),
 		CFG_SIMPLE_STR("password", &opts->password),
-		CFG_SIMPLE_INT("sched_algo", &opts->sched_algo),
+		CFG_SIMPLE_INT("polling_order", &opts->polling),
 		CFG_SIMPLE_INT("timeout", &opts->timeout),
 		CFG_SIMPLE_INT("retries", &opts->retries),
 		CFG_SIMPLE_INT("no_work_wait", &opts->no_work_wait),
@@ -450,9 +451,9 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 
 	/* set validation callback functions */
 	
-	/* "managers" option gets validated later */
+	/* "sensors" option gets validated later */
 	cfg_set_validate_func(cfg,"password",cfg_validate);
-	cfg_set_validate_func(cfg,"sched_algo", cfg_validate);
+	cfg_set_validate_func(cfg,"polling_order", cfg_validate);
 	cfg_set_validate_func(cfg,"timeout",cfg_validate);
 	cfg_set_validate_func(cfg,"retries",cfg_validate);
 	cfg_set_validate_func(cfg,"no_work_wait",cfg_validate);
@@ -469,33 +470,33 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 		goto exit;
 	}
 
-	if (!(num_managers = cfg_size(cfg, "managers"))) {
-		fprintf(stderr, "No value given for `managers' option in config"
+	if (!(num_sensors = cfg_size(cfg, "sensors"))) {
+		fprintf(stderr, "No value given for `sensors' option in config"
 				" file %s\n", filename);
 		retval = 0;
 		goto exit;
 	}
 	
-	if (!(managers = malloc(num_managers * sizeof(char *)))) {
-		perror("malloc error while creating array of managers");
+	if (!(sensors = malloc(num_sensors * sizeof(char *)))) {
+		perror("malloc error while creating array of sensors");
 		retval = 0;
 		goto exit;
 	}
 
-	for(i=0; i<num_managers; i++) {
-		managers[i] = cfg_getnstr(cfg, "managers", i);
-		if (!validate_manager(managers[i])) {
-			fprintf(stderr,"invalid manager string: %s\n",
-				managers[i]);
+	for(i=0; i<num_sensors; i++) {
+		sensors[i] = cfg_getnstr(cfg, "sensors", i);
+		if (!validate_sensor(sensors[i])) {
+			fprintf(stderr,"invalid sensor string: %s\n",
+				sensors[i]);
 			retval = 0;
 			goto exit;
 		}
 	}
 
-	if (!extract_serverinfo(num_managers, (const char **) managers, opts))
+	if (!extract_sensorinfo(num_sensors, (const char **) sensors, opts))
 		retval = 0;
 exit:
-	free(managers);
+	free(sensors);
 	cfg_free(cfg);
 	return retval;
 }
@@ -516,7 +517,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	memset(&clo, '\0', sizeof(InputOptions));
 	
 	final_opts->prog_name = clo.prog_name = argv[0];
-	final_opts->sched_algo = clo.sched_algo = -1;
+	final_opts->polling = clo.polling = -1;
 	final_opts->timeout = clo.timeout = -1;
 	final_opts->retries = clo.retries = -1;
 	final_opts->no_work_wait = clo.no_work_wait = -1;
@@ -539,12 +540,12 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	 * always have a higher priority.
 	 */
 
-	if (clo.servers) {
-		if (final_opts->servers)
-			free(final_opts->servers);
+	if (clo.sensors) {
+		if (final_opts->sensors)
+			free(final_opts->sensors);
 		
-		final_opts->servers = clo.servers;
-		final_opts->num_servers = clo.num_servers;
+		final_opts->sensors = clo.sensors;
+		final_opts->num_sensors = clo.num_sensors;
 	}
 
 	if(clo.password) {
@@ -555,16 +556,16 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 
 
 	/* 
-	 * if timeout, retries, no_work_wait, sched_algo and max_polls
+	 * if timeout, retries, no_work_wait, polling and max_polls
 	 * are not set from the command line or the config file, we set the 
 	 * default values.
 	 */
 
 
-	if (clo.sched_algo != -1)
-		final_opts->sched_algo = clo.sched_algo;
-	else if (final_opts->sched_algo == -1)
-		final_opts->sched_algo = DEFAULT_SCHED_ALGO;
+	if (clo.polling != -1)
+		final_opts->polling = clo.polling;
+	else if (final_opts->polling == -1)
+		final_opts->polling = DEFAULT_ELECTION_TYPE;
 
 	if(clo.timeout != -1)
 		final_opts->timeout = clo.timeout;
@@ -586,20 +587,19 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	else if(final_opts->max_polls == -1)
 		final_opts->max_polls = DEFAULT_MAX_POLLS;
 
-
 	/* 
 	 * Now that command line and config file options are set,
 	 * check if a required option is missing.
 	 * Required options are the connection info (IP/port & password)
 	 */
 
-	if (!final_opts->servers){
+	if (!final_opts->sensors){
 		fprintf(stderr, "Server address(es) are not set.\n");
 		hlpmsg(final_opts->prog_name, 1);
 	}
 
 	if(!final_opts->password) {
-		fprintf(stderr, "No server password is set.\n");
+		fprintf(stderr, "No sensor password is set.\n");
 		hlpmsg(final_opts->prog_name, 1);
 	}
 
@@ -608,8 +608,8 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 
 void destroy_inputopts(InputOptions *opts)
 {
-	if (opts->servers)
-		free(opts->servers);
+	if (opts->sensors)
+		free(opts->sensors);
 
 	if (opts->password)
 		free(opts->password);
@@ -624,7 +624,7 @@ void destroy_inputopts(InputOptions *opts)
 
 int main(int argc, char *argv[])
 {
-	Manager m;
+	Sensor m;
 	InputOptions *in = fill_inputopts(argc, argv);
 	int i;
 
@@ -632,16 +632,16 @@ int main(int argc, char *argv[])
 
 	printf("Options:\n");
 	printf("Server Address(es): ");
-	for(i=0; i < in->num_servers; i++){
-		m = in->servers[i];
+	for(i=0; i < in->num_sensors; i++){
+		m = in->sensors[i];
 		printf("%s:%u ", inet_ntoa(m.addr), ntohs(m.port));
 	}
 	printf("\n");
 
-	printf("Scheduling Algorithm: ");
-	if (in->sched_algo == RANDOM){
+	printf("Polling Method: ");
+	if (in->polling == RANDOM){
 		printf("Random\n");
-	} else if (in->sched_algo == ROUND_ROBIN) {
+	} else if (in->polling == ROUND_ROBIN) {
 		printf("Round Robin\n");
 	} else {
 		printf("Unknown\n");
