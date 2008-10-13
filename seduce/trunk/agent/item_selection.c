@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include "item_selection.h"
 
 void *random_selection(int num_items, void *items, int item_size)
 {
@@ -24,4 +25,9 @@ void *round_robin_selection(int num_items, void *items, int item_size)
         current += item_size;
 
         return current;
+}
+
+int is_selection_valid(SelectionType s)
+{
+	return (s == RANDOM || s == ROUND_ROBIN)? 1 : 0;
 }

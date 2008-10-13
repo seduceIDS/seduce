@@ -31,7 +31,7 @@ static void print_usage(const char *prog_name, int rc)
 		"  p : Password to use for connecting with the sensors.\n"
 		"  s : Server Addresses for Sensors in Hostname:Port format\n"
 		"      e.g. `12.0.0.1:3540,194.233.11.1:4444'.\n"
-		"  P : Session polling order (0: Round Robin, 1: Random)\n"
+		"  P : Sensor polling order (0: Round Robin, 1: Random)\n"
 		"  t : Time in sec to wait for a sensor to answer.\n"
 		"  r : Maximum numbers of retries when sending a request to "
 		      "a sensor.\n"
@@ -77,7 +77,7 @@ static SelectionType get_valid_polling(const char *str){
 	SelectionType polling;
 
 	polling = str_to_natural(str);
-	if (polling != ROUND_ROBIN && polling != RANDOM){
+	if (!is_selection_valid(polling)){
 		fprintf(stderr, "invalid polling order option specified\n");
 		return -1;
 	}
@@ -408,8 +408,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	if (strcmp(opt->name, "password") == 0)
 		ret = validate_password(*(char **)opt->simple_value);
 	else if (strcmp(opt->name, "polling_order") == 0)
-		ret = (*(int *)opt->simple_value != ROUND_ROBIN && 
-		       *(int *)opt->simple_value != RANDOM) ? 0 : 1;
+		ret = is_selection_valid(*(int *)opt->simple_value);
 	else if (strcmp(opt->name, "timeout") == 0)
 		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "retries") == 0)
@@ -536,8 +535,8 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 
 	/* 
 	 * if an option is defined in the config file and as a command line
-	 * option, we ignore the one config file value. Command line options
-	 * always have a higher priority.
+	 * option, we ignore the value found in the config file. Command line
+	 * options always have a higher priority.
 	 */
 
 	if (clo.sensors) {
@@ -565,7 +564,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	if (clo.polling != -1)
 		final_opts->polling = clo.polling;
 	else if (final_opts->polling == -1)
-		final_opts->polling = DEFAULT_SELECTION_TYPE;
+		final_opts->polling = DEFAULT_POLLING_ORDER;
 
 	if(clo.timeout != -1)
 		final_opts->timeout = clo.timeout;
@@ -594,7 +593,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	 */
 
 	if (!final_opts->sensors){
-		fprintf(stderr, "Server address(es) are not set.\n");
+		fprintf(stderr, "Sensor address(es) not set.\n");
 		hlpmsg(final_opts->prog_name, 1);
 	}
 
@@ -624,17 +623,17 @@ void destroy_inputopts(InputOptions *opts)
 
 int main(int argc, char *argv[])
 {
-	Sensor m;
+	Sensor s;
 	InputOptions *in = fill_inputopts(argc, argv);
 	int i;
 
 	if(!in) return 1;
 
 	printf("Options:\n");
-	printf("Server Address(es): ");
+	printf("Sensor Address(es): ");
 	for(i=0; i < in->num_sensors; i++){
-		m = in->sensors[i];
-		printf("%s:%u ", inet_ntoa(m.addr), ntohs(m.port));
+		s = in->sensors[i];
+		printf("%s:%u ", inet_ntoa(s.addr), ntohs(s.port));
 	}
 	printf("\n");
 
@@ -646,6 +645,7 @@ int main(int argc, char *argv[])
 	} else {
 		printf("Unknown\n");
 	}
+
 	printf("Password: %s\n", in->password);
 	printf("Timeout: %d\n", in->timeout);
 	printf("Retries: %d\n", in->retries);
