@@ -24,7 +24,6 @@ static QemuVars qv;
 /* Globals */
 sigjmp_buf env;
 
-
 void sigvtalrm_handler(int signum)
 {
     tb_lock = SPIN_LOCK_UNLOCKED;
@@ -42,63 +41,60 @@ static void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-static char *getBlock(char *data, size_t len, int min_len, int *block_len)
+static char *get_next_block(char *data, size_t len, int min_len, int *block_len)
 {
 	static char *block_start = NULL;
-	char *p, *ret_val;
+	char *p, *ret_val, *block_end, *block_next;
+	char *last_byte = data + len - 1;
 
 	if (!block_start){
     		block_start = data;
-	} else if (block_start >= data + len){
-		/* WATCHOUT: this is the case where the last call to getBlock
-		 * returned the final block */
+	} else if (block_start > last_byte){
+		/*
+		 * WATCHOUT: this is the case where the last call to
+		 * get_next_block returned the final block 
+		 */
 		block_start = NULL;
 		return NULL;
 	}
-    
-	for (p = block_start; p < data + len; p++)
-	{
-		char *block_end = NULL;
-		char *block_next = NULL;
 
-		if (!*p){
-			block_end = p - 1;
-		} else if (p == data + len -1) { /* last byte but not NUL */
-			block_end = p;
-		}
+search:
+	/* look for the terminator */
+	block_end = block_next = NULL;
+   	for(p = block_start; ((p <= last_byte) && (*p != '\0')); p++);
 
-		if (!block_end)  /* no terminator found */
-			continue;
-		
-		/* from here on we assume we have found a terminator */
+	/* terminator was found */
+	block_end = p - 1;
 
-		*block_len = block_end - block_start + 1;
-
-		/* yes, it might point outside the buffer */
-	 	block_next = p + 1;
-	
-		if ((*block_len < min_len) && (block_next >= data + len)){
-			/* found small block, no other blocks follow */
-			block_start = NULL;
-			ret_val = NULL;
-			break;
-		} else if (block_next >= data + len) {
-			/* found ok block, no other blocks follow */
-			ret_val = block_start;
-			block_start = block_next; /* see WATCHOUT */
-			break;
-		} else if (*block_len >= min_len) {
-			/* found ok block, other blocks follow */
-			ret_val = block_start;
-			block_start = block_next;
-			break;
-		} else {
-			/* found small block, other blocks follow */
-			block_start = block_next;
-		}
+	if (!*p){
+		block_next = p + 1;
+	} else { /* past last byte (that btw wasn't NUL) */
+		block_next = p;
 	}
 
-    	return ret_val;
+	/* 
+	 * yes block_next might now point right after the buffer, 
+	 * but that's not a bug, it's a feature!
+	 */
+
+	*block_len = block_end - block_start + 1;
+
+	if ((*block_len < min_len) && (last_byte - block_next >= min_len - 1))
+	{
+		/* small block found, other blocks follow */
+		block_start = block_next;
+		goto search;
+	} else if (*block_len < min_len){
+		/* small block found, no other blocks follow */
+		ret_val = NULL;
+		block_start = NULL;
+	} else {
+		/* ok block found, other blocks might follow */
+		ret_val = block_start;
+		block_start = block_next; /* see WATCHOUT */
+	}
+
+	return ret_val;
 }
 
 /*
@@ -120,30 +116,27 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 {
     char *p;
     void *block;
-    int block_size, block_num = 0, i, ret;
+    int block_size, i, ret, block_num = 0;
     char threat_msg[51];
-
-    memset(threat_msg, 0, 51);
 
     if((data == NULL) || (len == 0))
         return 0;
  
-    while ((p = getBlock(data, len, MIN_BLOCK_LENGTH, &block_size)) != NULL)
+    while ((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size)))
     {
         block_num++;
 
-        block = calloc(1, block_size);
+        block = malloc(block_size);
         if (block == NULL) {
-            fprintf(stderr,"calloc failed while building block\n");
+            fprintf(stderr,"malloc failed while building block\n");
             exit(1);
         }
 	memcpy(block, p, block_size);
 
         for (i = 0; i < block_size - 5; i++)
         {
-            // memcpy(block, p, block_size);
             if (sigsetjmp(env,1) == 100) {
-                DPRINTF("block %d byte %.2d - Endless Loop detected!\n",
+                DPRINTF("block %d byte %d - Endless Loop detected!\n",
 			block_num, i);
                 setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
@@ -158,14 +151,15 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
                 case HIGH_RISK_SYSCALL:
                     DPRINTF("block %d byte %d - High risk syscall - %d\n", 
 		    	    block_num, i, qv.cpu->regs[R_EAX]);
-                    threat->payload = calloc(1, block_size);
-                    memcpy(threat->payload, p, block_size);
+                    threat->payload = block; /* we don't have to free this
+		    				now, it will get free'd
+						once the Threat is free'd */
                     threat->length = block_size;
                     threat->severity = SEVERITY_HIGH;
-                    snprintf(threat_msg, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
+                    snprintf(threat_msg, 50, "High risk syscall %d detected", 
+		    	     qv.cpu->regs[R_EAX]);
                     threat->msg = strdup(threat_msg);
                     cleanup();
-                    free(block);
                     return 1;
                 case EXIT_SYSCALL:
                     DPRINTF("block %d byte %d - Syscall exit\n", block_num, i);
@@ -305,8 +299,8 @@ void qemu_engine_destroy(void)
 void qemu_engine_reset(void)
 {
 	/* We don't use this function but it is required by
-     * the agent implementation.
-     */
+	 * the agent implementation.
+	 */
 	return;
 }
 

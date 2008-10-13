@@ -20,7 +20,7 @@
 struct ProgVars {
         DetectEngine *detect_engine;	/* registered detection engine */
         SensorSession *sensor_session;	/* current sensor session */
-	SelectionMethod select_sensor; 	/* "Next sensor" election method */
+	SelectionMethod select_sensor; 	/* "Next sensor" selection method */
 } pv;
 
 /* The linked-in engine will export this */

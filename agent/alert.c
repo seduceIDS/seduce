@@ -308,7 +308,7 @@ int do_request_response(int sock, const char *com, const char *arg)
 }
 
 int submit_alert(const SensorSession *s, const ConnectionInfo *c,
-								const Threat *t)
+		 const Threat *t)
 {
 	int sock;
 	char arg[128];

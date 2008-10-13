@@ -55,7 +55,7 @@ static int dummy_engine_process(char *data, size_t len, Threat *t)
 		return 0;
 	}
 
-	/* if we got this far a threat must be returned */
+	/* if we got this far, a threat must be returned */
 	size = sizeof(shellcode);
 
 	if((t->payload = malloc(size)) == NULL)

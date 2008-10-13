@@ -24,7 +24,7 @@ typedef struct _InputOptions {
 } InputOptions;
 
 /* Default Options */
-#define DEFAULT_SELECTION_TYPE	ROUND_ROBIN
+#define DEFAULT_POLLING_ORDER	ROUND_ROBIN
 #define DEFAULT_TIMEOUT		5
 #define DEFAULT_RETRIES		5
 #define DEFAULT_NO_WORK_WAIT	5

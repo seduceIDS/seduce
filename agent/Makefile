@@ -81,7 +81,7 @@ options.o: options.c options.h
 sensor_contact.o: sensor_contact.c sensor_contact.h error.h utils.h
 	$(CC) $(CFLAGS) -c sensor_contact.c
 
-item_election.o: item_selection.c item_selection.h options.h
+item_selection.o: item_selection.c item_selection.h options.h
 	$(CC) $(CFLAGS) -c item_selection.c
 
 error.o: error.c error.h
