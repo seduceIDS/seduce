@@ -52,7 +52,7 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-$(NAME):$(OBJS) sensor_contact.h alert.h error.h options.h
+$(NAME):$(OBJS) 
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
 	@echo The agent is linked against the '*'$(ENGINE)'*' detection engine. 
@@ -69,19 +69,19 @@ seduce: seduce.c detect_engine.o detect_engine_qemu.o
 agent.o: agent.c alert.h error.h options.h detect_engine.h sensor_contact.h item_selection.h utils.h
 	$(CC) $(CFLAGS) -c agent.c
 
-alert.o: alert.c base64_encoder.h utils.h
+alert.o: alert.c base64_encoder.h utils.h sensor_contact.h detect_engine.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine.c 
 
-options.o: options.c options.h
+options.o: options.c options.h item_selection.h
 	$(CC) $(CFLAGS) -c options.c
 
 sensor_contact.o: sensor_contact.c sensor_contact.h error.h utils.h
 	$(CC) $(CFLAGS) -c sensor_contact.c
 
-item_selection.o: item_selection.c item_selection.h options.h
+item_selection.o: item_selection.c item_selection.h 
 	$(CC) $(CFLAGS) -c item_selection.c
 
 error.o: error.c error.h
@@ -90,7 +90,7 @@ error.o: error.c error.h
 base64_encoder.o: base64_encoder.c base64_encoder.h
 	$(CC) $(CFLAGS) -c base64_encoder.c
 
-detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
+detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h utils.h
 	$(CC) $(CFLAGS) -c detect_engine_qemu.c 
 
 detect_engine_dummy.o: detect_engine_dummy.c utils.h
@@ -99,7 +99,6 @@ detect_engine_dummy.o: detect_engine_dummy.c utils.h
 utils.o: utils.c utils.h md5.h
 	$(CC) $(CFLAGS) -c utils.c
 
-# I need this for testing
 md5.o: md5.c md5.h
 	$(CC) $(CFLAGS) -c md5.c
 
