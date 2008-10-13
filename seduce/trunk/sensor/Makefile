@@ -49,7 +49,7 @@ HDRS		= sensor.h data.h hash.h sensor_contact.h options.h sniffer.h \
 
 all: $(NAME)
 
-$(NAME): $(OBJS) $(HEADERS)
+$(NAME): $(OBJS) $(HDRS)
 	$(CC) -o $@ $(OBJS) $(LIBS)
 
 clean:
