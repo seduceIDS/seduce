@@ -1,9 +1,9 @@
 #ifndef _ALERT_H
-#define _ALERT_H	1
+#define _ALERT_H
 
-#include "sensor_contact.h"
+#include "server_contact.h"
 #include "detect_engine.h"
 
-int submit_alert(const SensorSession *, const ConnectionInfo *, const Threat *);
+int submit_alert(const ServerSession *, const ConnectionInfo *,const Threat *t);
 
 #endif /* _ALERT_H */

@@ -93,7 +93,7 @@ static int fill_source_target(Alert *p, idmef_alert_t *alert)
         if ( ret < 0 )
                 return ret;
 
-        idmef_service_set_port(service, p->addr.source);
+        idmef_service_set_port(service, p->addr.s_port);
         
 /*        idmef_service_set_ip_version(service, IP_VER(p->iph)); */
         idmef_service_set_iana_protocol_number(service, p->proto);
@@ -109,7 +109,7 @@ static int fill_source_target(Alert *p, idmef_alert_t *alert)
         ret = idmef_address_new_address(address, &string);
         if ( ret < 0 )
                 return ret;
-        tmp_ip.s_addr = p->addr.saddr;
+        tmp_ip.s_addr = p->addr.s_addr;
         snprintf(saddr, sizeof(saddr), "%s", inet_ntoa(tmp_ip));
         prelude_string_set_ref(string, saddr);
 
@@ -121,7 +121,7 @@ static int fill_source_target(Alert *p, idmef_alert_t *alert)
         if ( ! ret < 0 )
                 return ret;
         
-        idmef_service_set_port(service, p->addr.dest);
+        idmef_service_set_port(service, p->addr.d_port);
         
 /*        idmef_service_set_ip_version(service, IP_VER(p->iph)); */
         idmef_service_set_iana_protocol_number(service,p->proto);
@@ -138,7 +138,7 @@ static int fill_source_target(Alert *p, idmef_alert_t *alert)
         if ( ret < 0 )
                 return ret;
 
-        tmp_ip.s_addr = p->addr.daddr;        
+        tmp_ip.s_addr = p->addr.d_addr;        
         snprintf(daddr, sizeof(daddr), "%s", inet_ntoa(tmp_ip));
         prelude_string_set_ref(string, daddr);
         

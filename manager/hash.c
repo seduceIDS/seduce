@@ -18,37 +18,64 @@ void destroy_hash_table (GHashTable *hash)
 	g_hash_table_destroy(hash);
 }
 
+		/* Sensor functions */
+Sensor *hash_sensor_insert(GHashTable *hash, unsigned int id)
+{
+	Sensor *new_sensor;
+
+	new_sensor = g_try_new(Sensor, 1);
+	if (new_sensor)
+		g_hash_table_insert(hash, GUINT_TO_POINTER(id), new_sensor);
+	else
+		errno_cont("g_try_new");
+
+	return new_sensor;
+}
+
+Sensor *hash_sensor_lookup(GHashTable *hash, unsigned int id)
+{
+	return g_hash_table_lookup(hash, GUINT_TO_POINTER(id));
+}
+
+int hash_sensor_remove(GHashTable *hash, unsigned int id)
+{
+	gboolean ret;
+
+	ret = g_hash_table_remove(hash, GUINT_TO_POINTER(id));
+
+	return (ret == TRUE) ? 1 : 0;
+}
+
 		/* Session functions */
-Session *hash_session_insert(unsigned id)
+Session *hash_session_insert(GHashTable *hash, unsigned int id)
 {
 	Session *new_session;
 
 	new_session = g_try_new(Session, 1);
 	if (new_session)
-		g_hash_table_insert(sensor.hash, GUINT_TO_POINTER(id),
-								new_session);
+		g_hash_table_insert(hash, GUINT_TO_POINTER(id), new_session);
 	else
 		errno_cont("g_try_new");
 
 	return new_session;
 }
 
-Session * hash_session_lookup(unsigned id)
+Session * hash_session_lookup(GHashTable *hash, unsigned int id)
 {
-	return g_hash_table_lookup(sensor.hash, GUINT_TO_POINTER(id));
+	return g_hash_table_lookup(hash, GUINT_TO_POINTER(id));
 }
 
-int hash_session_remove(unsigned id)
+int hash_session_remove(GHashTable *hash, unsigned int id)
 {
 	gboolean ret;
 
-	ret = g_hash_table_remove(sensor.hash, GUINT_TO_POINTER(id));
+	ret = g_hash_table_remove(hash, GUINT_TO_POINTER(id));
 
 	return (ret == TRUE) ? 1 : 0;
 }
 
 		/* Agent functions */
-int hash_agent_insert(GHashTable *hash, uint32_t id, unsigned short index)
+int hash_agent_insert(GHashTable *hash, u_int32_t id, unsigned short index)
 {
 	unsigned short *value;
 

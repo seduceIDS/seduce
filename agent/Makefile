@@ -22,13 +22,13 @@ RELEASE		= -O2
 CFLAGS		= -Wall -D_GNU_SOURCE $(DEBUG)
 CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/ -I./
 
-LDFLAGS		=
-LIBS_CFLAGS	=
+LDFLAGS		= 
+LIBS_CFLAGS	= 
 
 LIBS_QEMU	= -lqemu
 LIBS		= -lconfuse
 
-CORE_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
+CORE_OBJS	= agent.o detect_engine.o server_contact.o error.o alert.o options.o base64_encoder.o
 
 ENGINE		= dummy
 
@@ -37,14 +37,13 @@ ifeq ($(ENGINE), qemu)
 	LIBS += $(LIBS_QEMU)
 	OBJS = $(CORE_OBJS) detect_engine_qemu.o
 endif
-
 ifeq ($(ENGINE), dummy)
 	OBJS = $(CORE_OBJS) detect_engine_dummy.o
 endif
 
 .PHONY: all dummy qemu clean install install-bin install-conf
 
-all: $(NAME) 
+all: $(NAME)
 
 dummy:
 	$(MAKE) ENGINE=dummy
@@ -52,37 +51,37 @@ dummy:
 qemu:
 	$(MAKE) ENGINE=qemu
 
-$(NAME):$(OBJS) 
+$(NAME):$(OBJS) agent.h server_contact.h alert.h error.h options.h
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
 	@echo
-	@echo The agent is linked against the '*'$(ENGINE)'*' detection engine. 
-	@echo If you want to use another engine, either modify the ENGINE 
-	@echo variable or use the engine name as a target like this":"
+	@echo The agent is linked against the $(ENGINE) detection engine. If you
+	@echo want to use another engine, either modify the ENGINE variable or
+	@echo use the engine name as a target like this":"
 	@echo
 	@echo -e "\t make qemu"
 	@echo -e "\t make dummy"
 	@echo
 
-seduce: seduce.c detect_engine.o detect_engine_qemu.o
-	$(CC) $(CFLAGS) $(CFLAGS_QEMU) -o $@ $^ $(LIBS_QEMU)
+seduce: seduce.o detect_engine.o detect_engine_qemu.o
+	$(CC) -o $@ seduce.o detect_engine.o detect_engine_qemu.o $(LIBS_QEMU)
 
-agent.o: agent.c alert.h error.h options.h detect_engine.h sensor_contact.h item_selection.h utils.h
+seduce.o: seduce.c
+	$(CC) -c $(CFLAGS) -I.  $(LIBS_CFLAGS) seduce.c
+
+agent.o: agent.c agent.h alert.h error.h options.h detect_engine.h server_contact.h
 	$(CC) $(CFLAGS) -c agent.c
 
-alert.o: alert.c base64_encoder.h utils.h sensor_contact.h detect_engine.h
+alert.o: alert.c agent.h base64_encoder.h
 	$(CC) $(CFLAGS) -c alert.c
 
 detect_engine.o: detect_engine.c detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine.c 
 
-options.o: options.c options.h item_selection.h
+options.o: options.c options.h
 	$(CC) $(CFLAGS) -c options.c
 
-sensor_contact.o: sensor_contact.c sensor_contact.h error.h utils.h
-	$(CC) $(CFLAGS) -c sensor_contact.c
-
-item_selection.o: item_selection.c item_selection.h 
-	$(CC) $(CFLAGS) -c item_selection.c
+server_contact.o: server_contact.c server_contact.h error.h utils.h
+	$(CC) $(CFLAGS) -c server_contact.c
 
 error.o: error.c error.h
 	$(CC) $(CFLAGS) -c error.c
@@ -90,17 +89,11 @@ error.o: error.c error.h
 base64_encoder.o: base64_encoder.c base64_encoder.h
 	$(CC) $(CFLAGS) -c base64_encoder.c
 
-detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h utils.h
+detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h
 	$(CC) $(CFLAGS) -c detect_engine_qemu.c 
 
-detect_engine_dummy.o: detect_engine_dummy.c utils.h
+detect_engine_dummy.o: detect_engine_dummy.c
 	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
-
-utils.o: utils.c utils.h md5.h
-	$(CC) $(CFLAGS) -c utils.c
-
-md5.o: md5.c md5.h
-	$(CC) $(CFLAGS) -c md5.c
 
 clean:
 	@rm -f *.o *~ agent seduce 

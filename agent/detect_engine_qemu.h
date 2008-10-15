@@ -14,11 +14,8 @@ typedef struct _QemuVars {
     CPUX86State *cpu;
 } QemuVars;
 
-/* Blocks smaller than this are not emulated */
-#define MIN_BLOCK_LENGTH	30
-
 void sigvtalrm_handler(int signum);
-int qemu_engine_process(char *data, size_t len, Threat *threat);
+int qemu_engine_process(char *data, size_t len);
 int qemu_engine_init(void);
 void qemu_engine_destroy(void);
 int qemu_engine_get_threat(Threat *t);

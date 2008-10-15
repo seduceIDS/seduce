@@ -1,10 +1,10 @@
-NAME		= sensor
+NAME		= manager
 
 INSTALL		= /usr/bin/install
 INSTALL_USER	= root
 INSTALL_GROUP	= root
 DESTDIR		= /usr/local
-BINDIR		= $(DESTDIR)/sbin
+BINDIR		= $(DESTDIR)/bin
 SYSCONFDIR	= $(DESTDIR)/etc/seduce
 
 INSTALL_PROG_DIR= $(INSTALL) -d -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 755
@@ -17,16 +17,17 @@ DEBUG		= -g -D_DEBUG
 RELEASE		= -O2
 CFLAGS		= -D_BSD_SOURCE -Wall $(DEBUG)
 LDFLAGS		= 
+LIBS_CFLAGS	= `pkg-config --cflags glib-2.0`
+LIBS		= `pkg-config --libs glib-2.0` \
+		  `libprelude-config --libs` \
+		  -lpthread -lm -lconfuse
 
-PCAP_CFLAGS	= 
-PCAPLIB		= -lpcap
+OBJS		= manager.o sensor_contact.o data.o hash.o job.o \
+		  alert.o utils.o agent_contact.o thread.o options.o \
+		  oom_handler.o alert_recv.o
 
-LIBS_CFLAGS	= $(PCAP_CFLAGS)
-LIBS		= -lnids $(PCAPLIB) -lgthread-2.0 -lnsl -lconfuse
-
-OBGS		= sensor.o chksum_ctl.o server_contact.o options.o
-HDRS		= sensor.h server_contact.h
-
+HEADERS		= data.h sensor_contact.h agent_contact.h hash.h errors.h \
+		  job.h alert.h utils.h thread.h oom_handler.h alert_recv.h
 
 .PHONY: all clean install install-bin install-conf
 
@@ -35,18 +36,18 @@ HDRS		= sensor.h server_contact.h
 
 all: $(NAME)
 
-$(NAME):$(OBGS) $(HDRS)
-	$(CC) -o $@  $(OBGS) $(LDFLAGS) $(LIBS)
+$(NAME): $(OBJS) $(HEADERS)
+	$(CC) -o $@ $(OBJS) $(LIBS)
 
 clean:
-	rm -f *.o *~ sensor
+	rm -f *.o *~ manager
 
 install: install-bin install-conf
 	@echo $(NAME) installation completed
 
 install-bin: $(NAME)
 	@echo Installing binaries under $(BINDIR) ...
-	-$(INSTALL_PROG_DIR) $(BINDIR)
+#	$(INSTALL_PROG_DIR) $(BINDIR)
 	$(INSTALL_PROG) $(NAME) $(BINDIR)
 
 install-conf:
@@ -54,4 +55,4 @@ install-conf:
 	-$(INSTALL_CONF_DIR) $(SYSCONFDIR)
 	$(INSTALL_CONF) $(NAME).conf $(SYSCONFDIR)
 
-# EOF
+#EOF

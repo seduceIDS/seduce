@@ -4,13 +4,13 @@
 #include <glib.h>
 #include <stdlib.h>
 
-#include "sensor.h"
+#include "manager.h"
 #include "data.h"
 
 
 typedef struct _AgentInfo {
-	uint32_t id;		/* The agent ID	*/
-	uint32_t seq;		/* Seq.Num. of the last packet send */
+	u_int32_t id;		/* The agent ID	*/
+	u_int32_t seq;		/* Seq.Num. of the last packet send */
 	struct sockaddr_in addr;/* Agent's address info	*/
 	DataInfo history;	/* Struct with info about the last data sent */
 	time_t timestamp;
@@ -18,23 +18,22 @@ typedef struct _AgentInfo {
 
 typedef struct _Agents {
 	AgentInfo *table; /* A table of Agent Info structs    */
-	uint8_t *map; 	  /* A bit map of used entries in the table */
+	u_int8_t *map; 	  /* A bit map of used entries in the table */
 	size_t map_size;  /* Map's size in bytes */
 	int max; 	  /* The max number of agent connections allowed */
 	GHashTable *hash; /* Hash-table associating ID's with table entries */
 } Agents;
 
 typedef struct _UDPPacket {
-	unsigned size;
-	unsigned type;
-	unsigned seq;
-	unsigned id;
+	unsigned int size;
+	unsigned int type;
+	unsigned int seq;
+	unsigned int id;
 	struct sockaddr_in addr;
 	char pwd[MAX_PWD_SIZE];
 } UDPPacket;
 
 		/* function Decleration */
-void *agents_contact(void *thread_params);
 int check_password(const char *p);
 
 		/* UDP Communication */

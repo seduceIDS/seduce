@@ -12,15 +12,17 @@
 #include "utils.h"
 #include "hash.h"
 #include "errors.h"
-#include "data.h"
+#include "job.h"
 #include "alert_recv.h"
 
+
+extern  SensorList sensorlist;
 
 static int udp_sock; /* The UDP Socket */
 static int tcp_sock; /* The TCP Socket listening for incoming connections */
 
 /*
- * Function: get_new_client_pos(uint8_t *, size_t)
+ * Function: get_new_client_pos(u_int8_t *, size_t)
  *
  * Purpose: Find the first unused entry in the Agents table 
  *
@@ -30,7 +32,7 @@ static int tcp_sock; /* The TCP Socket listening for incoming connections */
  * Returns: the index of the first unused size on success
  *          map_size * 8  on error
  */
-static unsigned short get_new_client_pos(uint8_t *map, size_t map_size)
+static unsigned short get_new_client_pos(u_int8_t *map, size_t map_size)
 {
 	int i;
 	unsigned short offset;
@@ -44,7 +46,7 @@ static unsigned short get_new_client_pos(uint8_t *map, size_t map_size)
 	return map_size*8;
 }
 
-static void remove_agent(Agents *, unsigned);
+static void remove_agent(Agents *, unsigned int);
 
 /*
  * Function: cleanup_map(Agents *)
@@ -78,7 +80,7 @@ static int cleanup_map(Agents *agents)
 }
 
 /* just check the password and return TRUE if it matches */
-inline int check_password(const char *pwd)
+int check_password(const char *pwd)
 {
 	return (strncmp(pwd, pv.password, MAX_PWD_SIZE)) ? 0 : 1;
 }
@@ -98,8 +100,8 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 {
 	AgentInfo *this_agent;
 	unsigned short index;
-	uint8_t mask=0;
-	unsigned id;
+	u_int8_t mask=0;
+	unsigned int id;
 	int i;
 
 	DPRINTF("\n");
@@ -117,7 +119,7 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 
 	/* Create a unique ID */
 	do {
-		id = (uint32_t)get_rand();
+		id = (u_int32_t)get_rand();
 		if(id == 0)
 			continue;
 	} while(hash_agent_lookup(agents->hash, id));
@@ -146,14 +148,14 @@ static AgentInfo *add_agent(Agents *agents, struct sockaddr_in *addr)
 }
 
 /*
- * Function: remove_agent(Agents *, unsigned)
+ * Function: remove_agent(Agents *, unsigned int *)
  *
  * Purpose:  Remove an agent from the Agent table
  *
  * Arguments:  agents=> struct with info about all the agents
  *             id => Agent's ID;
  */
-static void remove_agent(Agents *agents, unsigned id)
+static void remove_agent(Agents *agents, unsigned int id)
 {
 	AgentInfo *this_agent;
 	u_int8_t mask;
@@ -176,10 +178,16 @@ static void remove_agent(Agents *agents, unsigned id)
 	/* if we have data in the history left, destroy the group */
 	if(this_agent->history.data.tcp) {
 
-		mutex_lock(&sensor.mutex);
+		mutex_lock(&this_agent->history.sensor->mutex);
 		ret = destroy_datagroup(&this_agent->history);
-		/* TODO: Do I need to check about ret ? */
-		mutex_unlock(&sensor.mutex);
+		mutex_unlock(&this_agent->history.sensor->mutex);
+
+		if(ret == 2) {
+			mutex_lock(&sensorlist.mutex);
+			destroy_sensor(this_agent->history.sensor);
+			mutex_unlock(&sensorlist.mutex);
+		}
+
 	}
 
 	memset(this_agent, '\0', sizeof(AgentInfo));
@@ -285,10 +293,10 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 
 	if(work->is_grouphead) {
 		*(u_int32_t *)(buf + 16) = htonl(work->session->proto);
-		*(u_int16_t *)(buf + 20) = work->session->addr.source;
-		*(u_int16_t *)(buf + 22) = work->session->addr.dest;
-		*(u_int32_t *)(buf + 24) = work->session->addr.saddr;
-		*(u_int32_t *)(buf + 28) = work->session->addr.daddr;
+		*(u_int16_t *)(buf + 20) = work->session->addr.s_port;
+		*(u_int16_t *)(buf + 22) = work->session->addr.d_port;
+		*(u_int32_t *)(buf + 24) = work->session->addr.s_addr;
+		*(u_int32_t *)(buf + 28) = work->session->addr.d_addr;
 		memcpy(buf + 32, payload, payload_length); 
 	} else
 		memcpy(buf + 16, payload, payload_length);
@@ -327,18 +335,30 @@ static int send_new_work(AgentInfo *agent)
 
 	DPRINTF("\n");
 	if(agent->history.data.tcp) { /* doesn't matter, could be udp too */
+
 		/* 
 		 * Destroy the old data group,
 		 * we are about to start with a new one...
 		 */
-		mutex_lock(&sensor.mutex);
+		mutex_lock(&agent->history.sensor->mutex);
 
 		ret = destroy_datagroup(&agent->history);
 
-		mutex_unlock(&sensor.mutex);
+		mutex_unlock(&agent->history.sensor->mutex);
+
+
+		/* If safe, destroy the sensor too */
+		if(ret == 2) {
+
+			mutex_lock(&sensorlist.mutex);
+
+			destroy_sensor(agent->history.sensor);
+
+			mutex_unlock(&sensorlist.mutex);
+		}
 	}
 
-	ret = consume_group(send_work, agent);
+	ret = consume_job(send_work, agent);
 	if (ret != -1)  /* a job was consumed */
 		return ret;
 
@@ -369,7 +389,7 @@ static int send_next_work(AgentInfo *agent)
 
 		work = agent->history;
 
-		mutex_lock(&sensor.mutex);
+		mutex_lock(&work.sensor->mutex);
 
 		if(work.session->proto == IPPROTO_TCP)
 			work.data.tcp = get_next_data(work.data.tcp);
@@ -388,7 +408,7 @@ static int send_next_work(AgentInfo *agent)
 		if(work.data.tcp)
 			ret = send_work(agent, &work);
 
-		mutex_unlock(&sensor.mutex);
+		mutex_unlock(&work.sensor->mutex);
 	}
 
 	if (ret == -1) { /* nothing sent */
@@ -415,11 +435,11 @@ static int send_current_work(AgentInfo *agent)
 	DPRINTF("\n");
 	if(agent->history.data.tcp) { /* tcp doesn't matter, could be udp too */
 
-		mutex_lock(&sensor.mutex); /* Do I need this? */
+		mutex_lock(&agent->history.sensor->mutex); /* Do I need this? */
 		
 		ret = send_work(agent, &agent->history);
 
-		mutex_unlock(&sensor.mutex);
+		mutex_unlock(&agent->history.sensor->mutex);
 
 	} else
 		ret = send_msg(agent, UDP_NOT_FOUND);
@@ -459,12 +479,12 @@ static int recv_udp_packet(UDPPacket *pck)
 	if((numbytes != UDP_HDR_SIZE) && (numbytes != max_pck_size))
 		return -1;
 
-	pck->size = ntohl(*(uint32_t *) (buf +  0));
+	pck->size = ntohl(*(u_int32_t *) (buf +  0));
 	if(pck->size != numbytes)
 		return -1;
-	pck->type = ntohl(*(uint32_t *) (buf +  4));
-	pck->seq  = ntohl(*(uint32_t *) (buf +  8));
-	pck->id   = ntohl(*(uint32_t *) (buf + 12));
+	pck->type = ntohl(*(u_int32_t *) (buf +  4));
+	pck->seq  = ntohl(*(u_int32_t *) (buf +  8));
+	pck->id   = ntohl(*(u_int32_t *) (buf + 12));
 
 	if(numbytes == max_pck_size)
 		strncpy(pck->pwd,buf + UDP_HDR_SIZE, UDP_INFO_SIZE - 1);
@@ -591,7 +611,7 @@ static void init_agents(Agents *agents)
  *
  * Arguments: data=> Connection parameters
  */
-void *agents_contact(void *thread_params)
+void *agents_contact(void)
 {
 	int newfd,maxfd, one;
 	fd_set readset, allset;

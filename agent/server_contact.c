@@ -13,10 +13,10 @@
 #include "utils.h"
 #include "error.h"
 
-#include "sensor_contact.h"
+#include "server_contact.h"
 
 
-inline char *pwdcpy(const SensorSession *s, char *buf)
+inline char *pwdcpy(const ServerSession *s, char *buf)
 {
 	return strncpy(buf, s->password, PROTO_PWD_SIZE);
 }
@@ -27,16 +27,16 @@ static void sigalrm_handler(int s)
 }
 
 /*
- * Function: send_pck(const SensorSession *, int)
+ * Function: send_pck(const ServerSession *, int)
  *
- * Purpose: send a UDP package to the sensor
+ * Purpose: send a UDP package to the manager
  *
  * Arguments: type => The type of the package
  *
  * Returns: 1 => success
  *          0 => An error occured
  */
-static int send_pck(const SensorSession *s, int type)
+static int send_pck(const ServerSession *s, int type)
 {
 	char pck[PROTO_HDR_SIZE + PROTO_PWD_SIZE];
 	size_t length;
@@ -103,7 +103,7 @@ static inline void fill_conn_info(ConnectionInfo *dst, const char *src)
 /*
  * Function: rcv_pck(Packet *)
  *
- * Purpose: receive a UDP packet from the sensor
+ * Purpose: receive a UDP packet from the manager
  *
  * Arguments: pck => The Packet struct to fill
  *
@@ -112,7 +112,7 @@ static inline void fill_conn_info(ConnectionInfo *dst, const char *src)
  *          -1 => Timed Out
  *          -2 => Package Sanity (wrong package fields)
  */
-static int recv_pck(const SensorSession *s, Packet *pck)
+static int recv_pck(const ServerSession *s, Packet *pck)
 {
 	char hdr[PROTO_HDR_SIZE]; /* for the packet header */
 	char info[PROTO_INFO_SIZE]; /* for the session info (RECV_DATA_HEAD) */
@@ -271,7 +271,7 @@ static int recv_pck(const SensorSession *s, Packet *pck)
 	 */
 	if((size != numbytes) || (msg.msg_flags & MSG_TRUNC)) {
 		/* the package is fucked up... */
-		DPRINTF("Size = %d, numbytes = %d\n", size, numbytes);
+		fprintf(stderr, "Size = %d, numbytes = %d\n", size, numbytes);
 		proto_violation("The actual packet size"
 				"and the packet size field don't match");
 		ret = -2;
@@ -318,9 +318,9 @@ void destroy_payload(Work *w)
 }
 
 /*
- * Function: do_request(const SensorSession *, unsigned int, Packet *)
+ * Function: do_request(const ServerSession *, unsigned int, Packet *)
  *
- * Purpose: Send a message to the sensor and then receive a valid reply. A 
+ * Purpose: Send a message to the manager and then receive a valid reply. A 
  *          reply is valid if it has the same sequence number with the request
  *
  * Arguments: type => The type of the request to send
@@ -330,20 +330,20 @@ void destroy_payload(Work *w)
  *           0 => Critical Error
  *          -1 => Timed Out
  */
-static int do_request(const SensorSession *s, unsigned int type, Packet *pck)
+static int do_request(const ServerSession *s, unsigned int type, Packet *pck)
 {
 	int ret;
 
 	ret = send_pck(s, type);
 	if(ret == 0) {
-		fprintf(stderr, "sensor_request: Can't send request\n");
+		fprintf(stderr, "server_request: Can't send request\n");
 		return 0;
 	}
 
 	if((pck == NULL) || (type == SEND_QUIT)) {
 		/* 
 		 * If no Packet supplied or type is SEND_QUIT, then we don't
-		 * expect an answer by the sensor (manager).
+		 * expect an answer by the server (manager).
 		 */
 		return 1;
 	}
@@ -384,19 +384,19 @@ static int do_request(const SensorSession *s, unsigned int type, Packet *pck)
 	return 1;
 }
 
-static int handle_connect_reply(SensorSession *s, Packet *pck)
+static int handle_connect_reply(ServerSession *s, Packet *pck)
 {
 	switch(pck->type) {
 	case RECV_CONNECTED:
-		DPRINTF("Connected with ID %d\n", pck->id);
+		printf("Connected with ID %d\n", pck->id);
 		/* save the new id and seq*/
 		s->id = pck->id;
 		s->seq = pck->seq;
 		return 1;
 
 	case RECV_NOT_CONN:
-		/* the sensor does not connect us... */
-		DPRINTF("Sensor rejected me.\n");
+		/* the server does not connect us... */
+		printf("Server rejected me.\n");
 		return 0;
 
 	default:
@@ -406,7 +406,7 @@ static int handle_connect_reply(SensorSession *s, Packet *pck)
 	}
 }
 
-static int handle_newwork_reply(SensorSession *s, Packet *pck)
+static int handle_newwork_reply(ServerSession *s, Packet *pck)
 {
 	destroy_payload(&s->current);
 
@@ -426,7 +426,7 @@ static int handle_newwork_reply(SensorSession *s, Packet *pck)
 	}
 }
 
-static int handle_getnext_reply(SensorSession *s, Packet *pck)
+static int handle_getnext_reply(ServerSession *s, Packet *pck)
 {
 
 	destroy_payload(&s->current);
@@ -447,7 +447,7 @@ static int handle_getnext_reply(SensorSession *s, Packet *pck)
 	}
 }
 
-int sensor_request(SensorSession *s, int req_type)
+int server_request(ServerSession *s, int req_type)
 {
 	Packet pck;
 	int ret;
@@ -466,25 +466,27 @@ retry:
 	if(ret == 0)
 		critical_error(1, "Unable to communicate with the manager");
 	else if(ret == -1) {
-		DPRINTF("timed out.\n");
+		printf("timed out.\n");
 
 		if(--retries_left) {
-			DPRINTF("Retrying...\n");
+			printf("Retrying...\n");
 			goto retry;
 		}
 
-		DPRINTF("No more retries left...\n");
+		printf("No more retries left...\n");
 		return -1;
 	}
 
-	DPRINTF("Request submitted. Examining the reply...\n");
+	printf("Request submitted\n");
+
+	printf("Examining the reply...");
 
 	switch(req_type) {
 	case SEND_NEW_AGENT:
 		ret = handle_connect_reply(s, &pck);
 		break;
 	case SEND_QUIT:
-		DPRINTF("nothing to examine. We are quitting\n");
+		printf("nothing to examin. We are quitting\n");
 		ret = 1;
 		break;
 	case SEND_NEW_WORK:
@@ -500,27 +502,27 @@ retry:
 	else {
 		/* 
 		 * I've got a protocol violation. Either someone is
-		 * messing up with the packets or the sensor went crazy.
-		 * I'll retry. If this was a real sensor reply, then the
-		 * sensor will send the same reply back or will ignore me.
+		 * messing up with the packets or the manager went crazy.
+		 * I'll retry. If this was a real server reply, then the
+		 * server will send the same reply back or will ignore me.
 		 */
 		if(--retries_left) {
-			DPRINTF("Retrying...\n");
+			printf("Retrying...\n");
 			goto retry;
 		}
 
-		DPRINTF("No more retries left...\n");
+		printf("No more retries left...\n");
 		return -1;
 	}
 }
 
-SensorSession *init_session(struct in_addr addr, unsigned short port, 
+ServerSession *init_session(struct in_addr addr, unsigned short port, 
 				const char *pwd, int timeout, int retries)
 {
 	struct sigaction sa;
-	SensorSession  *srv_session;
+	ServerSession  *srv_session;
 
-	srv_session = calloc(1, sizeof(SensorSession));
+	srv_session = calloc(1, sizeof(ServerSession));
 	if(srv_session == NULL) {
 		perror("malloc");
 		return NULL;
@@ -531,6 +533,8 @@ SensorSession *init_session(struct in_addr addr, unsigned short port,
 		perror("strdup");
 		goto err1;
 	}
+
+	printf("Passsword: %s@\n", srv_session->password);
 
 	/* initialize the socket */
 	srv_session->sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -565,19 +569,18 @@ err1:
 	return NULL;
 }
 
-void destroy_session(SensorSession **srv_session)
+void destroy_session(ServerSession *srv_session)
 {
-	if (*srv_session) {
-		if((*srv_session)->password)
-			free((*srv_session)->password);
-		
-		close((*srv_session)->sock);
-		free(*srv_session);
-		*srv_session = NULL;
+	if(srv_session) {
+		if(srv_session->password)
+			free(srv_session->password);
+
+		free(srv_session);
+		srv_session = NULL;
 	}
 }
 
-const Work * fetch_current_work(const SensorSession *srv_session)
+const Work * fetch_current_work(const ServerSession *srv_session)
 {
 	return &srv_session->current;
 }

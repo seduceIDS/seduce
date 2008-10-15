@@ -8,6 +8,7 @@
 #include "detect_engine.h"
 #include "detect_engine_qemu.h"
 
+
 void *load_file(const char *filename, unsigned long *fsize)
 {
     int fd;
@@ -41,7 +42,6 @@ int main(int argc, char **argv)
     void *buff;
     unsigned long fsize;
     struct sigaction sa;
-    Threat t;
     int ret;
 
     if (argc < 2) {
@@ -61,18 +61,20 @@ int main(int argc, char **argv)
     buff = load_file(argv[1], &fsize);
 
     qemu_engine_init();
-    ret = qemu_engine_process(buff, fsize + 1, &t);
+    ret = qemu_engine_process(buff, fsize + 1);
     qemu_engine_destroy();
     free(buff);
 
     if (ret == 1)
     {
+        Threat t;
+        qemu_engine_get_threat(&t);
         printf("Threat detected - %s\n", t.msg);
-        destroy_threat(&t);
+        free(t.msg);
     } else if (ret == 0)
         printf("No threat detected\n");
     else
-        printf("Error while processing packet\n");
+        printf("Unknown return code\n");
     
     return 0;
 }

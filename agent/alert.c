@@ -8,14 +8,13 @@
 #include <arpa/inet.h>
 #include <sys/uio.h>
 
-#include "sensor_contact.h"
+#include "server_contact.h"
 #include "detect_engine.h"
 #include "base64_encoder.h"
-#include "utils.h"
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
-static int tcp_connect(const SensorSession *s)
+static int tcp_connect(const ServerSession *s)
 {
 	int sock;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -178,7 +177,7 @@ again:
 	if(strcmp(buf, rep) == 0)
 		return 1;
 	else {
-		fprintf(stderr, "Error. Sensor Replied: %s\n", buf);
+		fprintf(stderr, "Error. Server Replied: %s\n", buf);
 		return 0;
 	}
 }
@@ -296,10 +295,10 @@ int do_request_response(int sock, const char *com, const char *arg)
 
 	ret = check_reply(sock, "OK");
 	if(ret < 0) {
-		fprintf(stderr, "Error when waiting sensors reply");
+		fprintf(stderr, "Error when waiting servers reply");
 		return 0;
 	} else if(ret == 0) {
-		fprintf(stderr, "Sensor denied to fulfill the command %s\n", 
+		fprintf(stderr, "Server denied to fulfill the command %s\n", 
 				com);
 		return 0;
 	}
@@ -307,8 +306,8 @@ int do_request_response(int sock, const char *com, const char *arg)
 	return 1;
 }
 
-int submit_alert(const SensorSession *s, const ConnectionInfo *c,
-		 const Threat *t)
+int submit_alert(const ServerSession *s, const ConnectionInfo *c,
+								const Threat *t)
 {
 	int sock;
 	char arg[128];
@@ -317,14 +316,14 @@ int submit_alert(const SensorSession *s, const ConnectionInfo *c,
 
 	/* TODO: I need to check if some threat fields are missing */
 
-	DPRINTF("Connecting to the sensor...");
+	fprintf(stderr, "Connecting to the manager...");
 	
 	sock = tcp_connect(s);
 	if(sock == 0) {
-		fprintf(stderr, "connection to sensor failed\n");
+		fprintf(stderr, "connection failed\n");
 		return 0;
 	} else
-		DPRINTF("done\n");
+		fprintf(stderr, "done\n");
 
 	//sock = 1;
 
@@ -334,7 +333,7 @@ int submit_alert(const SensorSession *s, const ConnectionInfo *c,
 		fprintf(stderr, "Error wile executing readline\n");
 		goto err;
 	} else
-		DPRINTF("%d: %s",ret, arg);
+		fprintf(stderr, "%d: %s",ret, arg);
 
 	ret = do_request_response(sock, s->password, NULL);
 	if(!ret)

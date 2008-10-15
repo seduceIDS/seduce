@@ -4,17 +4,17 @@
 
 #include "qemu.h"
 #include "exec-all.h"
+#include "debug.h"
 #include "detect_engine.h"
 #include "detect_engine_qemu.h"
-
-#include "utils.h"
 
 DetectEngine engine = {
 	.name = "QEMU Engine",
 	.init = &qemu_engine_init,
 	.destroy = &qemu_engine_destroy,
 	.reset = &qemu_engine_reset,
-	.process = &qemu_engine_process
+	.process = &qemu_engine_process,
+	.get_threat = &qemu_engine_get_threat
 };
 
 extern unsigned long x86_stack_size;
@@ -22,7 +22,9 @@ extern unsigned long x86_stack_size;
 static QemuVars qv;
 
 /* Globals */
+Threat threat;
 sigjmp_buf env;
+
 
 void sigvtalrm_handler(int signum)
 {
@@ -41,60 +43,28 @@ static void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-static char *get_next_block(char *data, size_t len, int min_len, int *block_len)
+static char *getBlock(char *data, size_t len, int min, int reset)
 {
-	static char *block_start = NULL;
-	char *p, *ret_val, *block_end, *block_next;
-	char *last_byte = data + len - 1;
+    data[len - 1] = 0;
 
-	if (!block_start){
-    		block_start = data;
-	} else if (block_start > last_byte){
-		/*
-		 * WATCHOUT: this is the case where the last call to
-		 * get_next_block returned the final block 
-		 */
-		block_start = NULL;
-		return NULL;
-	}
-
-search:
-	/* look for the terminator */
-	block_end = block_next = NULL;
-   	for(p = block_start; ((p <= last_byte) && (*p != '\0')); p++);
-
-	/* terminator was found */
-	block_end = p - 1;
-
-	if (!*p){
-		block_next = p + 1;
-	} else { /* past last byte (that btw wasn't NUL) */
-		block_next = p;
-	}
-
-	/* 
-	 * yes block_next might now point right after the buffer, 
-	 * but that's not a bug, it's a feature!
-	 */
-
-	*block_len = block_end - block_start + 1;
-
-	if ((*block_len < min_len) && (last_byte - block_next >= min_len - 1))
-	{
-		/* small block found, other blocks follow */
-		block_start = block_next;
-		goto search;
-	} else if (*block_len < min_len){
-		/* small block found, no other blocks follow */
-		ret_val = NULL;
-		block_start = NULL;
-	} else {
-		/* ok block found, other blocks might follow */
-		ret_val = block_start;
-		block_start = block_next; /* see WATCHOUT */
-	}
-
-	return ret_val;
+    static char *p = NULL;
+    if (reset) p = data;
+    char *last;
+    
+    for (last = p; p < data + len; p++)
+    {
+        if (!*p)
+        {
+            if (p - last < min)
+                last = p + 1;
+            else
+            {
+                p++;
+                return last;
+            }
+        }
+    }
+    return NULL;
 }
 
 /*
@@ -105,115 +75,101 @@ search:
  * Arguments:
  *           data => A character array with the data to process
  *           len  => The character array length
- *           threat => The threat data structure to be filled in if a
- *           		threat has been detected (see return value 1)
  *
  * Returns:   0 => No threat detected
  *            1 => Threat detected
  *           -1 => An error occured
  */
-int qemu_engine_process(char *data, size_t len, Threat *threat)
+int qemu_engine_process(char *data, size_t len)
 {
     char *p;
     void *block;
-    int block_size, i, ret, block_num = 0;
-    char threat_msg[51];
+    int reset = 1, blocksize, l = 0, i, ret;
+    char tmp[51];
+    memset(tmp, 0, 51);
 
     if((data == NULL) || (len == 0))
         return 0;
  
-    while ((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size)))
+    while ((p = getBlock(data, len, 30, reset)) != NULL)
     {
-        block_num++;
+        reset = 0;
+        l++;
 
-        block = malloc(block_size);
+        blocksize = strlen(p);
+        block = calloc(1, blocksize + 1);
         if (block == NULL) {
-            fprintf(stderr,"malloc failed while building block\n");
+            fprintf(stderr,"calloc failed\n");
             exit(1);
         }
-	memcpy(block, p, block_size);
 
-        for (i = 0; i < block_size - 5; i++)
+        for (i = 0; i < blocksize - 5; i++)
         {
+            memcpy(block, p, blocksize);
+            DPRINTF("block %d - byte %.2d - ", l, i);
             if (sigsetjmp(env,1) == 100) {
-                DPRINTF("block %d byte %d - Endless Loop detected!\n",
-			block_num, i);
+                DPRINTF("Endless Loop detected!\n");
                 setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
             }
-
     	    setitimer(ITIMER_VIRTUAL, &qv.value, (struct itimerval*) NULL);
-            ret = qemu_exec(block + i, block_size - i, qv.stack_base, qv.cpu);
+            ret = qemu_exec(block + i, blocksize - i, qv.stack_base, qv.cpu);
             setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
 
             switch(ret)
             {
                 case HIGH_RISK_SYSCALL:
-                    DPRINTF("block %d byte %d - High risk syscall - %d\n", 
-		    	    block_num, i, qv.cpu->regs[R_EAX]);
-                    threat->payload = block; /* we don't have to free this
-		    				now, it will get free'd
-						once the Threat is free'd */
-                    threat->length = block_size;
-                    threat->severity = SEVERITY_HIGH;
-                    snprintf(threat_msg, 50, "High risk syscall %d detected", 
-		    	     qv.cpu->regs[R_EAX]);
-                    threat->msg = strdup(threat_msg);
+                    DPRINTF("High risk syscall - %d\n", qv.cpu->regs[R_EAX]);
+                    threat.payload = calloc(1, blocksize + 1);
+                    memcpy(threat.payload, p, blocksize);
+                    threat.length = blocksize;
+                    threat.severity = SEVERITY_HIGH;
+                    snprintf(tmp, 50, "High risk syscall %d detected", qv.cpu->regs[R_EAX]);
+                    threat.msg = strdup(tmp);
                     cleanup();
+                    free(block);
                     return 1;
                 case EXIT_SYSCALL:
-                    DPRINTF("block %d byte %d - Syscall exit\n", block_num, i);
+                    DPRINTF("Syscall exit\n");
                     break;
                 case EXCEPTION_INTERRUPT:
-                    DPRINTF("block %d byte %d - exception - INTERRUPT\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INTERRUPT\n");
                     break;
                 case EXCEPTION_NOSEG:
-                    DPRINTF("block %d byte %d - exception - NOSEG\n",
-		    	    block_num, i);
+                    DPRINTF("exception - NOSEG\n");
                     break;
                 case EXCEPTION_STACK:
-                    DPRINTF("block %d byte %d - exception - Stack Fault\n",
-		    	    block_num, i);
+                    DPRINTF("exception - Stack Fault\n");
                     break;
                 case EXCEPTION_GPF:
-                    DPRINTF("block %d byte %d - exception - General Protection"
-		    	    " Fault\n",block_num, i);
+                    DPRINTF("exception - General Protection Fault\n");
                     break;
                 case EXCEPTION_PAGE:
-                    DPRINTF("block %d byte %d - exception - Page Fault\n",
-		    	    block_num, i);
+                    DPRINTF("exception - Page Fault\n");
                     break;
                 case EXCEPTION_DIVZ:
-                    DPRINTF("block %d byte %d - exception - Division by Zero\n",			    block_num, i);
+                    DPRINTF("exception - Division by Zero\n");
                     break;
                 case EXCEPTION_SSTP:
-                    DPRINTF("block %d byte %d - exception - SSTP\n",
-		    	   block_num, i);
+                    DPRINTF("exception - SSTP\n");
                     break;
                 case EXCEPTION_INT3:
-                    DPRINTF("block %d byte %d - exception - INT3\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INT3\n");
                     break;
                 case EXCEPTION_INTO:
-                    DPRINTF("block %d byte %d - exception - INTO\n",
-		    	    block_num, i);
+                    DPRINTF("exception - INTO\n");
                     break;
                 case EXCEPTION_BOUND:
-                    DPRINTF("block %d byte %d - exception - BOUND\n",
-		    	    block_num, i);
+                    DPRINTF("exception - BOUND\n");
                     break;
                 case EXCEPTION_ILLOP:
-                    DPRINTF("block %d byte %d - exception - Illegal Operation\n"
-		    	    ,block_num, i);
+                    DPRINTF("exception - Illegal Operation\n");
                     break;
                 case EXCEPTION_DEBUG:
-                    DPRINTF("block %d byte %d - exception - DEBUG\n",
-		    	    block_num, i);
+                    DPRINTF("exception - DEBUG\n");
                     break;
                 default:
-                    DPRINTF("block %d byte %d - unknown exception\n",
-		    	    block_num, i);
+                    DPRINTF("unknown exception\n");
             }
 prepare_next_iter:
             cleanup();
@@ -288,6 +244,26 @@ void qemu_engine_destroy(void)
 }
 
 /*
+ * Function: qemu_engine_get_threat()
+ *
+ * Purpose: Sends the threat to the agent.
+ *
+ * Arguments:
+ *           *t => Pointer to a Threat structure describing the threat
+ *
+ * Returns:   0 => An error occured
+ *            1 => Everything ok
+ */
+int qemu_engine_get_threat(Threat *t)
+{
+    t->payload = threat.payload;
+    t->length = threat.length;
+    t->severity = threat.severity;
+    t->msg = threat.msg;
+    return 1;
+}
+
+/*
  * Function: qemu_engine_reset()
  *
  * Purpose: Not used by Qemu engine
@@ -299,8 +275,8 @@ void qemu_engine_destroy(void)
 void qemu_engine_reset(void)
 {
 	/* We don't use this function but it is required by
-	 * the agent implementation.
-	 */
+     * the agent implementation.
+     */
 	return;
 }
 

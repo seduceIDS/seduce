@@ -1,9 +1,9 @@
 #include <malloc.h>
 
 #include "oom_handler.h"
-#include "sensor.h"
-#include "data.h"
 #include "utils.h"
+#include "manager.h"
+#include "job.h"
 
 pthread_mutex_t oom_mutex;
 pthread_cond_t oom_cond;
@@ -47,10 +47,17 @@ static int free_memory(int limit_to_reach)
 	DPRINTF("Freeing memory");
 
 	do {
-		int ret = consume_group(destroy_data, NULL);
+		int ret = consume_job(destroy_data, NULL);
 		if(ret == -1) {
 			/* joblist is empty, couldn't delete enough data */
 			return 0;
+		} else if(ret == 2) {
+			/* 
+			 * TODO: this is really important!!! I need to destroy
+			 * a sensor but I don't know which. I think I cannot
+			 * avoid searching the hole sensor list to find the one
+			 * that has sessionlist_head == NULL & is_connected = NO
+			 */
 		}
 
 		mem = compute_mem_usage();

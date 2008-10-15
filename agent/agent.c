@@ -6,81 +6,67 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
-#include "detect_engine.h"
-#include "sensor_contact.h"
-#include "item_selection.h"
+#include "agent.h"
 #include "alert.h"
 #include "error.h"
 #include "options.h"
-#include "utils.h"
 
-struct ProgVars {
-        DetectEngine *detect_engine;	/* registered detection engine */
-        SensorSession *sensor_session;	/* current sensor session */
-	SelectionMethod select_sensor; 	/* "Next sensor" selection method */
-} pv;
 
-/* The linked-in engine will export this */
-extern DetectEngine engine;
+/* Globals */
+static ProgVars pv;
 
 /*
- * Function: sensor_connect()
+ * Function: manager_connect()
  *
- * Purpose: use the sensor address/port info of pv and connect to the sensor
+ * Purpose: use the server address/port info of pv and connect to the manager
  *
  * Arguments:
  *
  * Returns:  1 => Connected 
  *           0 => Not Connected
  */
-static int sensor_connect(Sensor *m, const char * pwd, int timeout, int retries)
+static int manager_connect(struct in_addr addr, unsigned short port,
+				const char * pwd, int timeout, int retries)
 {
 	int ret;
 	
-	pv.sensor_session = init_session(m->addr, m->port, pwd, timeout, 
-					 retries);
-	if(pv.sensor_session == NULL)
-		critical_error(1, "Unable to connect to: %s:%u\n", 
-			       inet_ntoa(m->addr), ntohs(m->port));
+	pv.server_session = init_session(addr, port, pwd, timeout, retries);
+	if(pv.server_session == NULL)
+		critical_error(1, "Unable to initialize the connection info");
 
-	ret = sensor_request(pv.sensor_session, SEND_NEW_AGENT);
+	ret = server_request(pv.server_session, SEND_NEW_AGENT);
 	if(ret == -1) {
 		
 		/* 
 		 * If something needs to be cleaned up before quiting,
 		 * here is the place to do it.
 		 */
-		critical_error(1, "Bad communication with sensor: %s:%u\n",
-			       inet_ntoa(m->addr), ntohs(m->port));
+		critical_error(1, "The communication with the server is bad");
 	}
 
 	return ret;
 }
 
 /*
- * Function: sensor_disconnect()
+ * Function: manager_disconnect()
  *
- * Purpose: Disconnect from the sensor and release all resources
+ * Purpose: Disconnect from the manager and release all resources
  *
  * Arguments:
  *
  * Returns: 
  */
-static void sensor_disconnect(void)
+static void manager_disconnect(void)
 {
-	if (pv.sensor_session){
-		sensor_request(pv.sensor_session, SEND_QUIT);
-		destroy_session(&pv.sensor_session);
-	}
+	server_request(pv.server_session, SEND_QUIT);
+	destroy_session(pv.server_session);
 }
 
 /*
  * Function: get_new_work()
  *
- * Purpose: Get a new data group by the sensor
+ * Purpose: Get a new data group by the manager
  *
  * Arguments:
  *
@@ -91,21 +77,21 @@ static const Work * get_new_work()
 {
 	int ret;
 
-	ret = sensor_request(pv.sensor_session, SEND_NEW_WORK);
+	ret = server_request(pv.server_session, SEND_NEW_WORK);
 
 	if(ret == 1)
-		return fetch_current_work(pv.sensor_session);
+		return fetch_current_work(pv.server_session);
 	else if(ret == -1)
-		critical_error(1, "The communication with the sensor is bad");
+		critical_error(1, "The communication with the server is bad");
 
 	/* ret == 0 */
 	return NULL;
 }
 
 /*
- * Function: get_next_work()
+ * Function: get_new_work()
  *
- * Purpose: Get the next data of a particular work group from the sensor
+ * Purpose: Get a new data group by the manager
  *
  * Arguments:
  *
@@ -116,179 +102,120 @@ static const Work * get_next_work(void)
 {
 	int ret;
 
-	ret = sensor_request(pv.sensor_session, SEND_GET_NEXT);
+	ret = server_request(pv.server_session, SEND_GET_NEXT);
 
 	if(ret == 1)
-		return fetch_current_work(pv.sensor_session);
+		return fetch_current_work(pv.server_session);
 	else if(ret == -1)
-		critical_error(1, "The communication with the sensor is bad");
+		critical_error(1, "The communication with the server is bad");
 
 	/* ret == 0 */
 	return NULL;
 }
 
-/* returns NULL only when there was a problem connecting to a sensor */
-
-static const Work * find_work(InputOptions *in)
-{
-	static Sensor *last_sensor = NULL;
-	int failed_polls = 0;
-	int sensor_sz = sizeof(Sensor);
-	const Work *w;
-
-	do {
-		Sensor *m;
-
-		m = pv.select_sensor(in->num_sensors, in->sensors, sensor_sz);
-
-		DPRINTF("polling sensor: %s:%u\n",
-			inet_ntoa(m->addr), ntohs(m->port));
-
-		/* this happens both in the random case, and when there's
-		 * a single sensor in the list */
-		if (last_sensor && m == last_sensor){
-			if (!(w = get_new_work())){
-                                DPRINTF("No work available on %s:%u. "
-					"I'll sleep\n", inet_ntoa(m->addr),
-					ntohs(m->port));
-				sleep(in->no_work_wait);
-				w = get_new_work();
-				/*
-				 * If this second try fails,
-				 * we look for a new sensor
-				 */
-			} 
-		} else {
-			/* a new sensor was selected */
-			sensor_disconnect();
-
-			if(!sensor_connect(m, in->password, in->timeout, 
-					    in->retries))
-				return NULL;
-
-			last_sensor = m;
-			
-			if (!(w = get_new_work())){
-				failed_polls++;
-				if (failed_polls >= in->max_polls){
-					failed_polls = 0;
-					DPRINTF("max_polls reached, "
-						"going to sleep...\n");
-					sleep(in->no_work_wait);
-				}
-			}
-		}
-	} while(w == NULL);
-
-	return w;
-}
-
 void quit_handler(int s)
 {
 	pv.detect_engine->destroy();
-	DPRINTF("Sending QUIT Message...\n");
-	sensor_disconnect();
+	printf("Sending QUIT Message...\n");
+	manager_disconnect();
 	exit(0);
 }
 
-/* returns 0 if there's an error contacting a sensor,
-  	   1 if there's an error during alert submission */
-
-static int main_loop(InputOptions *in)
+static void main_loop(int wait_time)
 {
 	const Work *w;
-	int ret;
 	Threat t;
-	int retval = 0;
-	int alert_ret;
+	int ret;
 
 	pv.detect_engine->init();
+	for (;;) {
+		w = get_new_work();
+		if(w == NULL) {
+			printf("No work is available, I'll sleep\n");
+			fflush(stdout);
+			sleep(wait_time);
+			continue;	
+		}
 
-	while((w = find_work(in))) {
-		DPRINTF("Got new data_group\n");
+		printf("Got a new data_group\n");
 
-		/* reset the detection engine */
+		/* reset the detect engine */
 		pv.detect_engine->reset();
 	
 		do {
-			struct in_addr src_addr;
-			src_addr.s_addr = w->info.s_addr;
+			printf("Detect data\n");
+			ret = pv.detect_engine->process(w->payload, w->length);
+			if(ret == 1) {
+				printf("Threat Detected\n");
+				pv.detect_engine->get_threat(&t);
 
-			DPRINTF_MD5(w->payload, w->length, 
-				    "Inspecting new work [src:%s]\n",
-				    inet_ntoa(src_addr));
-
-			ret = pv.detect_engine->process(w->payload,
-							w->length,&t);
-			if (ret == 1) {
-			     	DPRINTF_MD5(w->payload, w->length, 
-					    "Threat Detected [src:%s]\n",
-					    inet_ntoa(src_addr));
-
-				/* send the threat */
-				alert_ret = submit_alert(pv.sensor_session,
-						 	 &w->info,&t);
-						 
+				/* send the treat */
+				ret = submit_alert(pv.server_session,
+								&w->info, &t);
 				destroy_threat(&t);
-			 	if (alert_ret <= 0) {
+				if(ret <= 0) {
 					fprintf(stderr,"Couln't send alert\n");
-					retval = 1;
-					goto err;
+					quit_handler(0);
 				}
-			} else if (ret == -1) {
+			} else if(ret == -1) {
+	
 				/* detection engine error */
-				/* TODO: we consider this non-lethal ... */
-				fprintf(stderr, "Error processing packet\n");
 			}
 		} while((w = get_next_work()) != NULL);
 	}
-err:
-	pv.detect_engine->destroy();
-	sensor_disconnect();
-
-	return retval;
 }
+
+/* Someone should export this */
+extern DetectEngine engine;
 
 int main(int argc, char *argv[])
 {
 	struct sigaction sa;
 	InputOptions *in;
+	int no_work_wait;
 	
 	pv.detect_engine = &engine;
 	
 	/* get the input options */
-	if ((in = fill_inputopts(argc, argv)) == NULL)
-		return 1;
+	in = fill_inputopts(argc, argv);
+	if(in == NULL)
+		goto err1;
 
-	if (in->polling == RANDOM)
-		pv.select_sensor = &random_selection;
-	else
-		pv.select_sensor = &round_robin_selection;
-		
+	pv.prog_name = in->prog_name;
 
-	/* initialize handlers for quiting */
+	no_work_wait = in->no_work_wait;
+
+	/* Try to connect to the sceduler */
+	if(!manager_connect(in->addr, in->port, in->password, in->timeout,
+								in->retries)) {
+		fprintf(stderr, "Can't connect to the scheduler\n");
+		goto err2;
+	}
+
+	/* no longer needed */
+	destroy_inputopts(in);
+
+	/* if connected, initialize handlers for quiting */
 	sa.sa_handler = quit_handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-
 	if (sigaction(SIGINT, &sa, NULL) == -1) {
 		perror("sigaction");
-		return 1;
+		exit(1);
 	}
-
 	if (sigaction(SIGTERM, &sa, NULL) == -1) {
 		perror("sigaction");
-		return 1;
+		exit(1);
 	}
 
-	/* this MUST happen within the context of the process that 
-	   will call main_loop */
-	srand((unsigned int) getpid());
+	/* Everything is initialized, go to the main loop */
+	main_loop(no_work_wait);
 
-	/* Everything is ready, go to the main loop */
-	main_loop(in);
+	/* never reached */
+	return 0;
 
+err2:
 	destroy_inputopts(in);
-
+err1:
 	return 1;
 }
