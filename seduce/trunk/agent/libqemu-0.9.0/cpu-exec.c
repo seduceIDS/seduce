@@ -73,6 +73,12 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
     longjmp(env->jmp_env, 1);
 }
 
+void flush_translations(CPUState *env){
+	spin_lock(&tb_lock);
+	tb_flush(env);
+	tb_invalidated_flag = 1;
+	spin_unlock(&tb_lock);
+}
 
 static TranslationBlock *tb_find_slow(target_ulong pc,
                                       target_ulong cs_base,
@@ -599,6 +605,21 @@ int cpu_exec(CPUState *env1)
                 }
 #endif
                 tb = tb_find_fast();
+		/* 
+		 * SEDUCE DEBUGGING
+		{
+			extern FILE *stderr;
+			int i;
+		 	for(i=0; i<40; i++){
+		 		unsigned char *p = (unsigned char *) tb->tc_ptr;
+		 		fprintf(stderr, "%.2hhx ", *(p+i));
+		 	}
+		 	fprintf(stderr, "\n");
+			fprintf(stderr, "SEDUCE Trace 0x%08lx [" TARGET_FMT_lx 
+					"] %s\n",
+				(long)tb->tc_ptr, tb->pc,lookup_symbol(tb->pc));
+		}
+		*/
 #ifdef DEBUG_EXEC
                 if ((loglevel & CPU_LOG_EXEC)) {
                     fprintf(logfile, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",
@@ -796,7 +817,7 @@ int cpu_exec(CPUState *env1)
 #include "hostregs_helper.h"
 
     /* fail safe : never use cpu_single_env outside cpu_exec() */
-    cpu_single_env = NULL; 
+    cpu_single_env = NULL;
     return ret;
 }
 

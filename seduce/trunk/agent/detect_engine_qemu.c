@@ -24,6 +24,14 @@ static QemuVars qv;
 /* Globals */
 sigjmp_buf env;
 
+void clear_stack(void){
+	void *stack;
+
+	stack = lock_user(qv.stack_base - x86_stack_size, x86_stack_size, 1);
+	memset(stack, 0, x86_stack_size);
+	unlock_user(stack, qv.stack_base - x86_stack_size, x86_stack_size);
+}
+
 void sigvtalrm_handler(int signum)
 {
     tb_lock = SPIN_LOCK_UNLOCKED;
@@ -41,22 +49,19 @@ static void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-static char *get_next_block(char *data, size_t len, int min_len, int *block_len)
+static char *get_next_block(char *data, size_t len, int min_len, 
+			    int *block_len, int first_pass)
 {
-	static char *block_start = NULL;
 	char *p, *ret_val, *block_end, *block_next;
+
+	static char *block_start = NULL;
 	char *last_byte = data + len - 1;
 
-	if (!block_start){
-    		block_start = data;
-	} else if (block_start > last_byte){
-		/*
-		 * WATCHOUT: this is the case where the last call to
-		 * get_next_block returned the final block 
-		 */
-		block_start = NULL;
+	if (first_pass)
+		block_start = data;
+
+	if (last_byte - block_start < min_len - 1)
 		return NULL;
-	}
 
 search:
 	/* look for the terminator */
@@ -87,11 +92,10 @@ search:
 	} else if (*block_len < min_len){
 		/* small block found, no other blocks follow */
 		ret_val = NULL;
-		block_start = NULL;
 	} else {
 		/* ok block found, other blocks might follow */
 		ret_val = block_start;
-		block_start = block_next; /* see WATCHOUT */
+		block_start = block_next;
 	}
 
 	return ret_val;
@@ -121,8 +125,9 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 
     if((data == NULL) || (len == 0))
         return 0;
- 
-    while ((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size)))
+
+    while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, 
+                              &block_size, !block_num)))
     {
         block_num++;
 
@@ -141,6 +146,8 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
                 setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
                 goto prepare_next_iter;
             }
+
+	    // clear_stack();
 
     	    setitimer(ITIMER_VIRTUAL, &qv.value, (struct itimerval*) NULL);
             ret = qemu_exec(block + i, block_size - i, qv.stack_base, qv.cpu);
