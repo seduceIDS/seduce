@@ -63,7 +63,7 @@ static ssize_t do_read(int sock, char *ptr)
 
 	if(read_cnt <= 0) {
 again:
-		if( (read_cnt = read(sock, read_buf, 256)) < 0) {
+		if((read_cnt = read(sock, read_buf, 256)) < 0) {
 			if(errno == EINTR)
 				goto again;
 			return -1;
@@ -71,6 +71,7 @@ again:
 			return 0;
 		read_ptr = read_buf;
 	}
+
 	read_cnt--;
 	*ptr = *read_ptr++;
 	return 1;

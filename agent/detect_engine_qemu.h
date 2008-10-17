@@ -8,10 +8,10 @@
 #include "detect_engine.h"
 
 typedef struct _QemuVars {
-    struct itimerval value;
-    struct itimerval zvalue;
-    unsigned long stack_base;
-    CPUX86State *cpu;
+	struct itimerval value;
+	struct itimerval zvalue;
+	unsigned long stack_base;
+	CPUX86State *cpu;
 } QemuVars;
 
 /* Blocks smaller than this are not emulated */
@@ -25,3 +25,4 @@ int qemu_engine_get_threat(Threat *t);
 void qemu_engine_reset(void);
 
 #endif /* _DETECT_ENGINE_QEMU_H */
+

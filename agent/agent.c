@@ -48,7 +48,6 @@ static int sensor_connect(Sensor *m, const char * pwd, int timeout, int retries)
 
 	ret = sensor_request(pv.sensor_session, SEND_NEW_AGENT);
 	if(ret == -1) {
-		
 		/* 
 		 * If something needs to be cleaned up before quiting,
 		 * here is the place to do it.
@@ -71,7 +70,7 @@ static int sensor_connect(Sensor *m, const char * pwd, int timeout, int retries)
  */
 static void sensor_disconnect(void)
 {
-	if (pv.sensor_session){
+	if (pv.sensor_session) {
 		sensor_request(pv.sensor_session, SEND_QUIT);
 		destroy_session(&pv.sensor_session);
 	}
@@ -146,11 +145,12 @@ static const Work * find_work(InputOptions *in)
 
 		/* this happens both in the random case, and when there's
 		 * a single sensor in the list */
-		if (last_sensor && m == last_sensor){
-			if (!(w = get_new_work())){
+		if (last_sensor && m == last_sensor) {
+			if (!(w = get_new_work())) {
                                 DPRINTF("No work available on %s:%u. "
 					"I'll sleep\n", inet_ntoa(m->addr),
 					ntohs(m->port));
+
 				sleep(in->no_work_wait);
 				w = get_new_work();
 				/*
@@ -158,6 +158,7 @@ static const Work * find_work(InputOptions *in)
 				 * we look for a new sensor
 				 */
 			} 
+
 		} else {
 			/* a new sensor was selected */
 			sensor_disconnect();
@@ -168,9 +169,9 @@ static const Work * find_work(InputOptions *in)
 
 			last_sensor = m;
 			
-			if (!(w = get_new_work())){
+			if (!(w = get_new_work())) {
 				failed_polls++;
-				if (failed_polls >= in->max_polls){
+				if (failed_polls >= in->max_polls) {
 					failed_polls = 0;
 					DPRINTF("max_polls reached, "
 						"going to sleep...\n");
@@ -178,6 +179,7 @@ static const Work * find_work(InputOptions *in)
 				}
 			}
 		}
+
 	} while(w == NULL);
 
 	return w;

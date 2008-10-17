@@ -17,7 +17,7 @@ void *round_robin_selection(int num_items, void *items, int item_size)
 
         last_on_list = items + (num_items - 1) * item_size;
 
-        if (!current || current == last_on_list){
+        if (!current || current == last_on_list) {
                 current = items;
                 return current;
         }
