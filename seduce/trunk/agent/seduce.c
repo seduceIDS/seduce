@@ -10,70 +10,74 @@
 
 void *load_file(const char *filename, unsigned long *fsize)
 {
-    int fd;
-    void *buff;
-    struct stat st;
+	int fd;
+	void *buff;
+	struct stat st;
 
-    if ((fd = open(filename, 0)) == -1) {
-        perror("open");
-        exit(-1);
-    }
-    if (fstat(fd, &st) == -1) {
-        perror("fstat");
-        exit(-1);
-    }
-    *fsize = st.st_size;
-    buff = calloc(1, *fsize + 1);
-    if (buff == NULL) {
-        fprintf(stderr,"calloc failed\n");
-        exit(-1);
-    }
-    if (read(fd, buff, *fsize) == -1) {
-        perror("read");
-        exit(-1);
-    }
-    close(fd);
-    return buff;
+	if ((fd = open(filename, 0)) == -1) {
+		perror("open");
+		exit(-1);
+	}
+	
+	if (fstat(fd, &st) == -1) {
+		perror("fstat");
+		exit(-1);
+	}
+	
+	*fsize = st.st_size;
+	buff = calloc(1, *fsize + 1);
+	
+	if (buff == NULL) {
+		fprintf(stderr,"calloc failed\n");
+		exit(-1);
+    	}
+	
+	if (read(fd, buff, *fsize) == -1) {
+		perror("read");
+		exit(-1);
+	}
+	
+	close(fd);
+	return buff;
 }
 
 int main(int argc, char **argv)
 {
-    void *buff;
-    unsigned long fsize;
-    struct sigaction sa;
-    Threat t;
-    int ret;
+	void *buff;
+	unsigned long fsize;
+	struct sigaction sa;
+	Threat t;
+	int ret;
+	
+	if (argc < 2) {
+		fprintf(stderr,"usage %s file\n", argv[0]);
+		return -1;
+	}
 
-    if (argc < 2) {
-        fprintf(stderr,"usage %s file\n", argv[0]);
-        return -1;
-    }
+	sa.sa_handler = sigvtalrm_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
 
-    sa.sa_handler = sigvtalrm_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    if (sigaction(SIGVTALRM, &sa, NULL) == -1)
-    {
-        perror("sigaction");
-        exit(-1);
-    }
+	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+		perror("sigaction");
+		exit(-1);
+	}
 
-    buff = load_file(argv[1], &fsize);
+	buff = load_file(argv[1], &fsize);
 
-    qemu_engine_init();
-    ret = qemu_engine_process(buff, fsize + 1, &t);
-    qemu_engine_destroy();
-    free(buff);
+	qemu_engine_init();
+	ret = qemu_engine_process(buff, fsize + 1, &t);
+	qemu_engine_destroy();
+	free(buff);
 
-    if (ret == 1)
-    {
-        printf("Threat detected - %s\n", t.msg);
-        destroy_threat(&t);
-    } else if (ret == 0)
-        printf("No threat detected\n");
-    else
-        printf("Error while processing packet\n");
-    
-    return 0;
+	if (ret == 1) {
+		printf("Threat detected - %s\n", t.msg);
+		destroy_threat(&t);
+	} else if (ret == 0)
+		printf("No threat detected\n");
+	 else
+		printf("Error while processing packet\n");
+	 
+	 return 0;
 }
 

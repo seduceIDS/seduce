@@ -73,11 +73,12 @@ static int str_to_natural(const char *str)
 	return natural;
 }
 
-static SelectionType get_valid_polling(const char *str){
+static SelectionType get_valid_polling(const char *str)
+{
 	SelectionType polling;
 
 	polling = str_to_natural(str);
-	if (!is_selection_valid(polling)){
+	if (!is_selection_valid(polling)) {
 		fprintf(stderr, "invalid polling order option specified\n");
 		return -1;
 	}
@@ -170,7 +171,8 @@ static int validate_password(const char *pwd)
 #define FQDN_PATTERN HOST_ATOM "(\\." HOST_ATOM ")*"
 #define HOST_PORT_PATTERN FQDN_PATTERN ":[0-9]{1,5}"
 
-static int validate_sensor(const char *str){
+static int validate_sensor(const char *str)
+{
 	char pattern[] = "^" HOST_PORT_PATTERN "$";
 
 	if (regexp_match(pattern, str))
@@ -179,7 +181,8 @@ static int validate_sensor(const char *str){
 		return 0;
 }
 
-static int validate_sensors_str(const char *str){
+static int validate_sensors_str(const char *str)
+{
 	char pattern[] = "^" HOST_PORT_PATTERN "(," HOST_PORT_PATTERN ")*$";
 
 	if (regexp_match(pattern, str))
@@ -200,7 +203,7 @@ static char **split_sensorinfo(const char *cmdline_arg, const char delimiter,
 	tmp = strdup(cmdline_arg);
 	p = tmp;
 
-	for(;*p;p++) {
+	for (;*p;p++) {
 		if (*p == delimiter)
 			delimiter_count++;
 	}
@@ -211,7 +214,7 @@ static char **split_sensorinfo(const char *cmdline_arg, const char delimiter,
 		return NULL;
 	}
 
-	for(i=0; i< delimiter_count + 1; i++) {
+	for (i = 0; i < delimiter_count + 1; i++) {
 		sensors[i] = strsep(&tmp, delim_str);
 	}
 	*count = i;
@@ -225,7 +228,7 @@ static int extract_sensorinfo(int num_sensors,
 {
 	int i;
 
-	if (input->sensors){
+	if (input->sensors) {
 		fprintf(stderr, "extract_sensorinfo called, but input->sensors"
 				" was already filled in!\n");
 		return 0;

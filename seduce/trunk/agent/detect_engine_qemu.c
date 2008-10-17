@@ -24,7 +24,8 @@ static QemuVars qv;
 /* Globals */
 sigjmp_buf env;
 
-void clear_stack(void){
+void clear_stack(void)
+{
 	void *stack;
 
 	stack = lock_user(qv.stack_base - x86_stack_size, x86_stack_size, 1);
@@ -41,11 +42,12 @@ void sigvtalrm_handler(int signum)
 static void cleanup(void)
 {
     int c;
-    for (c = 1; c < 24; c++)
-    {
+
+    for (c = 1; c < 24; c++) {
         free(struct_entries[c].field_offsets[0]);
         free(struct_entries[c].field_offsets[1]);
     }
+
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
@@ -66,16 +68,17 @@ static char *get_next_block(char *data, size_t len, int min_len,
 search:
 	/* look for the terminator */
 	block_end = block_next = NULL;
-   	for(p = block_start; ((p <= last_byte) && (*p != '\0')); p++);
+
+   	for(p = block_start; ((p <= last_byte) && (*p != '\0')); p++)
+		;
 
 	/* terminator was found */
 	block_end = p - 1;
 
-	if (!*p){
+	if (!*p)
 		block_next = p + 1;
-	} else { /* past last byte (that btw wasn't NUL) */
+	else  /* past last byte (that btw wasn't NUL) */
 		block_next = p;
-	}
 
 	/* 
 	 * yes block_next might now point right after the buffer, 
@@ -84,12 +87,11 @@ search:
 
 	*block_len = block_end - block_start + 1;
 
-	if ((*block_len < min_len) && (last_byte - block_next >= min_len - 1))
-	{
+	if ((*block_len < min_len) && (last_byte - block_next >= min_len - 1)) {
 		/* small block found, other blocks follow */
 		block_start = block_next;
 		goto search;
-	} else if (*block_len < min_len){
+	} else if (*block_len < min_len) {
 		/* small block found, no other blocks follow */
 		ret_val = NULL;
 	} else {
@@ -118,116 +120,142 @@ search:
  */
 int qemu_engine_process(char *data, size_t len, Threat *threat)
 {
-    char *p;
-    void *block;
-    int block_size, i, ret, block_num = 0;
-    char threat_msg[51];
+	char *p;
+	void *block;
+	int block_size, i, ret, block_num = 0;
+	char threat_msg[51];
 
-    if((data == NULL) || (len == 0))
-        return 0;
+	if((data == NULL) || (len == 0))
+		return 0;
 
-    while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, 
-                              &block_size, !block_num)))
-    {
-        block_num++;
+	while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
+					!block_num))) {
+		block_num++;
+		
+		block = malloc(block_size);
+		if (block == NULL) {
+			fprintf(stderr,"malloc failed while building block\n");
+			exit(1);
+		}
 
-        block = malloc(block_size);
-        if (block == NULL) {
-            fprintf(stderr,"malloc failed while building block\n");
-            exit(1);
-        }
-	memcpy(block, p, block_size);
+		memcpy(block, p, block_size);
 
-        for (i = 0; i < block_size - 5; i++)
-        {
-            if (sigsetjmp(env,1) == 100) {
-                DPRINTF("block %d byte %d - Endless Loop detected!\n",
-			block_num, i);
-                setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
-                goto prepare_next_iter;
-            }
+		for (i = 0; i < block_size - 5; i++) {
+			
+			if (sigsetjmp(env,1) == 100) {
+				DPRINTF("block %d byte %d - "
+						"Endless Loop detected!\n",
+						block_num, i);
+				setitimer(ITIMER_VIRTUAL, &qv.zvalue,
+						(struct itimerval*) NULL);
+				goto prepare_next_iter;
+			}
 
-	    // clear_stack();
+			// clear_stack();
 
-    	    setitimer(ITIMER_VIRTUAL, &qv.value, (struct itimerval*) NULL);
-            ret = qemu_exec(block + i, block_size - i, qv.stack_base, qv.cpu);
-            setitimer(ITIMER_VIRTUAL, &qv.zvalue, (struct itimerval*) NULL);
+			setitimer(ITIMER_VIRTUAL, &qv.value,
+					(struct itimerval*) NULL);
+			
+			ret = qemu_exec(block + i, block_size - i,
+					qv.stack_base, qv.cpu);
+			
+			setitimer(ITIMER_VIRTUAL, &qv.zvalue,
+					(struct itimerval*) NULL);
+			
+			switch(ret) {
+			case HIGH_RISK_SYSCALL:
+				DPRINTF("block %d byte %d - High risk syscall -"
+						" %d\n", block_num, i,
+						qv.cpu->regs[R_EAX]);
+			
+				/* we don't have to free this now, it will get
+				 * free'd once the Threat is free'd
+				 */
+				threat->payload = block;
+				threat->length = block_size;
+				threat->severity = SEVERITY_HIGH;
+				snprintf(threat_msg, 50, "High risk syscall %d "
+					"detected", qv.cpu->regs[R_EAX]);
+				threat->msg = strdup(threat_msg);
+				cleanup();
+				return 1;
 
-            switch(ret)
-            {
-                case HIGH_RISK_SYSCALL:
-                    DPRINTF("block %d byte %d - High risk syscall - %d\n", 
-		    	    block_num, i, qv.cpu->regs[R_EAX]);
-                    threat->payload = block; /* we don't have to free this
-		    				now, it will get free'd
-						once the Threat is free'd */
-                    threat->length = block_size;
-                    threat->severity = SEVERITY_HIGH;
-                    snprintf(threat_msg, 50, "High risk syscall %d detected", 
-		    	     qv.cpu->regs[R_EAX]);
-                    threat->msg = strdup(threat_msg);
-                    cleanup();
-                    return 1;
-                case EXIT_SYSCALL:
-                    DPRINTF("block %d byte %d - Syscall exit\n", block_num, i);
-                    break;
-                case EXCEPTION_INTERRUPT:
-                    DPRINTF("block %d byte %d - exception - INTERRUPT\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_NOSEG:
-                    DPRINTF("block %d byte %d - exception - NOSEG\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_STACK:
-                    DPRINTF("block %d byte %d - exception - Stack Fault\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_GPF:
-                    DPRINTF("block %d byte %d - exception - General Protection"
-		    	    " Fault\n",block_num, i);
-                    break;
-                case EXCEPTION_PAGE:
-                    DPRINTF("block %d byte %d - exception - Page Fault\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_DIVZ:
-                    DPRINTF("block %d byte %d - exception - Division by Zero\n",			    block_num, i);
-                    break;
-                case EXCEPTION_SSTP:
-                    DPRINTF("block %d byte %d - exception - SSTP\n",
-		    	   block_num, i);
-                    break;
-                case EXCEPTION_INT3:
-                    DPRINTF("block %d byte %d - exception - INT3\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_INTO:
-                    DPRINTF("block %d byte %d - exception - INTO\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_BOUND:
-                    DPRINTF("block %d byte %d - exception - BOUND\n",
-		    	    block_num, i);
-                    break;
-                case EXCEPTION_ILLOP:
-                    DPRINTF("block %d byte %d - exception - Illegal Operation\n"
-		    	    ,block_num, i);
-                    break;
-                case EXCEPTION_DEBUG:
-                    DPRINTF("block %d byte %d - exception - DEBUG\n",
-		    	    block_num, i);
-                    break;
-                default:
-                    DPRINTF("block %d byte %d - unknown exception\n",
-		    	    block_num, i);
-            }
+			case EXIT_SYSCALL:
+				DPRINTF("block %d byte %d - Syscall exit\n",
+						block_num, i);
+				break;
+			
+			case EXCEPTION_INTERRUPT:
+				DPRINTF("block %d byte %d - exception - "
+						"INTERRUPT\n", block_num, i);
+				break;
+			
+			case EXCEPTION_NOSEG:
+				DPRINTF("block %d byte %d - exception - "
+						"NOSEG\n", block_num, i);
+				break;
+			
+			case EXCEPTION_STACK:
+				DPRINTF("block %d byte %d - exception - "
+						"Stack Fault\n", block_num, i);
+				break;
+			
+			case EXCEPTION_GPF:
+				DPRINTF("block %d byte %d - exception - General"
+					" Protection Fault\n",block_num, i);
+				break;
+			
+			case EXCEPTION_PAGE:
+				DPRINTF("block %d byte %d - exception - "
+						"Page Fault\n", block_num, i);
+				break;
+			case EXCEPTION_DIVZ:
+				DPRINTF("block %d byte %d - exception - "
+					"Division by Zero\n",block_num, i);
+				break;
+			
+			case EXCEPTION_SSTP:
+				DPRINTF("block %d byte %d - exception - SSTP\n",
+						block_num, i);
+				break;
+
+			case EXCEPTION_INT3:
+				DPRINTF("block %d byte %d - exception - INT3\n",
+						block_num, i);
+				break;
+			
+			case EXCEPTION_INTO:
+				DPRINTF("block %d byte %d - exception - INTO\n",
+						block_num, i);
+				break;
+			
+			case EXCEPTION_BOUND:
+				DPRINTF("block %d byte %d - exception - "
+						"BOUND\n", block_num, i);
+				break;
+			
+			case EXCEPTION_ILLOP:
+				DPRINTF("block %d byte %d - exception - Illegal"
+						" Operation\n", block_num, i);
+				break;
+			
+			case EXCEPTION_DEBUG:
+				DPRINTF("block %d byte %d - exception - "
+						"DEBUG\n", block_num, i);
+				break;
+			
+			default:
+				DPRINTF("block %d byte %d - unknown "
+						"exception\n", block_num, i);
+			}
 prepare_next_iter:
-            cleanup();
-        }
-        free(block);
-    }
-    return 0;
+			cleanup();
+		}
+
+		free(block);
+	}
+	
+	return 0;
 }
 
 /*
@@ -242,36 +270,36 @@ prepare_next_iter:
  */
 int qemu_engine_init(void)
 {
-    struct sigaction sa;
+	struct sigaction sa;
 
-    sa.sa_handler = sigvtalrm_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    if (sigaction(SIGVTALRM, &sa, NULL) == -1)
-    {
-        perror("sigaction sigvtalrm");
-        return 0;
-    }
+	sa.sa_handler = sigvtalrm_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	
+	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
+		perror("sigaction sigvtalrm");
+		return 0;
+	}
 
-    qv.value.it_interval.tv_usec =
-    qv.value.it_value.tv_usec = 1000;
-    qv.value.it_interval.tv_sec =
-    qv.value.it_value.tv_sec = 0;
+	qv.value.it_interval.tv_usec =
+	qv.value.it_value.tv_usec = 1000;
+	qv.value.it_interval.tv_sec =
+	qv.value.it_value.tv_sec = 0;
 
-    qv.zvalue.it_interval.tv_sec =
-    qv.zvalue.it_interval.tv_usec =
-    qv.zvalue.it_value.tv_sec =
-    qv.zvalue.it_value.tv_usec = 0;
+	qv.zvalue.it_interval.tv_sec =
+	qv.zvalue.it_interval.tv_usec =
+	qv.zvalue.it_value.tv_sec =
+	qv.zvalue.it_value.tv_usec = 0;
 
-    qv.cpu = malloc(sizeof(CPUX86State));
-    if (qv.cpu == NULL)
-    {
-        perror("malloc CPUX86State");
-        return 0;
-    }
-    qv.stack_base = setup_stack();
+	qv.cpu = malloc(sizeof(CPUX86State));
+	if (qv.cpu == NULL) {
+		perror("malloc CPUX86State");
+		return 0;
+	}
 
-    return 1;
+	qv.stack_base = setup_stack();
+
+	return 1;
 }
 
 /*
@@ -285,13 +313,13 @@ int qemu_engine_init(void)
  */
 void qemu_engine_destroy(void)
 {
-    free(qv.cpu);
+	free(qv.cpu);
 
-    if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size) == -1)
-    {
-        perror("munmap stack_base");
-        exit(1);
-    }
+	if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size)
+			== -1) {
+		perror("munmap stack_base");
+		exit(1);
+	}
 }
 
 /*
@@ -305,9 +333,11 @@ void qemu_engine_destroy(void)
  */
 void qemu_engine_reset(void)
 {
-	/* We don't use this function but it is required by
-	 * the agent implementation.
+	/* 
+	 * We don't use this function but it is required by the agent 
+	 * implementation.* 
 	 */
+
 	return;
 }
 
