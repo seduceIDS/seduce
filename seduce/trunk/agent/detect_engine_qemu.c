@@ -52,14 +52,14 @@ static void cleanup(void)
 }
 
 static char *get_next_block(char *data, size_t len, int min_len, 
-			    int *block_len, int first_pass)
+			    int *block_len, int block_num)
 {
 	char *p, *ret_val, *block_end, *block_next;
 
 	static char *block_start = NULL;
 	char *last_byte = data + len - 1;
 
-	if (first_pass)
+	if (block_num == 0)
 		block_start = data;
 
 	if (last_byte - block_start < min_len - 1)
@@ -129,9 +129,8 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 		return 0;
 
 	while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
-					!block_num))) {
-		block_num++;
-		
+					block_num++))) 
+	{
 		block = malloc(block_size);
 		if (block == NULL) {
 			fprintf(stderr,"malloc failed while building block\n");

@@ -24,7 +24,8 @@ static void print_usage(const char *prog_name, int rc)
 		"usage: %s [-h] [-c <config_file>] [-p <password>]\n"
 		"\t[-s <sens_addr1,sens_addr2>] [-P <PollingOrder>] "
 		"[-t <timeout>]\n"
-		"\t[-r <retries>] [-w <no_work_wait>] [-m <max_polls>]\n"
+		"\t[-r <retries>] [-w <no_work_wait>] [-m <max_polls>] "
+		"[-f <children>]\n"
 		"\n"
 		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. /etc/agent.conf'.\n"
@@ -39,6 +40,7 @@ static void print_usage(const char *prog_name, int rc)
 		      "an idle sensor.\n"
 		"  m : Max number of idle sensors to poll prior to "
 		      "sleeping.\n"
+		"  f : Number of child processes for handling the work\n"
 		"\n",
 		prog_name);
 	exit(rc);
@@ -151,6 +153,19 @@ static int get_valid_max_polls(const char *str)
 	}
 
 	return max_polls;
+}
+
+static int get_valid_children(const char *str)
+{
+	int children;
+
+	children = str_to_natural(str);
+	if (children < 1) {
+		fprintf(stderr, "children cannot be less than 1\n");
+		return -1;
+	}
+
+	return children;
 }
 
 static int validate_password(const char *pwd)
@@ -294,11 +309,12 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 	int t_arg = 0;
 	int w_arg = 0;
 	int m_arg = 0;
+	int f_arg = 0;
 
 	int mgr_count;
 	char **sensors;
 
-	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:P:m:")) != -1) {
+	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:P:m:f:")) != -1) {
 		switch(c) {
 		case 'h':
 			print_usage(opts->prog_name, 0);
@@ -362,7 +378,6 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 			                        (const char **) sensors,
 						opts))
 				return 0;
-
 			break;
 
 		case 't':
@@ -386,12 +401,22 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 			break;
 
 		case 'm':
-			if (m_arg++){
+			if (m_arg++) {
 				PRINT_SPECIFY_ONCE('m');
 				return 0;
 			}
 			opts->max_polls = get_valid_max_polls(optarg);
 			if (opts->max_polls == -1)
+				return 0;
+			break;
+
+		case 'f':
+			if (f_arg++) { 
+				PRINT_SPECIFY_ONCE('f');
+				return 0;
+			}
+			opts->children = get_valid_children(optarg);
+			if (opts->children == -1)
 				return 0;
 			break;
 
@@ -420,6 +445,8 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "max_polls") == 0)
 		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
+	else if (strcmp(opt->name, "children") == 0)
+		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
 	else
 		ret = 0;
 
@@ -444,6 +471,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 		CFG_SIMPLE_INT("retries", &opts->retries),
 		CFG_SIMPLE_INT("no_work_wait", &opts->no_work_wait),
 		CFG_SIMPLE_INT("max_polls", &opts->max_polls),
+		CFG_SIMPLE_INT("children", &opts->children),
 		CFG_END()
 	};
 
@@ -460,6 +488,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 	cfg_set_validate_func(cfg,"retries",cfg_validate);
 	cfg_set_validate_func(cfg,"no_work_wait",cfg_validate);
 	cfg_set_validate_func(cfg,"max_polls", cfg_validate);
+	cfg_set_validate_func(cfg,"children", cfg_validate);
 
 	ret = cfg_parse(cfg,filename);
 	
@@ -524,6 +553,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	final_opts->retries = clo.retries = -1;
 	final_opts->no_work_wait = clo.no_work_wait = -1;
 	final_opts->max_polls = clo.max_polls = -1;
+	final_opts->children = clo.children = -1;
 
 	ret = get_cloptions(argc, argv, &clo);
 	if (!ret)
@@ -588,6 +618,12 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 		final_opts->max_polls = clo.max_polls;
 	else if(final_opts->max_polls == -1)
 		final_opts->max_polls = DEFAULT_MAX_POLLS;
+
+	if(clo.children != -1)
+		final_opts->children = clo.children;
+	else if(final_opts->children == -1)
+		final_opts->children = DEFAULT_CHILDREN;
+
 
 	/* 
 	 * Now that command line and config file options are set,
@@ -654,6 +690,7 @@ int main(int argc, char *argv[])
 	printf("Retries: %d\n", in->retries);
 	printf("No Work Wait: %d\n", in->no_work_wait);
 	printf("Max Polls before sleep: %d\n", in->max_polls);
+	printf("Children: %d\n", in->children);
 
 	destroy_inputopts(in);
 

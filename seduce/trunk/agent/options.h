@@ -21,6 +21,8 @@ typedef struct _InputOptions {
 	int no_work_wait;	/* Seconds to wait when no work is available */
 	int max_polls;		/* Number of idle sensors to have polled prior
 				   to sleeping for no_work_wait seconds */
+	int children;		/* Number of forked children handling the 
+				   work */
 } InputOptions;
 
 /* Default Options */
@@ -29,6 +31,7 @@ typedef struct _InputOptions {
 #define DEFAULT_RETRIES		5
 #define DEFAULT_NO_WORK_WAIT	5
 #define DEFAULT_MAX_POLLS	10
+#define DEFAULT_CHILDREN	1
 
 #define MAX_PWD_SIZE		16
 

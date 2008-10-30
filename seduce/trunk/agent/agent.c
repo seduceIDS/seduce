@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
 
 #include "detect_engine.h"
 #include "sensor_contact.h"
@@ -21,6 +22,9 @@ struct ProgVars {
         DetectEngine *detect_engine;	/* registered detection engine */
         SensorSession *sensor_session;	/* current sensor session */
 	SelectionMethod select_sensor; 	/* "Next sensor" selection method */
+	int max_children;		/* the size of the child_pids array */
+	int running_children;		/* the actual number of running procs */
+	pid_t *child_pids;		/* an array holding the child PIDs */
 } pv;
 
 /* The linked-in engine will export this */
@@ -185,13 +189,63 @@ static const Work * find_work(InputOptions *in)
 	return w;
 }
 
-void quit_handler(int s)
+static void child_shutdown(void)
 {
 	pv.detect_engine->destroy();
-	DPRINTF("Sending QUIT Message...\n");
+	DPRINTF("process %d sending QUIT Message to sensor...\n", getpid());
 	sensor_disconnect();
+}
+
+void child_quit_handler(int s)
+{
+	child_shutdown();
 	exit(0);
 }
+
+static void kill_all_children(void)
+{
+	int i; 
+	pid_t pid;
+	
+        for(i=0; i<pv.max_children; i++){
+                if ((pid = pv.child_pids[i]) != 0) {
+                        DPRINTF("sending TERM signal to process %d\n", pid);
+                        kill(pid, SIGTERM);
+                }
+        }
+
+	while(pv.running_children > 0)
+		pause();
+}
+
+void father_quit_handler(int s)
+{
+	kill_all_children();
+	exit(0);
+}
+
+void child_reaper(int s)
+{
+	int status, i;
+	pid_t pid;
+
+	while ( (pid = waitpid(-1, &status, WNOHANG)) > 0) {
+		if (WIFEXITED(status))
+			fprintf(stderr, "child %d exited with status %d\n",
+				pid, WEXITSTATUS(status));
+		else if (WIFSIGNALED(status))
+			fprintf(stderr, "child %d exited with signal %d\n",
+				pid, WTERMSIG(status));
+
+		for(i=0; i<pv.max_children; i++){
+			if (pv.child_pids[i] == pid){
+				pv.child_pids[i] = 0;
+				pv.running_children -= 1;
+			}
+		}
+	}
+}
+
 
 /* returns 0 if there's an error contacting a sensor,
   	   1 if there's an error during alert submission */
@@ -251,10 +305,65 @@ err:
 	return retval;
 }
 
+
+/* returns PID of newly spawned process or 0 if an error was encountered */
+
+static pid_t spawn_child(InputOptions *in)
+{
+	pid_t pid;
+	struct sigaction sa;
+
+	if ((pid = fork())== -1) {
+		perror("error while forking child process");
+		return 0;
+	}
+	
+	if (!pid) { /* child code */
+		/* initialize handlers for quiting */
+		sa.sa_handler = child_quit_handler;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = 0;
+		
+		if (sigaction(SIGTERM, &sa, NULL) == -1) {
+			perror("sigaction SIGTERM");
+			exit(2);
+		}
+	
+		sa.sa_handler = SIG_IGN;
+		if (sigaction(SIGINT, &sa, NULL) == -1) {
+			perror("sigaction SIGINT");
+			exit(2);
+		}
+
+		sa.sa_handler = SIG_DFL;
+		sa.sa_flags = SA_NOCLDSTOP;
+		if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+			perror("sigaction SIGCHLD");
+			exit(2);
+		}
+	
+		/* this MUST happen within the context of the process that 
+		   will call main_loop */
+		srand((unsigned int) getpid());
+
+		/* Everything is ready, go to the main loop */
+		main_loop(in);
+
+		/* exiting the main loop means something went wrong */
+		child_shutdown();
+		exit(1);
+	}
+
+	/* parent code */
+	pv.running_children += 1;
+	return pid;
+}
+
 int main(int argc, char *argv[])
 {
 	struct sigaction sa;
 	InputOptions *in;
+	int i;
 	
 	pv.detect_engine = &engine;
 	
@@ -266,31 +375,64 @@ int main(int argc, char *argv[])
 		pv.select_sensor = &random_selection;
 	else
 		pv.select_sensor = &round_robin_selection;
-		
+	
+	pv.max_children = in->children;
+	fprintf(stderr, "%d\n", in->children);
+
+	if (!(pv.child_pids = malloc(pv.max_children * sizeof(pid_t)))) {
+		perror("error allocating memory for child pid array");
+		return 1;
+	}
+
+	memset(pv.child_pids, 0, pv.max_children * sizeof(pid_t));
+
+	pv.running_children = 0;
 
 	/* initialize handlers for quiting */
-	sa.sa_handler = quit_handler;
+	sa.sa_handler = father_quit_handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 
 	if (sigaction(SIGINT, &sa, NULL) == -1) {
-		perror("sigaction");
+		perror("sigaction SIGINT");
 		return 1;
 	}
 
 	if (sigaction(SIGTERM, &sa, NULL) == -1) {
-		perror("sigaction");
+		perror("sigaction SIGTERM");
 		return 1;
 	}
 
-	/* this MUST happen within the context of the process that 
-	   will call main_loop */
-	srand((unsigned int) getpid());
+	sa.sa_handler = child_reaper;
+	sa.sa_flags = SA_NOCLDSTOP;
 
-	/* Everything is ready, go to the main loop */
-	main_loop(in);
+	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+		perror("sigaction SIGCHLD");
+		return 1;
+	}
 
+	for(i=0; i<pv.max_children; i++){
+		if (!(pv.child_pids[i] = spawn_child(in)))
+			goto err;
+	}
+
+	while (1) {
+		pause();
+
+		/* If we get here, 1 or more children have died.
+		   We thus ressurect them */
+
+		for(i=0; i < pv.max_children; i++){
+			if ((pv.child_pids[i] == 0) && 
+			    (!(pv.child_pids[i] = spawn_child(in))))
+				goto err;
+		}
+
+	}
+
+err:
+	/* reached only on error */
+	kill_all_children();
 	destroy_inputopts(in);
-
 	return 1;
 }
