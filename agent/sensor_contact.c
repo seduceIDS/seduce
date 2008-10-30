@@ -464,7 +464,7 @@ int sensor_request(SensorSession *s, int req_type)
 retry:
 	ret = do_request(s, req_type, &pck);
 	if(ret == 0)
-		critical_error(1, "Unable to communicate with the manager");
+		critical_error(1, "Unable to communicate with the sensor");
 	else if(ret == -1) {
 		DPRINTF("timed out.\n");
 
