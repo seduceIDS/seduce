@@ -375,7 +375,6 @@ int main(int argc, char *argv[])
 		pv.select_sensor = &round_robin_selection;
 	
 	pv.max_children = in->children;
-	fprintf(stderr, "%d\n", in->children);
 
 	if (!(pv.child_pids = malloc(pv.max_children * sizeof(pid_t)))) {
 		perror("error allocating memory for child pid array");
@@ -432,5 +431,6 @@ err:
 	/* reached only on error */
 	kill_all_children();
 	destroy_inputopts(in);
+	free(pv.child_pids);
 	return 1;
 }

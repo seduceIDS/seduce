@@ -48,7 +48,7 @@ static int dummy_engine_process(char *data, size_t len, Threat *t)
 	int size;
 	
 	if((data == NULL) || (len == 0))
-		return -1;
+		return 0;
 
 	if(times++ < TIMES) {
 		fprintf(stderr, "work done\n");
