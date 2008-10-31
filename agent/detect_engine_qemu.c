@@ -51,58 +51,6 @@ static void cleanup(void)
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
 }
 
-static char *get_next_block(char *data, size_t len, int min_len, 
-			    int *block_len, int block_num)
-{
-	char *p, *ret_val, *block_end, *block_next;
-
-	static char *block_start = NULL;
-	char *last_byte = data + len - 1;
-
-	if (block_num == 0)
-		block_start = data;
-
-	if (last_byte - block_start < min_len - 1)
-		return NULL;
-
-search:
-	/* look for the terminator */
-	block_end = block_next = NULL;
-
-   	for(p = block_start; ((p <= last_byte) && (*p != '\0')); p++)
-		;
-
-	/* terminator was found */
-	block_end = p - 1;
-
-	if (!*p)
-		block_next = p + 1;
-	else  /* past last byte (that btw wasn't NUL) */
-		block_next = p;
-
-	/* 
-	 * yes block_next might now point right after the buffer, 
-	 * but that's not a bug, it's a feature!
-	 */
-
-	*block_len = block_end - block_start + 1;
-
-	if ((*block_len < min_len) && (last_byte - block_next >= min_len - 1)) {
-		/* small block found, other blocks follow */
-		block_start = block_next;
-		goto search;
-	} else if (*block_len < min_len) {
-		/* small block found, no other blocks follow */
-		ret_val = NULL;
-	} else {
-		/* ok block found, other blocks might follow */
-		ret_val = block_start;
-		block_start = block_next;
-	}
-
-	return ret_val;
-}
-
 /*
  * Function: qemu_engine_process()
  *
@@ -120,7 +68,7 @@ search:
  */
 int qemu_engine_process(char *data, size_t len, Threat *threat)
 {
-	char *p;
+	const char *p;
 	void *block;
 	int block_size, i, ret, block_num = 0;
 	char threat_msg[51];
@@ -133,8 +81,8 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 	{
 		block = malloc(block_size);
 		if (block == NULL) {
-			fprintf(stderr,"malloc failed while building block\n");
-			exit(1);
+			perror("malloc failed while building block\n");
+			return -1;
 		}
 
 		memcpy(block, p, block_size);

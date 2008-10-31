@@ -299,9 +299,8 @@ static int main_loop(InputOptions *in)
 		} while((w = get_next_work()) != NULL);
 	}
 err:
-	pv.detect_engine->destroy();
-	sensor_disconnect();
-
+	child_shutdown(); /* this takes care of sending quit to the server
+			     and destroying the detection engine */
 	return retval;
 }
 
@@ -350,7 +349,6 @@ static pid_t spawn_child(InputOptions *in)
 		main_loop(in);
 
 		/* exiting the main loop means something went wrong */
-		child_shutdown();
 		exit(1);
 	}
 
