@@ -306,7 +306,7 @@ static int parse_file(char *filename)
 		CFG_SIMPLE_STR("interface", &nids_params.device),
 		CFG_SIMPLE_STR("home_net",&home_net),
 		CFG_SIMPLE_STR("portlist",&portlist),
-		CFG_SIMPLE_INT("agents_port", &pv.agent_port),
+		CFG_SIMPLE_INT("agent_port", &pv.agent_port),
 		CFG_SIMPLE_INT("max_agents", &pv.max_agents),
 		CFG_SIMPLE_INT("mem_softlimit", &pv.mem_softlimit),
 		CFG_SIMPLE_INT("mem_hardlimit", &pv.mem_hardlimit),
@@ -334,7 +334,7 @@ static int parse_file(char *filename)
 	/* set validation callback functions */
 	cfg_set_validate_func(cfg, "portlist", cfg_validate);
 	cfg_set_validate_func(cfg, "home_net", cfg_validate);
-	cfg_set_validate_func(cfg, "agents_port", cfg_validate);
+	cfg_set_validate_func(cfg, "agent_port", cfg_validate);
 	cfg_set_validate_func(cfg, "max_agents", cfg_validate);
 	cfg_set_validate_func(cfg, "password", cfg_validate);
 	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
