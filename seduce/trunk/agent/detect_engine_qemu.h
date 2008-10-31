@@ -15,7 +15,7 @@ typedef struct _QemuVars {
 } QemuVars;
 
 /* Blocks smaller than this are not emulated */
-#define MIN_BLOCK_LENGTH	30
+#define MIN_BLOCK_LENGTH        30
 
 void sigvtalrm_handler(int signum);
 int qemu_engine_process(char *data, size_t len, Threat *threat);
@@ -25,4 +25,3 @@ int qemu_engine_get_threat(Threat *t);
 void qemu_engine_reset(void);
 
 #endif /* _DETECT_ENGINE_QEMU_H */
-

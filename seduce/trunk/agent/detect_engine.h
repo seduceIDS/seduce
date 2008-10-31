@@ -26,8 +26,10 @@ typedef struct _DetectEngine{
 	void *params;
 } DetectEngine;
 
-
 /* Function Declarations */
+
 void destroy_threat(Threat *);
+const char *get_next_block(const char *data, size_t len, int min_len, 
+			   int *block_len, int use_previous_data);
 
 #endif /* _DETECT_ENGINE_H*/

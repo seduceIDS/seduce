@@ -25,7 +25,7 @@ void *load_file(const char *filename, unsigned long *fsize)
 	}
 	
 	*fsize = st.st_size;
-	buff = calloc(1, *fsize + 1);
+	buff = calloc(1, *fsize);
 	
 	if (buff == NULL) {
 		fprintf(stderr,"calloc failed\n");
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
 	buff = load_file(argv[1], &fsize);
 
 	qemu_engine_init();
-	ret = qemu_engine_process(buff, fsize + 1, &t);
+	ret = qemu_engine_process(buff, fsize, &t);
 	qemu_engine_destroy();
 	free(buff);
 
