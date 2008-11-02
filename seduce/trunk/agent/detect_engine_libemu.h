@@ -1,5 +1,5 @@
 #ifndef _DETECT_ENGINE_LIBEMU_H
-#define _DETECT_ENGINE_LIBEMU_H 1
+#define _DETECT_ENGINE_LIBEMU_H
 
 #include <stdio.h>
 
