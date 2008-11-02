@@ -34,8 +34,10 @@ LDFLAGS		= -lconfuse
 CFLAGS_QEMU	= -Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/ -I../sensor/ -I./
 LDFLAGS_QEMU	= -lqemu
 
+ifeq ($(ENGINE), libemu)
 CFLAGS_LIBEMU	:= $(shell ${PKG_CONFIG} libemu --cflags)
 LDFLAGS_LIBEMU	:= $(LIBEMU_LIB_BUG) $(shell ${PKG_CONFIG} libemu --libs)
+endif
 
 CORE_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
 
