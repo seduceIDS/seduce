@@ -14,12 +14,21 @@
 /*
  * find the position of the first 0 in a 8-bit array
  */
-inline unsigned short find_first_zero(u_int8_t bit_array)
+inline unsigned short find_first_zero(uint8_t bit_array)
 {
-	if ((bit_array = ~bit_array) == 0)
+	unsigned pos = 0;
+
+	__asm__("bsfl %1,%0\n\t"
+		"jne 1f\n\t"
+		"movl $32, %0\n"
+		"1:"
+		: "=r" (pos)
+		: "r" (~(bit_array)));
+
+	if (pos > 7)
 		return 8;
 
-	return (unsigned short)(log(bit_array & -bit_array)/log(2));
+	return (unsigned short) pos;
 }
 
 
