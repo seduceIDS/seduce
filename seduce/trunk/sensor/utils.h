@@ -8,7 +8,10 @@
 
 #ifdef _DEBUG
 
-#define DPRINTF(...) fprintf(stderr, __VA_ARGS__)
+#define DPRINTF(...) do { \
+	fprintf(stderr,"%s:\t",__func__); \
+	fprintf(stderr, __VA_ARGS__); \
+} while(0)
 
 #define int_ntoa(x) inet_ntoa(*((struct in_addr *)&x))
 
@@ -40,7 +43,7 @@
 #define NO (!YES)
 
 /* Function Declarations */
-unsigned short find_first_zero(u_int8_t);
+unsigned short find_first_zero(uint8_t);
 unsigned int get_rand(void);
 
 ssize_t readline(int, void *, size_t);
