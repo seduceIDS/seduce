@@ -207,7 +207,7 @@ static void kill_all_children(void)
 	int i; 
 	pid_t pid;
 	
-        for(i=0; i<pv.max_children; i++){
+        for(i = 0; i < pv.max_children; i++){
                 if ((pid = pv.child_pids[i]) != 0) {
                         DPRINTF("sending TERM signal to process %d\n", pid);
                         kill(pid, SIGTERM);
@@ -229,7 +229,7 @@ void child_reaper(int s)
 	int status, i;
 	pid_t pid;
 
-	while ( (pid = waitpid(-1, &status, WNOHANG)) > 0) {
+	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 		if (WIFEXITED(status))
 			fprintf(stderr, "child %d exited with status %d\n",
 				pid, WEXITSTATUS(status));
@@ -237,8 +237,8 @@ void child_reaper(int s)
 			fprintf(stderr, "child %d exited with signal %d\n",
 				pid, WTERMSIG(status));
 
-		for(i=0; i<pv.max_children; i++){
-			if (pv.child_pids[i] == pid){
+		for(i = 0; i < pv.max_children; i++) {
+			if (pv.child_pids[i] == pid) {
 				pv.child_pids[i] = 0;
 				pv.running_children -= 1;
 			}
@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	for(i=0; i<pv.max_children; i++){
+	for(i = 0; i < pv.max_children; i++) {
 		if (!(pv.child_pids[i] = spawn_child(in)))
 			goto err;
 	}
@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
 		/* If we get here, 1 or more children have died.
 		   We thus ressurect them */
 
-		for(i=0; i < pv.max_children; i++){
+		for(i = 0; i < pv.max_children; i++) {
 			if ((pv.child_pids[i] == 0) && 
 			    (!(pv.child_pids[i] = spawn_child(in))))
 				goto err;

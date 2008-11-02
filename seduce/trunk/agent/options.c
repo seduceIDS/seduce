@@ -64,7 +64,7 @@ static int str_to_natural(const char *str)
 		return -1;
 
 	size = strlen(str);
-	for(i=0; i < size; i++)
+	for(i = 0; i < size; i++)
 		if(!isdigit(str[i]))
 			return -1;
 
@@ -514,7 +514,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 		goto exit;
 	}
 
-	for(i=0; i<num_sensors; i++) {
+	for(i = 0; i < num_sensors; i++) {
 		sensors[i] = cfg_getnstr(cfg, "sensors", i);
 		if (!validate_sensor(sensors[i])) {
 			fprintf(stderr,"invalid sensor string: %s\n",
@@ -670,7 +670,7 @@ int main(int argc, char *argv[])
 
 	printf("Options:\n");
 	printf("Sensor Address(es): ");
-	for(i=0; i < in->num_sensors; i++){
+	for(i = 0; i < in->num_sensors; i++) {
 		s = in->sensors[i];
 		printf("%s:%u ", inet_ntoa(s.addr), ntohs(s.port));
 	}
