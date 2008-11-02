@@ -1,5 +1,5 @@
 #ifndef _ALERT_H
-#define _ALERT_H	1
+#define _ALERT_H
 
 #include "sensor_contact.h"
 #include "detect_engine.h"
