@@ -345,7 +345,7 @@ void fill_progvars(int argc, char *argv[])
 
 	if (clo.mem_hardlimit) {
 		if((pv.mem_hardlimit = str_to_natural(clo.mem_hardlimit)) < 1) {
-			fprintf(stderr, "Not a valid hard limit calue\n");
+			fprintf(stderr, "Not a valid hard limit value\n");
 			exit(1);
 		}
 		free(clo.mem_hardlimit);
