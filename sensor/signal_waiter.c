@@ -29,7 +29,7 @@ void compute_stats(void)
 	printf("                     Packets\tBytes\n");
 	printf("Input:               %llu   \t%llu\n", in.pcks, in.bytes);
 	printf("Consumed by Agents:  %llu   \t%llu\n", out.pcks, out.bytes);
-	printf("Ignored by Agents:   %llu   \t%llu\n", proto.pcks, proto.bytes);
+	printf("Discarded by Agents: %llu   \t%llu\n", proto.pcks, proto.bytes);
 	printf("Consumed by OOM:     %llu   \t%llu\n", oom.pcks, oom.bytes);
 	printf("Left inside:         %llu   \t%llu\n", left.pcks, left.bytes); 
 }
@@ -60,8 +60,6 @@ void *signal_waiter(void *arg)
 		case SIGINT:
 			compute_stats();
 			exit(0);
-			break;
-
 		default:
 			printf("Ignoring signal with ID: %d.\n", sig_number);
 		}
