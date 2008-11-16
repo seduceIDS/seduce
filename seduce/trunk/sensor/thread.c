@@ -2,7 +2,7 @@
 #include "errors.h"
 
 
-inline void create_thread(void *(*func)(void *), void *data)
+void create_thread(void *(*func)(void *), void *data)
 {
 	int status;
 	pthread_t id;
@@ -16,7 +16,7 @@ inline void create_thread(void *(*func)(void *), void *data)
 }
 
 
-inline void mutex_init(pthread_mutex_t *mutex)
+void mutex_init(pthread_mutex_t *mutex)
 {
 	int status;
 
@@ -25,7 +25,7 @@ inline void mutex_init(pthread_mutex_t *mutex)
 		err_abort (status, "Init mutex");
 }
 
-inline void mutex_destroy(pthread_mutex_t *mutex)
+void mutex_destroy(pthread_mutex_t *mutex)
 {
 	int status;
 
@@ -34,7 +34,7 @@ inline void mutex_destroy(pthread_mutex_t *mutex)
 		err_abort (status, "Destroy mutex");
 }
 
-inline void mutex_lock(pthread_mutex_t *mutex)
+void mutex_lock(pthread_mutex_t *mutex)
 {
 	int status;
 
@@ -43,7 +43,7 @@ inline void mutex_lock(pthread_mutex_t *mutex)
 		err_abort (status, "Lock mutex");
 }
 
-inline void mutex_unlock(pthread_mutex_t *mutex)
+void mutex_unlock(pthread_mutex_t *mutex)
 {
 	int status;
 
@@ -52,7 +52,7 @@ inline void mutex_unlock(pthread_mutex_t *mutex)
 		err_abort (status, "Unlock mutex");
 }
 
-inline void cond_init(pthread_cond_t *cond)
+void cond_init(pthread_cond_t *cond)
 {
 	int status;
 
@@ -61,7 +61,7 @@ inline void cond_init(pthread_cond_t *cond)
 		err_abort (status, "Init condition");
 }
 
-inline void cond_destroy(pthread_cond_t *cond)
+void cond_destroy(pthread_cond_t *cond)
 {
 	int status;
 
@@ -70,7 +70,7 @@ inline void cond_destroy(pthread_cond_t *cond)
 		err_abort (status, "Destroy condition");
 }
 
-inline void cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
+void cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 {
 	int status;
 
@@ -79,12 +79,21 @@ inline void cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 		err_abort (status, "Wait on condition");
 }
 
-inline void cond_signal(pthread_cond_t *cond)
+void cond_signal(pthread_cond_t *cond)
 {
 	int status;
 
 	status = pthread_cond_signal(cond);
 	if (status != 0)
 		err_abort (status, "Signal condition");
+}
+
+void signals_block(sigset_t *signal_set)
+{
+	int status;
+
+	status = pthread_sigmask(SIG_BLOCK, signal_set, NULL);
+	if (status != 0)
+		err_abort (status, "Set signal mask");
 }
 

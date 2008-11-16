@@ -8,7 +8,7 @@
 
 #include <nids.h> /* struct tuple4 */
 
-#include "thread.h"
+
 
 
 typedef struct _TCPData {
@@ -46,12 +46,24 @@ typedef struct _Session {
 	} data_tail;			/* Session data tail */
 } Session;
 
+typedef struct _StatUnit {		/* Unit of Statistical data */
+	uint64_t pcks;
+	uint64_t bytes;
+} StatUnit;
+
 typedef struct _Sensor {
 	Session *sessionlist_head;
 	Session *sessionlist_tail;
 	unsigned id_start;		/* the first session id */
 	GHashTable *hash;
 	pthread_mutex_t mutex;
+
+	/* statistics */
+	StatUnit in;
+	StatUnit out;
+	StatUnit oom_lost;
+	StatUnit proto_lost;
+
 } Sensor;
 
 typedef struct _DataInfo {	/* A pair that defines a unite of data */
@@ -93,7 +105,7 @@ int consume_group(int (*func)(), void *params);
 
 TCPData *get_next_data(const TCPData *);
 
-int destroy_data(DataInfo *);
-int destroy_datagroup(DataInfo *);
+int destroy_data(StatUnit *,DataInfo *);
+int destroy_datagroup(StatUnit *, DataInfo *);
 
 #endif /* _DATA_H */

@@ -14,6 +14,7 @@
 #include "errors.h"
 #include "data.h"
 #include "alert_recv.h"
+#include "thread.h"
 
 
 static int udp_sock; /* The UDP Socket */
@@ -177,7 +178,8 @@ static void remove_agent(Agents *agents, unsigned id)
 	if(this_agent->history.data.tcp) {
 
 		mutex_lock(&sensor.mutex);
-		ret = destroy_datagroup(&this_agent->history);
+		ret = destroy_datagroup(&sensor.proto_lost,
+					&this_agent->history);
 		/* TODO: Do I need to check about ret ? */
 		mutex_unlock(&sensor.mutex);
 	}
@@ -250,7 +252,7 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 	socklen_t addr_len = sizeof(struct sockaddr);
 	size_t length = UDP_HDR_SIZE;
 	
-	unsigned int type;
+	unsigned type;
 	unsigned char * payload;
 	size_t payload_length;
 
@@ -332,8 +334,12 @@ static int send_new_work(AgentInfo *agent)
 		 * we are about to start with a new one...
 		 */
 		mutex_lock(&sensor.mutex);
-
-		ret = destroy_datagroup(&agent->history);
+		/*
+		 * I'm not sure those data should be logged as being lost
+		 * because of the agents protocol, but I'll leave it like this
+		 * for now
+		 */
+		ret = destroy_datagroup(&sensor.proto_lost, &agent->history);
 
 		mutex_unlock(&sensor.mutex);
 	}
@@ -380,7 +386,7 @@ static int send_next_work(AgentInfo *agent)
 		 * Now we know what we want to send,
 		 * so it's safe to destroy the old data
 		 */
-		destroy_data(&agent->history);
+		destroy_data(&sensor.out, &agent->history);
 
 		/* those data are not the head of a data group */
 		work.is_grouphead = 0;
@@ -516,9 +522,9 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 		case UDP_GET_NEXT:
 			send_current_work(this_agent);
 		}
-	}
-	else if(pck->seq == (this_agent->seq + 1)) { /* new_request */
 
+	} else if(pck->seq == (this_agent->seq + 1)) {
+		/* new_request */
 		switch(pck->type) {
 		case UDP_NEW_WORK:
 			this_agent->seq = pck->seq;

@@ -47,7 +47,7 @@ static int free_memory(int limit_to_reach)
 	DPRINTF("Freeing memory");
 
 	do {
-		int ret = consume_group(destroy_datagroup, NULL);
+		int ret = consume_group(destroy_datagroup, &sensor.oom_lost);
 		if(ret == -1) {
 			/* joblist is empty, couldn't delete enough data */
 			return 0;

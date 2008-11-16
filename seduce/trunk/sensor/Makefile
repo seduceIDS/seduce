@@ -35,11 +35,11 @@ LIBS		= $(GLIB) $(NIDS) $(CONFUSE) $(PRELUDE) -lm
 
 OBJS		= sensor.o chksum_ctl.o data.o hash.o sensor_contact.o \
 		  sniffer.o options.o thread.o utils.o oom_handler.o \
-		  agent_contact.o alert.o alert_recv.o
+		  agent_contact.o alert.o alert_recv.o signal_waiter.o
 
 HDRS		= sensor.h data.h hash.h sensor_contact.h options.h sniffer.h \
 		  thread.h utils.h errors.h oom_handler.h agent_contact.h \
-		  alert.h alert_recv.h
+		  alert.h alert_recv.h signal_waiter.h
 
 
 .PHONY: all clean install install-bin install-conf
