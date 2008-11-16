@@ -11,6 +11,7 @@
 #include "hash.h"
 #include "utils.h"
 #include "oom_handler.h"
+#include "thread.h"
 
 
 /* The Sensor */
@@ -38,6 +39,12 @@ void init_datalists(void)
 		abort();
 	}
 
+	/* clear_sensor_stats */
+	memset(&sensor.in, '\0', sizeof(StatUnit));
+	memset(&sensor.out, '\0', sizeof(StatUnit));
+	memset(&sensor.oom_lost, '\0', sizeof(StatUnit));
+	memset(&sensor.proto_lost, '\0', sizeof(StatUnit));
+
 	/* Initialize the Group list */
 	grouplist.head = grouplist.tail = NULL;
 	grouplist.cnt = 0;
@@ -59,7 +66,7 @@ void init_datalists(void)
  */
 Session *find_session(unsigned id)
 {
-	unsigned int correct_id;
+	unsigned correct_id;
 
 	correct_id = id + sensor.id_start;
 	return hash_session_lookup(correct_id);
@@ -81,7 +88,7 @@ Session *find_session(unsigned id)
 Session *add_session(unsigned id, const struct tuple4 *addr, int proto)
 {
 	Session *new_session;
-	unsigned int correct_id; 
+	unsigned correct_id; 
 	
 	correct_id = id + sensor.id_start;
 	new_session = hash_session_insert(correct_id);
@@ -270,6 +277,10 @@ void *add_data(Session *session, void *payload, size_t len)
 		mutex_unlock(&oom_mutex);
 	}
 
+	/* Before returning update the statistics....*/
+	sensor.in.pcks += 1;
+	sensor.in.bytes += len;
+
 	return ret;
 }
 
@@ -399,7 +410,7 @@ inline TCPData *get_next_data(const TCPData *data)
 }
 
 /*
- * Function: destroy_data(Sensor *, unsigned int, unsigned int)
+ * Function: destroy_data(DataInfo *)
  *
  * Purpose: Deallocates the memory allocated for the data, removes data from the
  *          session's data list, and calls remove_session if it's safe.
@@ -410,17 +421,25 @@ inline TCPData *get_next_data(const TCPData *data)
  * Returns: 0=> An error occured
  *          1=> Data have been removed, maybe session too
  */
-int destroy_data(DataInfo *d)
+int destroy_data(StatUnit *log, DataInfo *d)
 {
 	TCPData *data;
 
 	DPRINTF("\n");
+
+	log->pcks += 1;
+
 	/* UDP Data */
 	if(d->session->proto == IPPROTO_UDP) {
+		
+		log->bytes += d->data.udp->length;
+
 		free(d->data.udp->payload);
 		free(d->data.udp);
 		return destroy_session(d->session);
 	}
+
+	log->bytes += d->data.tcp->length;
 
 
 	/* TCP Data */
@@ -454,7 +473,8 @@ int destroy_data(DataInfo *d)
  *
  * Purpose: Destroy a whole group of data.
  *
- * Arguments: d=> Pointer to the struct containing info about
+ * Arguments:	log
+ * 		d=> Pointer to the struct containing info about
  *                the heading data of the datagroup we want to remove
  *
  * Returns: 0=> An error occured
@@ -462,7 +482,7 @@ int destroy_data(DataInfo *d)
  *          2=> Group of data have been removed, session too and it's safe to
  *          remove the the sensor too.
  */
-int destroy_datagroup(DataInfo *d)
+int destroy_datagroup(StatUnit *log, DataInfo *d)
 {
 	TCPData *grp_start;
 	TCPData *grp_end;
@@ -473,6 +493,11 @@ int destroy_datagroup(DataInfo *d)
 
 	/* UDP Data */
 	if(d->session->proto == IPPROTO_UDP) {
+		/* log for statistical purposes */
+		log->pcks += 1;
+		log->bytes += d->session->data_head.udp->length;
+
+		/* destroy data */
 		free(d->session->data_head.udp->payload);
 		free(d->session->data_head.udp);
 		return destroy_session(d->session);
@@ -506,6 +531,12 @@ int destroy_datagroup(DataInfo *d)
 	/* free group data */
 	while(grp_start != grp_end) {
 		grp_start = grp_start->next;
+
+		/* log for statistical purposes */
+		log->pcks += 1;
+		log->bytes += grp_start->prev->length;
+
+		/* destroy data */
 		free(grp_start->prev->payload);
 		free(grp_start->prev);
 	}

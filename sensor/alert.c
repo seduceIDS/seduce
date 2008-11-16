@@ -14,6 +14,7 @@
 
 #include "alert.h"
 #include "errors.h"
+#include "thread.h"
 
 #define ANALYZER_CLASS "NIDS"
 #define ANALYZER_MODEL "SEDUCE"

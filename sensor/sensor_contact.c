@@ -10,6 +10,7 @@
 #include "errors.h"
 #include "data.h"
 #include "utils.h"
+#include "thread.h"
 
 int new_tcp(unsigned id, const struct tuple4 *addr)
 {
