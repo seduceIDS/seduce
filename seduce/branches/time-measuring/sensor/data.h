@@ -6,6 +6,8 @@
 #include <glib.h>
 #include <netinet/in.h>
 
+#include <sys/time.h> /* timeval */
+
 #include <nids.h> /* struct tuple4 */
 
 
@@ -79,6 +81,8 @@ typedef struct _Group {
 	struct _Group *next;
 	struct _Group *prev;
 	DataInfo grouphead; /* The heading data of a group */
+
+	struct timeval start; /* for time measuring */
 } Group;
 
 typedef struct _GroupList {
@@ -101,7 +105,7 @@ int close_session (unsigned id);
 void *add_data(Session *, void *payload, size_t len);
 
 int  add_group(Session *, void *);
-int consume_group(int (*func)(), void *params);
+int consume_group(int (*func)(), void *params, int add_sample);
 
 TCPData *get_next_data(const TCPData *);
 
