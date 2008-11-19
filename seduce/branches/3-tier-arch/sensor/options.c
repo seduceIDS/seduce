@@ -340,6 +340,7 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 				PRINT_SPECIFY_ONCE('c');
 				return 0;
 			}
+			c_arg = 1;
 			clo->conf_file = strdup(optarg);
 			break;
 
