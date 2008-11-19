@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 		destroy_threat(&t);
 	} else if (ret == 0)
 		printf("No threat detected\n");
-	else
+	 else
 		printf("Error while processing packet\n");
 	 
 	 return 0;
