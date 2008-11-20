@@ -20,8 +20,7 @@ Sensor sensor;
 /* The grouplist (not to be viewed outside the file) */
 static GroupList grouplist;
 
-#define MEASURED_TIMES	1000
-struct timeval measured_times[MEASURED_TIMES];
+struct timeval measured_times[MEASURED_TIMES + 1]; // 1 extra for garbage
 
 /*
  * Function: init_datalists()
@@ -305,8 +304,6 @@ void *add_data(Session *session, void *payload, size_t len)
  *          function is applied.
  */
 
-#define SAMPLE_NUM	100
-
 static void new_sample(const struct timeval *start)
 {
 	static int i = 0;
@@ -320,10 +317,14 @@ static void new_sample(const struct timeval *start)
 	timersub(&end, start, &end);
 	timeradd(&measured_times[i], &end, &measured_times[i]);
 
-	if(++cnt == SAMPLE_NUM) {
+	if(++cnt == SAMPLE_NUMBER) {
 		cnt = 0;
-		i++;
+
+		if(i != MEASURED_TIMES)
+			i++;
 	}
+
+	DPRINTF("i=%d,cnt=%d\n", i, cnt);
 }
 
 
