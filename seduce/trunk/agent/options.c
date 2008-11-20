@@ -501,12 +501,10 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 		goto exit;
 	}
 
-	if (!(num_sensors = cfg_size(cfg, "sensors"))) {
-		fprintf(stderr, "No value given for `sensors' option in config"
-				" file %s\n", filename);
-		retval = 0;
+	/* No sensor addresses found.. Nothing wrong with that! The user might
+	   have already provided these as a cmdline option! */
+	if ((num_sensors = cfg_size(cfg, "sensors")) == 0)
 		goto exit;
-	}
 	
 	if (!(sensors = malloc(num_sensors * sizeof(char *)))) {
 		perror("malloc error while creating array of sensors");
