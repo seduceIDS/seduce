@@ -1,9 +1,8 @@
 #
-# Makefile for the agent
+# Makefile for 'agent' (and the 'seduce' utility)
 #
 
-NAME		= agent
-
+AVAIL_ENGINES 	= qemu libemu dummy
 ENGINE		= dummy
 
 # libemu has a bug when registering the library dir to pkg-config
@@ -26,7 +25,8 @@ INSTALL_CONF	= $(INSTALL) -c -o $(INSTALL_USER) -g $(INSTALL_GROUP) -m 640
 PKG_CONFIG	= /usr/bin/pkg-config
 
 CC		= gcc
-DEBUG		= -ggdb -D_DEBUG
+# DEBUG		= -ggdb -D_DEBUG -D_NO_MIN_BLOCK_LENGTH
+DEBUG		= -ggdb -D_DEBUG 
 OPT		= -O2
 CFLAGS		= -Wall -D_GNU_SOURCE $(OPT) $(DEBUG)
 LDFLAGS		= -lconfuse
@@ -39,27 +39,32 @@ CFLAGS_LIBEMU	:= $(shell ${PKG_CONFIG} libemu --cflags)
 LDFLAGS_LIBEMU	:= $(LIBEMU_LIB_BUG) $(shell ${PKG_CONFIG} libemu --libs)
 endif
 
-CORE_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
+AGENT_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
+
+SEDUCE_OBJS	= seduce.o detect_engine.o
 
 ifeq ($(ENGINE), qemu)
 	CFLAGS += $(CFLAGS_QEMU)
 	LDFLAGS += $(LDFLAGS_QEMU)
-	OBJS = $(CORE_OBJS) detect_engine_qemu.o
+	AGENT_OBJS += detect_engine_qemu.o
+	SEDUCE_OBJS += detect_engine_qemu.o
 endif
 
 ifeq ($(ENGINE), libemu)
 	CFLAGS += $(CFLAGS_LIBEMU)
 	LDFLAGS += $(LDFLAGS_LIBEMU)
-	OBJS = $(CORE_OBJS) detect_engine_libemu.o
+	AGENT_OBJS += detect_engine_libemu.o
+	SEDUCE_OBJS += detect_engine_libemu.o
 endif
 
 ifeq ($(ENGINE), dummy)
-	OBJS = $(CORE_OBJS) detect_engine_dummy.o
+	AGENT_OBJS += detect_engine_dummy.o
+	SEDUCE_OBJS += detect_engine_dummy.o
 endif
 
-.PHONY: all dummy qemu clean install install-bin install-conf
+.PHONY: all dummy qemu clean install install-bin install-conf help
 
-all: $(NAME) 
+all: agent seduce
 
 dummy:
 	$(MAKE) ENGINE=dummy
@@ -70,23 +75,23 @@ qemu:
 libemu:
 	$(MAKE) ENGINE=libemu
 
-$(NAME): $(OBJS) 
-	$(CC) -o $@ $(OBJS) $(LDFLAGS)
+agent: $(AGENT_OBJS) 
+	$(CC) -o $@ $(AGENT_OBJS) $(LDFLAGS)
 	@echo
-	@echo The agent is linked against the '*'$(ENGINE)'*' detection engine. 
-	@echo If you want to use another engine, either modify the ENGINE 
-	@echo variable or use the engine name as a target like this":"
-	@echo
-	@echo -e "\t make qemu"
-	@echo -e "\t make libemu"
-	@echo -e "\t make dummy"
+	@echo [agent] built against [$(ENGINE)] detection engine.
 	@echo
 
-seduce: seduce.c detect_engine.o detect_engine_qemu.o
-	$(CC) $(CFLAGS) $(CFLAGS_QEMU) -o $@ $^ $(LDFLAGS_QEMU)
+seduce: $(SEDUCE_OBJS)
+	$(CC) -o $@ $(SEDUCE_OBJS) $(LDFLAGS)
+	@echo
+	@echo [seduce] built against [$(ENGINE)] detection engine.
+	@echo
 
 agent.o: agent.c alert.h error.h options.h detect_engine.h sensor_contact.h item_selection.h utils.h
 	$(CC) $(CFLAGS) -c agent.c
+
+seduce.o: seduce.c detect_engine.h
+	$(CC) $(CFLAGS) -c seduce.c
 
 alert.o: alert.c base64_encoder.h utils.h sensor_contact.h detect_engine.h
 	$(CC) $(CFLAGS) -c alert.c
@@ -109,10 +114,10 @@ error.o: error.c error.h
 base64_encoder.o: base64_encoder.c base64_encoder.h
 	$(CC) $(CFLAGS) -c base64_encoder.c
 
-detect_engine_qemu.o: detect_engine_qemu.c detect_engine_qemu.h utils.h detect_engine.h
+detect_engine_qemu.o: detect_engine_qemu.c utils.h detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine_qemu.c 
 
-detect_engine_libemu.o: detect_engine_libemu.c detect_engine_libemu.h detect_engine.h utils.h
+detect_engine_libemu.o: detect_engine_libemu.c utils.h detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine_libemu.c
 
 detect_engine_dummy.o: detect_engine_dummy.c utils.h
@@ -140,4 +145,19 @@ install-conf:
 	-$(INSTALL_CONF_DIR) $(SYSCONFDIR)
 	$(INSTALL_CONF) $(NAME).conf $(SYSCONFDIR)
 
+help:
+	@echo
+	@echo Type \'make\' to build both the \'agent\' \& \'seduce\' utility
+	@echo using the default detection engine \($(ENGINE)\).
+	@echo
+	@echo To build against a different engine you can specify the engine
+	@echo name either as a make target or as the value of the make variable
+	@echo ENGINE, like this:
+	@echo 
+	@echo make qemu
+	@echo or
+	@echo make agent ENGINE=qemu
+	@echo
+	@echo Available detection engines are: $(AVAIL_ENGINES)
+	@echo
 # EOF

@@ -8,6 +8,14 @@
 #define	SEVERITY_LOW	3
 #define	SEVERITY_INFO	4
 
+/* An engine checks only blocks that are larger or equal to MIN_BLOCK_LENGTH */
+
+#ifdef _NO_MIN_BLOCK_LENGTH
+#define MIN_BLOCK_LENGTH	1
+#else
+#define MIN_BLOCK_LENGTH        30
+#endif
+
 typedef struct _Threat{
 	unsigned char *payload;	/* The payload that caused the alert */
 	size_t length;		/* The length of the payload */
