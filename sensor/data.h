@@ -11,8 +11,6 @@
 #include <nids.h> /* struct tuple4 */
 
 
-
-
 typedef struct _TCPData {
 	void *payload;		/* The data pointer */
 	size_t length;		/* The data dength */
@@ -93,6 +91,12 @@ typedef struct _GroupList {
 } GroupList;
 
 extern Sensor sensor;
+
+/* time measuring */
+
+#define SAMPLE_NUMBER	100
+#define MEASURED_TIMES	1000
+extern struct timeval measured_times[];
 
 /* Functions */
 void init_datalists(void);

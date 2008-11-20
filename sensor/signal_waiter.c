@@ -6,8 +6,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <time.h>
 
 static sigset_t signal_set;
+
+void write_timemeasurment(void)
+{
+	int i, remainder;
+	time_t *sec;
+	suseconds_t *usec;
+	char filename[] = "/tmp/seduce.out";
+	FILE * fp;
+	
+
+	fp = fopen(filename, "w");
+
+	for (i = 0; i < MEASURED_TIMES; i++) {
+
+		sec = & measured_times[i].tv_sec;
+		usec = & measured_times[i].tv_usec;
+
+		remainder = *sec % SAMPLE_NUMBER;
+		remainder *= 1000000;
+		remainder /= SAMPLE_NUMBER;
+		
+		*sec /= SAMPLE_NUMBER;
+		*usec /= SAMPLE_NUMBER;
+		*usec += remainder;
+
+		if(*usec >= 1000000) {
+			*usec -= 1000000;
+			*sec += 1;
+		}
+
+		fprintf(fp, "%d:\t%llu\t%llu\n", i+1,
+				(long long int)*sec, (long long int)*usec);
+	}
+
+	fclose(fp);
+}
 
 void compute_stats(void)
 {
@@ -31,7 +68,7 @@ void compute_stats(void)
 	printf("Consumed by Agents:  %llu   \t%llu\n", out.pcks, out.bytes);
 	printf("Discarded by Agents: %llu   \t%llu\n", proto.pcks, proto.bytes);
 	printf("Consumed by OOM:     %llu   \t%llu\n", oom.pcks, oom.bytes);
-	printf("Left inside:         %llu   \t%llu\n", left.pcks, left.bytes); 
+	printf("Left inside:         %llu   \t%llu\n", left.pcks, left.bytes);
 }
 
 void init_signal_waiter(void)
@@ -59,6 +96,7 @@ void *signal_waiter(void *arg)
 		switch(sig_number) {
 		case SIGINT:
 			compute_stats();
+			write_timemeasurment();
 			exit(0);
 		default:
 			printf("Ignoring signal with ID: %d.\n", sig_number);
