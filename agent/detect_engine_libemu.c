@@ -3,12 +3,18 @@
 #include <string.h>
 
 #include "detect_engine.h"
-#include "detect_engine_libemu.h"
 #include "utils.h"
 
 #include <emu/emu.h>
 #include <emu/emu_shellcode.h>
 #include <emu/emu_memory.h>
+
+/* function prototypes */
+
+int libemu_engine_process(char *, size_t, Threat *);
+int libemu_engine_init(void);
+void libemu_engine_reset(void);
+void libemu_engine_destroy(void);
 
 DetectEngine engine = {
 	.name = "Libemu Engine",
