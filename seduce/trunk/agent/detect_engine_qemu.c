@@ -1,13 +1,27 @@
 #include <stdio.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include "detect_engine.h"
+#include "utils.h"
+
 #include "qemu.h"
 #include "exec-all.h"
-#include "detect_engine.h"
-#include "detect_engine_qemu.h"
 
-#include "utils.h"
+typedef struct _QemuVars {
+	struct itimerval value;
+	struct itimerval zvalue;
+	unsigned long stack_base;
+	CPUX86State *cpu;
+} QemuVars;
+
+/* prototypes of functions related to the detection engine API */
+
+int qemu_engine_init(void);
+int qemu_engine_process(char *, size_t, Threat *);
+void qemu_engine_reset(void);
+void qemu_engine_destroy(void);
 
 DetectEngine engine = {
 	.name = "QEMU Engine",

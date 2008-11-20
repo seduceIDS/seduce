@@ -6,10 +6,12 @@
 
 #define TIMES	10
 
+/* function prototypes */
+
 static int dummy_engine_init();
 static void dummy_engine_destroy();
-static int  dummy_engine_process();
 static void dummy_engine_reset();
+static int dummy_engine_process(char *, size_t, Threat *);
 
 DetectEngine engine = {
 	.name = "Dummy Engine",
@@ -27,6 +29,7 @@ static int dummy_engine_init()
 
 static void dummy_engine_destroy()
 {
+	DPRINTF("Dummy engine destroyed\n");
 	return;
 }
 
@@ -50,8 +53,13 @@ static int dummy_engine_process(char *data, size_t len, Threat *t)
 	if((data == NULL) || (len == 0))
 		return 0;
 
+	if (len < MIN_BLOCK_LENGTH) {
+		DPRINTF("ignoring small block of size %d\n", len);
+		return 0;
+	}
+
 	if(times++ < TIMES) {
-		fprintf(stderr, "work done\n");
+		DPRINTF("work done\n");
 		return 0;
 	}
 

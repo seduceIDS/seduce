@@ -1,83 +1,113 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <sys/types.h>
-#include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/time.h>
 
 #include "detect_engine.h"
-#include "detect_engine_qemu.h"
 
-void *load_file(const char *filename, unsigned long *fsize)
+/* exported by the appropriate engine */
+extern DetectEngine engine;
+
+void *load_file(const char *filename, size_t *fsize)
 {
-	int fd;
+	FILE *f;
 	void *buff;
 	struct stat st;
 
-	if ((fd = open(filename, 0)) == -1) {
-		perror("open");
-		exit(-1);
+	if (stat(filename, &st) == -1) {
+		fprintf(stderr, "could not stat file %s: %s\n",
+			filename, strerror(errno));
+		return NULL;
 	}
-	
-	if (fstat(fd, &st) == -1) {
-		perror("fstat");
-		exit(-1);
+
+	if (!S_ISREG(st.st_mode)) {
+		fprintf(stderr, "file %s is not a regular file!",
+			filename);
+		return NULL;
 	}
-	
+
 	*fsize = st.st_size;
-	buff = calloc(1, *fsize);
-	
-	if (buff == NULL) {
-		fprintf(stderr,"calloc failed\n");
-		exit(-1);
-    	}
-	
-	if (read(fd, buff, *fsize) == -1) {
-		perror("read");
-		exit(-1);
+
+	if ((f = fopen(filename, "r")) == NULL) {
+		fprintf(stderr, "file %s could not be openned: %s\n",
+			filename, strerror(errno));
+		return NULL;
 	}
 	
-	close(fd);
+	if ((buff = calloc(1, *fsize)) == NULL) {
+		fprintf(stderr,"could not allocate buffer for file %s: %s\n",
+			filename, strerror(errno));
+		fclose(f);
+		return NULL;
+	}
+
+	if (fread(buff, *fsize, 1, f) != 1) {
+		fprintf(stderr, "error: short read from file %s\n",
+				filename);
+		fclose(f);
+		return NULL;
+	}
+	
+	fclose(f);
+
 	return buff;
 }
 
 int main(int argc, char **argv)
 {
 	void *buff;
-	unsigned long fsize;
-	struct sigaction sa;
+	size_t fsize;
 	Threat t;
 	int ret;
-	
-	if (argc < 2) {
-		fprintf(stderr,"usage %s file\n", argv[0]);
-		return -1;
+	struct timeval start, finish, result;
+
+	if (--argc != 1) {
+		fprintf(stderr,"usage %s <payload-file>\n", argv[0]);
+		exit(1);
 	}
 
-	sa.sa_handler = sigvtalrm_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
+	if ((buff = load_file(argv[1], &fsize)) == NULL) 
+		exit(1);
 
-	if (sigaction(SIGVTALRM, &sa, NULL) == -1) {
-		perror("sigaction");
-		exit(-1);
+	if (engine.init() == 0){
+		fprintf(stderr, "could not init detection engine '%s'\n",
+			engine.name);
+		exit(1);
 	}
 
-	buff = load_file(argv[1], &fsize);
+	engine.reset();
 
-	qemu_engine_init();
-	ret = qemu_engine_process(buff, fsize, &t);
-	qemu_engine_destroy();
-	free(buff);
+	gettimeofday(&start, NULL);
+	ret = engine.process(buff, fsize, &t);
+	gettimeofday(&finish, NULL);
 
-	if (ret == 1) {
+	switch(ret) {
+	case -1:
+		fprintf(stderr, "Detection engine exited prematurely\n");
+		free(buff);
+		engine.destroy();
+		exit(1);
+	case 0:
+		printf("No threat was detected\n");
+		break;
+	case 1:
 		printf("Threat detected - %s\n", t.msg);
 		destroy_threat(&t);
-	} else if (ret == 0)
-		printf("No threat detected\n");
-	else
-		printf("Error while processing packet\n");
+		break;
+	}
+
+	timersub(&finish, &start, &result);
+
+	printf("Detection engine time: %ld sec %ld usec\n",
+		result.tv_sec, result.tv_usec);
+
+	engine.destroy();
+	free(buff);
 	 
-	 return 0;
+	return 0;
 }
 
