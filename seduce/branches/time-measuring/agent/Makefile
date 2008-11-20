@@ -27,6 +27,7 @@ PKG_CONFIG	= /usr/bin/pkg-config
 CC		= gcc
 # DEBUG		= -ggdb -D_DEBUG -D_NO_MIN_BLOCK_LENGTH
 DEBUG		= -ggdb -D_DEBUG 
+# Make this -O0 for easier debugging.
 OPT		= -O2
 CFLAGS		= -Wall -D_GNU_SOURCE $(OPT) $(DEBUG)
 LDFLAGS		= -lconfuse
