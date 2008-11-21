@@ -2,7 +2,7 @@
 # Makefile for 'agent' (and the 'seduce' utility)
 #
 
-AVAIL_ENGINES 	= qemu libemu dummy
+AVAIL_ENGINES 	= qemu libemu fnord dummy
 ENGINE		= dummy
 
 # libemu has a bug when registering the library dir to pkg-config
@@ -58,12 +58,17 @@ ifeq ($(ENGINE), libemu)
 	SEDUCE_OBJS += detect_engine_libemu.o
 endif
 
+ifeq ($(ENGINE), fnord)
+	AGENT_OBJS += detect_engine_fnord.o
+	SEDUCE_OBJS += detect_engine_fnord.o
+endif
+
 ifeq ($(ENGINE), dummy)
 	AGENT_OBJS += detect_engine_dummy.o
 	SEDUCE_OBJS += detect_engine_dummy.o
 endif
 
-.PHONY: all dummy qemu clean install install-bin install-conf help
+.PHONY: all dummy qemu libemu fnord clean install install-bin install-conf help
 
 all: agent seduce
 
@@ -75,6 +80,9 @@ qemu:
 
 libemu:
 	$(MAKE) ENGINE=libemu
+
+fnord:
+	$(MAKE)	ENGINE=fnord
 
 agent: $(AGENT_OBJS) 
 	$(CC) -o $@ $(AGENT_OBJS) $(LDFLAGS)
@@ -120,6 +128,9 @@ detect_engine_qemu.o: detect_engine_qemu.c utils.h detect_engine.h
 
 detect_engine_libemu.o: detect_engine_libemu.c utils.h detect_engine.h
 	$(CC) $(CFLAGS) -c detect_engine_libemu.c
+
+detect_engine_fnord.o: detect_engine_fnord.c utils.h detect_engine.h
+	$(CC) $(CFLAGS) -c detect_engine_fnord.c
 
 detect_engine_dummy.o: detect_engine_dummy.c utils.h
 	$(CC) $(CFLAGS) -c detect_engine_dummy.c 
