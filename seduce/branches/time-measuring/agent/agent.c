@@ -268,7 +268,7 @@ static int main_loop(InputOptions *in)
 	
 		do {
 			struct in_addr src_addr;
-			src_addr.s_addr = w->info.s_addr;
+			src_addr.s_addr = htonl(w->info.s_addr);
 
 			DPRINTF_MD5(w->payload, w->length, 
 				    "Inspecting new work [src:%s]\n",
