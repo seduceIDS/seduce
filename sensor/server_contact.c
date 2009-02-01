@@ -1,5 +1,5 @@
 /* 
- * Functions for communicating with the Scheduler (Server)
+ * Functions for communicating with the Manager (Server)
  */
 
 #include <stdio.h>
@@ -13,10 +13,32 @@
 #include <arpa/inet.h>
 #include <nids.h>
 
+/* 
+ * Returns the next available ID
+ */
+static unsigned int get_new_id(void)
+{
+       static unsigned int next_id=1;
 
-/* The Socket File Descriptor for the communication */
-static int sockfd; 
+       if (next_id == 0) next_id = 1;
 
+       return next_id++;
+}
+
+
+/*
+ * Initializes a new stream id
+ */
+static unsigned int *init_stream(void)
+{
+       unsigned int *stream_id;
+       
+       stream_id = malloc(sizeof(unsigned int));
+       if (stream_id == NULL) return NULL;
+
+       *stream_id =  get_new_id();
+       return stream_id;
+}
 
 /* This function makes sure all the wanted data are sent.
  * It takes as arguments the socket file descriptor, the
@@ -54,7 +76,8 @@ enum {
 
 
 /*
- * Connect to the Sceduler
+ * Connects to the Manager 
+ * (also initialises sockfd with a newly created socket)
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -63,7 +86,7 @@ enum {
  * |________|__type__|
  *
  */
-int server_connect(in_addr_t addr,unsigned short port)
+int manager_connect(int *sockfd, in_addr_t addr,unsigned short port)
 {
 	struct sockaddr_in server_addr;
 	unsigned int msglen;
@@ -71,7 +94,7 @@ int server_connect(in_addr_t addr,unsigned short port)
 	int bytenum;
 	unsigned int size,reply;
 
-	if ((sockfd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+	if ((*sockfd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("socket");
 		return 0;
 	}
@@ -81,9 +104,11 @@ int server_connect(in_addr_t addr,unsigned short port)
 	server_addr.sin_addr.s_addr = addr;
 	memset(&(server_addr.sin_zero), '\0', 8);
 
-	if (connect(sockfd, (struct sockaddr *)&server_addr,
-				sizeof(struct sockaddr)) == -1) {
+	if (connect(*sockfd, (struct sockaddr *)&server_addr,
+		    sizeof(struct sockaddr)) == -1) 
+	{
 		perror("connect");
+		close(*sockfd);
 		return 0;
 	}
 
@@ -93,23 +118,26 @@ int server_connect(in_addr_t addr,unsigned short port)
 	*(u_int32_t *)(buf + 4) = htonl(PT_CONNECT);
 
 	/* send the data */
-	if (sendall(sockfd, buf, msglen) == -1) {
+	if (sendall(*sockfd, buf, msglen) == -1) {
 		fprintf(stderr,"Error in sendall\n");
+		close(*sockfd);
 		return 0;
 	}
 	
 	/* Wait for the answer......*/
 	/* Wait to receive the expected reply length */
 	msglen = 8;
-	bytenum = recv(sockfd, buf, msglen, MSG_WAITALL);
+	bytenum = recv(*sockfd, buf, msglen, MSG_WAITALL);
 	if (bytenum == -1) {
 		perror("recv");
+		close(*sockfd);
 		return 0;
 	}
 
 	if (bytenum != msglen) {
 		fprintf(stderr, "Error in receiving data\n");
-	       return 0;
+		close(*sockfd);
+	       	return 0;
 	}	       
 
 	size = ntohl(*(u_int32_t *)(buf + 0));
@@ -117,6 +145,7 @@ int server_connect(in_addr_t addr,unsigned short port)
 
 	if(size != bytenum) {
 		fprintf(stderr, "Error in the size of the reply\n");
+		close(*sockfd);
 		return 0;
 	}
 
@@ -125,18 +154,21 @@ int server_connect(in_addr_t addr,unsigned short port)
 		return 1;
 		
 	case 1: 
-		fprintf(stderr, "Too many connection\n");
+		fprintf(stderr, "Too many connections\n");
+		close(*sockfd);
 		return 0;
 
 	default:
 		fprintf(stderr, "Undefined Error\n");
+		close(*sockfd);
 		return 0;
 	}
 }
 
 
 /*
- * Disconnect from the Sceduler
+ * Disconnects from the Manager
+ * (on succesfull disconnect, it also closes the socket)
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -145,7 +177,7 @@ int server_connect(in_addr_t addr,unsigned short port)
  * |________|__type__|
  *
  */
-int server_disconnect(void)
+int manager_disconnect(int sockfd)
 {
 	unsigned int msglen;
 	char buf[8];
@@ -161,11 +193,13 @@ int server_disconnect(void)
 		return 0;
 	}
 
+	close(sockfd);
 	return 1;
 }
 
 /*
- * Submit a new TCP connection to the Sceduler
+ * Submit a new connection of stream data to the Manager
+ * Also fills stream_id with a pointer to a newly allocated stream_id
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -174,16 +208,23 @@ int server_disconnect(void)
  * |________|__type__|___ID___|________________________|
  *
  */
-int new_tcp_connection(unsigned stream_id, const struct tuple4 *tcp_addr)
+int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
+			  unsigned int **stream_id)
 {
 	unsigned int msglen;
 	char buf[24];
-	
+
+	if ((*stream_id = init_stream()) == NULL) {
+		fprintf(stderr, "could not get new stream id\n");
+		return 0;
+	}
+
+
 	/* Fill the packet buffer with data in Network Byte Order */
 	msglen = 24;
 	*(u_int32_t *)(buf +  0) = htonl(msglen);
 	*(u_int32_t *)(buf +  4) = htonl(PT_NEW_TCP);
-	*(u_int32_t *)(buf +  8) = htonl(stream_id);
+	*(u_int32_t *)(buf +  8) = htonl(**stream_id);
 	*(u_int16_t *)(buf + 12) = htons(tcp_addr->source);
 	*(u_int16_t *)(buf + 14) = htons(tcp_addr->dest);
 	*(u_int32_t *)(buf + 16) = htonl(tcp_addr->saddr);
@@ -200,7 +241,8 @@ int new_tcp_connection(unsigned stream_id, const struct tuple4 *tcp_addr)
 
 
 /*
- * Informs the Sceduler that a TCP connection has closed
+ * Informs the Manager that a stream connection has closed
+ * and destroys the associated stream_id.
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -209,7 +251,7 @@ int new_tcp_connection(unsigned stream_id, const struct tuple4 *tcp_addr)
  * |________|__type__|___ID___|
  *
  */
-int close_tcp_connection(unsigned stream_id)
+int close_stream_connection(int sockfd, unsigned *stream_id)
 {
 	unsigned int msglen;
 	char buf[12];
@@ -219,7 +261,7 @@ int close_tcp_connection(unsigned stream_id)
 	msglen = 12;
 	*(u_int32_t *)(buf + 0) = htonl(msglen);
 	*(u_int32_t *)(buf + 4) = htonl(PT_TCP_CLOSE);
-	*(u_int32_t *)(buf + 8) = htonl(stream_id);
+	*(u_int32_t *)(buf + 8) = htonl(*stream_id);
 
 	/* Send the Data */
 	if (sendall(sockfd, buf, msglen) == -1) {
@@ -227,12 +269,14 @@ int close_tcp_connection(unsigned stream_id)
 		return 0;
 	}
 
+	free(stream_id);
+
 	return 1;
 }
 
 
 /*
- * Sends TCP data to the Scheduler
+ * Sends stream data to the Manager
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -242,7 +286,8 @@ int close_tcp_connection(unsigned stream_id)
  *
  */
 
-int send_tcp_data(unsigned stream_id, const void *data, size_t datalen)
+int send_stream_data(int sockfd, unsigned stream_id, const void *data, 
+		     size_t datalen)
 {
 	unsigned int msglen;
 	unsigned int hdrlen;
@@ -276,7 +321,7 @@ int send_tcp_data(unsigned stream_id, const void *data, size_t datalen)
 }
 
 /*
- * Informs the Sceduler that the next data belong to a new group
+ * Informs the Manager that the next stream data belong to a new group
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -286,7 +331,7 @@ int send_tcp_data(unsigned stream_id, const void *data, size_t datalen)
  *
  */
 
-int tcp_data_break(unsigned int stream_id)
+int stream_data_break(int sockfd, unsigned int stream_id)
 {
 	unsigned int msglen;
 	char buf[12];
@@ -309,7 +354,7 @@ int tcp_data_break(unsigned int stream_id)
 
 
 /*
- * Sends UDP data to the Scheduler
+ * Sends datagram data to the Manager
  * returns 1 on success, 0 on failure
  *
  * packet structure:
@@ -319,17 +364,20 @@ int tcp_data_break(unsigned int stream_id)
  *
  */
 
-int send_udp_data(const struct tuple4 *udp_addr, const void *data, 
-						size_t datalen, unsigned id)
+int send_dgram_data(int sockfd, const struct tuple4 *udp_addr, 
+		    const void *data, size_t datalen)
 {
 	unsigned int msglen;
 	unsigned int hdrlen;
+	unsigned int id;
 	char buf[24];
 
 	if (datalen <= 0) {
 		fprintf(stderr, "send_udp_data: No Data to send...\n");
 		return 0;
 	}
+
+	id = get_new_id();
 
 	/* The header first... */
 	hdrlen = 24;
