@@ -442,7 +442,7 @@ void fill_progvars(int argc, char *argv[])
 
 	/* Check if all needed program variables are set */
 	if(pv.server_addr == 0 || pv.server_port == 0) {
-		fprintf(stderr, "Scheduler connection info is missing. "
+		fprintf(stderr, "Manager connection info is missing. "
 				"Either use the `-s' command line option "
 				"or the `server_addr' variable of the "
 				"configuration file.\n");

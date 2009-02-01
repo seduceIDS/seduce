@@ -23,44 +23,21 @@ extern void fill_progvars(int, char **);
 /* GLOBALS */
 PV pv;
 
-/* 
- * Returns the next available ID
- */
-static unsigned int get_new_id(void)
-{
-	static unsigned int next_id=1;
-
-	if (next_id == 0) next_id = 1;
-
-	return next_id++;
-}
-
-
-/*
- * Initialize a new stream
- */
-static unsigned int *init_stream(void)
-{
-	unsigned int *stream_id;
-	
-	stream_id = malloc(sizeof(unsigned int));
-	if ( stream_id == NULL)	return NULL;
-
-	*stream_id =  get_new_id();
-	return stream_id;
-}
-
+/* our socket to the manager */
+static int sockfd;
 
 /*************Only for Debug purpose**********************/
 # define int_ntoa(x)	inet_ntoa(*((struct in_addr *)&x))
 char *adres (struct tuple4 addr)
 {
-  static char buf[256];
-  strcpy (buf, int_ntoa (addr.saddr));
-  sprintf (buf + strlen (buf), ",%i,", addr.source);
-  strcat (buf, int_ntoa (addr.daddr));
-  sprintf (buf + strlen (buf), ",%i", addr.dest);
-  return buf;
+	static char buf[256];
+
+	strcpy (buf, int_ntoa (addr.saddr));
+	sprintf (buf + strlen (buf), ",%i,", addr.source);
+	strcat (buf, int_ntoa (addr.daddr));
+	sprintf (buf + strlen (buf), ",%i", addr.dest);
+
+	return buf;
 }
 /*********************************************************/
 
@@ -70,17 +47,17 @@ char *adres (struct tuple4 addr)
 void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 {
 	struct half_stream *hlf;
-	
+
 	switch (a_tcp->nids_state) {
 	case NIDS_JUST_EST:
 		if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
-			if ((*stream_id = init_stream())) {
-
+			if (new_stream_connection(sockfd, &a_tcp->addr,
+						  stream_id)) 
+			{
 				a_tcp->server.collect = YES;
-				new_tcp_connection(**stream_id, &a_tcp->addr);
 
 				DPRINTF("Established a Connection:%s\n",
-							adres(a_tcp->addr));
+					adres(a_tcp->addr));
 				DPRINTF("Sequence Number:%u\n", **stream_id);
 			}
 		}
@@ -99,14 +76,15 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 
 			DPRINTF("Sending Break for Stream:%u\n", **stream_id);
 			
-			tcp_data_break(**stream_id);
+			stream_data_break(sockfd, **stream_id);
 			a_tcp->client.collect = NO;
 			return;
 		}
 		/* data sent to the server */
 		a_tcp->client.collect = YES;
 		hlf = &a_tcp->server;
-		send_tcp_data(**stream_id, hlf->data, hlf->count - hlf->offset);
+		send_stream_data(sockfd, **stream_id, hlf->data, 
+				 hlf->count - hlf->offset);
 
 		DPRINTF("New TCP DATA: %s\n",adres(a_tcp->addr));
 		DPRINTF("Sequence Number:%u\n",**stream_id);
@@ -119,8 +97,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 	case NIDS_RESET:
 	case NIDS_TIMED_OUT:
 		DPRINTF("Connection %d is dying...\n",**stream_id);
-		close_tcp_connection(**stream_id);
-		free(*stream_id);
+		close_stream_connection(sockfd, *stream_id);
 		return;
 	}
 }
@@ -131,7 +108,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 void udp_sniff (struct tuple4 *addr, u_char *data, int len, struct ip *pkt)
 {
 	if (pv.port_table[addr->dest] & UDP_PORT) {
-		send_udp_data(addr, data, len, get_new_id());
+		send_dgram_data(sockfd, addr, data, len);
 		DPRINTF("New UDP DATA: %s\n",adres(*addr));
 	}
 }
@@ -155,8 +132,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	/* connect to the scheduler */
-	if (server_connect(pv.server_addr, pv.server_port) == 0) {
+	/* connect to the manager */
+	if (manager_connect(&sockfd, pv.server_addr, pv.server_port) == 0) {
 		fprintf(stderr,"Can't Connect to the Server\n");
 		exit(1);
 	}
@@ -167,5 +144,6 @@ int main(int argc, char *argv[])
 	nids_run();
 
 	/* This one is never executed */
+	manager_disconnect(sockfd);
 	return 0;
 }
