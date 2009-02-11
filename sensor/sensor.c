@@ -52,7 +52,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 	case NIDS_JUST_EST:
 		if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
 			if (new_stream_connection(sockfd, &a_tcp->addr,
-						  stream_id)) 
+						  stream_id, STREAM_DATA)) 
 			{
 				a_tcp->server.collect = YES;
 
@@ -76,7 +76,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 
 			DPRINTF("Sending Break for Stream:%u\n", **stream_id);
 			
-			stream_data_break(sockfd, **stream_id);
+			break_stream_data(sockfd, **stream_id);
 			a_tcp->client.collect = NO;
 			return;
 		}
@@ -108,7 +108,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 void udp_sniff (struct tuple4 *addr, u_char *data, int len, struct ip *pkt)
 {
 	if (pv.port_table[addr->dest] & UDP_PORT) {
-		send_dgram_data(sockfd, addr, data, len);
+		send_dgram_data(sockfd, addr, data, len, DGRAM_DATA);
 		DPRINTF("New UDP DATA: %s\n",adres(*addr));
 	}
 }

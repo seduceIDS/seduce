@@ -13,6 +13,8 @@
 #include <arpa/inet.h>
 #include <nids.h>
 
+#include "server_contact.h"
+
 /* 
  * Returns the next available ID
  */
@@ -209,7 +211,7 @@ int manager_disconnect(int sockfd)
  *
  */
 int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
-			  unsigned int **stream_id)
+			  unsigned int **stream_id, enum data_t type)
 {
 	unsigned int msglen;
 	char buf[24];
@@ -331,7 +333,7 @@ int send_stream_data(int sockfd, unsigned stream_id, const void *data,
  *
  */
 
-int stream_data_break(int sockfd, unsigned int stream_id)
+int break_stream_data(int sockfd, unsigned int stream_id)
 {
 	unsigned int msglen;
 	char buf[12];
@@ -365,7 +367,7 @@ int stream_data_break(int sockfd, unsigned int stream_id)
  */
 
 int send_dgram_data(int sockfd, const struct tuple4 *udp_addr, 
-		    const void *data, size_t datalen)
+		    const void *data, size_t datalen, enum data_t type)
 {
 	unsigned int msglen;
 	unsigned int hdrlen;
