@@ -1,0 +1,6 @@
+SEDUCE stands for ShellcodE Detection Using CPU Emulation. 
+
+Latest code should be available through:
+svn checkout http://rainbow.cs.unipi.gr/svn/seduce 
+
+This project is currently in development phase.
