@@ -11,7 +11,6 @@
 
 #include "utils.h"
 #include "detect_engine.h"
-#include "detect_engine_fnord.h"
 
 #include </usr/include/python2.5/Python.h>
 
