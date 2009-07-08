@@ -1,7 +1,8 @@
 #
 # Makefile for 'agent' (and the 'seduce' utility)
 #
-PYTHON = -L/usr/lib/python2.5/config -lpython2.5 -ldl -lpthread -lutil -lm
+LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 -ldl -lpthread -lutil -lm
+CFLAGS_PYTHON = -I/usr/include/python2.5/
 
 AVAIL_ENGINES 	= qemu libemu fnord dummy
 ENGINE		= fnord
@@ -60,7 +61,8 @@ ifeq ($(ENGINE), libemu)
 endif
 
 ifeq ($(ENGINE), fnord)
-    LDFLAGS += $(PYTHON)
+    LDFLAGS += $(LDFLAGS_PYTHON)
+    CFLAGS += $(CFLAGS_PYTHON)
 	AGENT_OBJS += detect_engine_fnord.o  
 	SEDUCE_OBJS += detect_engine_fnord.o  
 endif
