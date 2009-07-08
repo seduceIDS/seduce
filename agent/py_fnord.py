@@ -7,11 +7,8 @@ import random
 from values import *
 
 def fnordCheck(data):
-    #for letter in data:
-    #    print hex(ord(letter)),
     data = data[::-1]  # reverse string to start checking
     length = len(data)
-    #print "Data Packet length is %i" % len(data)
     sled = ''
     prev = 256
     slen = 0
@@ -28,10 +25,10 @@ def fnordCheck(data):
     while length > 0:
         low  = -1
         lows = []   
-        for selectedList in StateTable[prev]:
+        for selectedList in StateTable[prev]:  # for every list in states table
             found = False
             for token in selectedList:
-                if (token & mask) != 0:    
+                if (token & mask) != 0:        # Make some important checking
                     continue
                 if (((token >> 8) & 0xff) > slen):   
                     continue
@@ -43,32 +40,26 @@ def fnordCheck(data):
                     lows.reverse
                     lows.append(byte)
                     lows.reverse
-                    #print lows
                     
                     index = len(data) - length
-                    #print index
-                    #var = raw_input("proxora.. ")
-                    if byte == ord(data[index]):
+                    if byte == ord(data[index]):  #locate suspicious byte
                         print "Suspicious Byte %0x Detected At Index %i with LookUpTable = %i !" % (byte, index, prev)
                         foundByte = byte
-                        suspiciousCount += 1	
+                        suspiciousCount += 1	# increment count
                         found = True
                         break
             if found == True:
                 break
    	    if found == False:
-   	        prev = 256
+   	        prev = 256          # if byte was not found, restart with next byte
         if found == True:
-            #print "Found Byte is %0x with LookUpTable = %i" % (foundByte,prev)
-            prev = foundByte
-            #print "New prev is %i" % foundByte
+            prev = foundByte    # if byte was found, continue with the next
             counts[prev] += 1
         slen   += 1
         length -= 1
-
-    #print "%s out of %s bytes were detected !" % (suspiciousCount, len(data))
     
     percentage = float(( 1.0*suspiciousCount / len(data) )) * 100
+    #returns result as a percentage of malicious bytes
     return percentage
 
 	    
