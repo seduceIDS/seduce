@@ -6,7 +6,7 @@
 import random
 from values import *
 
-def fnordCheck(data):
+def opty2Check(data):
     data = data[::-1]  # reverse string to start checking
     length = len(data)
     sled = ''

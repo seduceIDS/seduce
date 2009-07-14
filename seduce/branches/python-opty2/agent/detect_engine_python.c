@@ -52,7 +52,7 @@ int fnord_engine_process(char *data, size_t len, Threat *threat)
 
     PyObject *pName, *pModule, *pDict, *pFunc, *pValue, *pArgs;
 
-    pName = PyString_FromString("py_fnord");
+    pName = PyString_FromString("detect_engine_opty2");
     if (!pName)
         printf("Error Loading Python String !");
         
@@ -61,7 +61,7 @@ int fnord_engine_process(char *data, size_t len, Threat *threat)
         printf("Error Loading Python Module !");
         
     pDict = PyModule_GetDict(pModule);
-    pFunc = PyDict_GetItemString(pDict, "fnordCheck");
+    pFunc = PyDict_GetItemString(pDict, "opty2Check");
     
 	while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
 				  block_num++))) 

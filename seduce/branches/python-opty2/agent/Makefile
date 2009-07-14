@@ -4,8 +4,8 @@
 LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 
 CFLAGS_PYTHON = -I/usr/include/python2.5/
 
-AVAIL_ENGINES 	= qemu libemu fnord dummy
-ENGINE		= fnord
+AVAIL_ENGINES 	= qemu libemu fnord dummy python
+ENGINE		= python
 
 # libemu has a bug when registering the library dir to pkg-config
 # for now, specify the location of the libemu library
@@ -61,10 +61,15 @@ ifeq ($(ENGINE), libemu)
 endif
 
 ifeq ($(ENGINE), fnord)
-    LDFLAGS += $(LDFLAGS_PYTHON)
-    CFLAGS += $(CFLAGS_PYTHON)
 	AGENT_OBJS += detect_engine_fnord.o  
 	SEDUCE_OBJS += detect_engine_fnord.o  
+endif
+
+ifeq ($(ENGINE), python)
+    LDFLAGS += $(LDFLAGS_PYTHON)
+    CFLAGS += $(CFLAGS_PYTHON)
+	AGENT_OBJS += detect_engine_python.o  
+	SEDUCE_OBJS += detect_engine_python.o  
 endif
 
 ifeq ($(ENGINE), dummy)
