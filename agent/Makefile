@@ -1,7 +1,7 @@
 #
 # Makefile for 'agent' (and the 'seduce' utility)
 #
-LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 -ldl -lpthread -lutil -lm
+LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 
 CFLAGS_PYTHON = -I/usr/include/python2.5/
 
 AVAIL_ENGINES 	= qemu libemu fnord dummy
