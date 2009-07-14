@@ -1,6 +1,6 @@
-''' Inline Python Module to detect Fnord Encoded Shellcodes
-    Based on the original Dragos Ruiu fnord plugin
-    Also uses values.py supplied by metasploit opty2 package
+''' Inline Python Module to detect Opty2 Encoded Shellcodes
+    Also uses opty2values.py supplied by metasploit opty2 package
+    15/June/2009
 '''
 
 import random
