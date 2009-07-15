@@ -43,7 +43,7 @@ def opty2Check(data):
                     
                     index = len(data) - length
                     if byte == ord(data[index]):  #locate suspicious byte
-                        print "Suspicious Byte %0x Detected At Index %i with LookUpTable = %i !" % (byte, index, prev)
+                        #print "Suspicious Byte %0x Detected At Index %i with LookUpTable = %i !" % (byte, index, prev)
                         foundByte = byte
                         suspiciousCount += 1	# increment count
                         found = True
