@@ -68,8 +68,8 @@ endif
 ifeq ($(ENGINE), python)
     LDFLAGS += $(LDFLAGS_PYTHON)
     CFLAGS += $(CFLAGS_PYTHON)
-	AGENT_OBJS += detect_engine_python.o  
-	SEDUCE_OBJS += detect_engine_python.o  
+	AGENT_OBJS += detect_engine_python.o detect_engine_opty2.o 
+	SEDUCE_OBJS += detect_engine_python.o  detect_engine_opty2.o
 endif
 
 ifeq ($(ENGINE), dummy)
@@ -92,6 +92,9 @@ libemu:
 
 fnord:
 	$(MAKE)	ENGINE=fnord
+
+python:
+    $(MAKE) ENGINE=python
 
 agent: $(AGENT_OBJS) 
 	$(CC) -o $@ $(AGENT_OBJS) $(LDFLAGS)
