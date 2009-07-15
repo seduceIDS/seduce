@@ -88,7 +88,7 @@ int fnord_engine_process(char *data, size_t len, Threat *threat)
 			    threat->payload = block;
 			    threat->length = block_size;
 			    threat->severity = SEVERITY_HIGH;
-			    snprintf(threat_msg, 50, "Fnord Detected at block %i !", block_num);
+			    snprintf(threat_msg, 50, "Opty2 Detected at block %i !", block_num);
                 threat->msg = strdup(threat_msg);
                 return 1;
             }
