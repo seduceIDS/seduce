@@ -1,6 +1,6 @@
 /* 
- fnord-like detection engine
- Based on Dragos Ruiu's fnord plugin (rev1.9 snort cvs)
+ Python Extension For SEDUCE
+ 15-7-2009
 */
 
 #include <stdio.h>
@@ -20,7 +20,7 @@ void fnord_engine_reset(void);
 void fnord_engine_destroy(void);
 
 DetectEngine engine = {
-	.name = "fnord NOP detection Engine",
+	.name = "Python Extensions detection Engine",
 	.init = &fnord_engine_init,
 	.destroy = &fnord_engine_destroy,
 	.reset = &fnord_engine_reset,
