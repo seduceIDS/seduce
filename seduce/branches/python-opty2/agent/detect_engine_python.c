@@ -41,9 +41,9 @@ int python_engine_init(void)
 
 int python_engine_process(char *data, size_t len, Threat *threat)
 {
-    opty2Detector(data,len,threat);  // calls the opty2 nopsled detector
+    int result = opty2Detector(data,len,threat);  // calls the opty2 nopsled detector
 
-	return 0;
+	return result;
 }
 
 void python_engine_reset(void)
