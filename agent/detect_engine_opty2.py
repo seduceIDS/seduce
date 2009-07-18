@@ -52,14 +52,17 @@ def opty2Check(data):
                 break
    	    if found == False:
    	        prev = 256          # if byte was not found, restart with next byte
+   	        suspiciousCount = 0
         if found == True:
+            if suspiciousCount >= 10:
+   	            return float(suspiciousCount)
             prev = foundByte    # if byte was found, continue with the next
             counts[prev] += 1
         slen   += 1
         length -= 1
     
-    percentage = float(( 1.0*suspiciousCount / len(data) )) * 100
+    #percentage = float(( 1.0*suspiciousCount / len(data) )) * 100
     #returns result as a percentage of malicious bytes
-    return percentage
-
+    #return percentage
+    return 0
 	    

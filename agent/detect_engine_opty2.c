@@ -57,14 +57,14 @@ int opty2Detector(char *data, size_t len, Threat *threat)
             
             pValue = PyObject_CallObject(pFunc, pArgs);
             
-            int percentage = PyInt_AsLong(pValue);
-
-			if (percentage > 70 )
+            int bytesNum = PyInt_AsLong(pValue);
+            
+			if (bytesNum > 9 )
 			{
 			    threat->payload = block;
 			    threat->length = block_size;
 			    threat->severity = SEVERITY_HIGH;
-			    snprintf(threat_msg, 50, "Fnord Detected at block %i !", block_num);
+			    snprintf(threat_msg, 50, "Opty2 Detected at block %i !", block_num);
                 threat->msg = strdup(threat_msg);
                 return 1;
             }
