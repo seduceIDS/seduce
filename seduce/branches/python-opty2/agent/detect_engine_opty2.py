@@ -1,6 +1,6 @@
 ''' Inline Python Module to detect Opty2 Encoded Shellcodes
     Also uses opty2values.py supplied by metasploit opty2 package
-    15-7-2009
+    15-7-2009 by Panagiotopoulos Spyridon
 '''
 
 import random
