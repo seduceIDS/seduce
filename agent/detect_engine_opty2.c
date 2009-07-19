@@ -1,6 +1,6 @@
 /* 
  Static Analyser for Opty2 Multibyte Nopsled Generator of Metasploit 
- 15-7-2009
+ 15-7-2009 by Spyridon Panagiotopoulos
 */
 
 #include <stdio.h>

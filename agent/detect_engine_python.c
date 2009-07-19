@@ -1,6 +1,6 @@
 /* 
  Python Extension For SEDUCE
- 15-7-2009
+ 15-7-2009 by Spyridon Panagiotopoulos
 */
 
 #include <stdio.h>
