@@ -66,7 +66,6 @@ int opty2Detector(char *data, size_t len, Threat *threat)
 			    threat->severity = SEVERITY_HIGH;
 			    snprintf(threat_msg, 50, "Opty2 Detected at block %i !", block_num);
                 threat->msg = strdup(threat_msg);
-
                 return 1;
             }
         }  
