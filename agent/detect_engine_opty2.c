@@ -71,6 +71,7 @@ int opty2Detector(char *data, size_t len, Threat *threat)
         }  
         free(block);    
 	} 
-
+	    Py_DECREF(pModule);  // clean up
+        Py_DECREF(pName); 
         return 0;
 }   
