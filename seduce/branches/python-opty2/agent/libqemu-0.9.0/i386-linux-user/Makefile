@@ -1,0 +1,1 @@
+/home/thought/seduce/branches/python-opty2/agent/libqemu-0.9.0/Makefile.target
