@@ -4,7 +4,7 @@
 '''
 
 import random
-from values import *
+from opty2values import *
 
 def opty2Check(data):
     data = data[::-1]  # reverse string to start checking

@@ -29,13 +29,17 @@ int opty2Detector(char *data, size_t len, Threat *threat)
     PyObject *pName, *pModule, *pDict, *pFunc, *pValue, *pArgs;
 
     pName = PyString_FromString("detect_engine_opty2");
-    if (!pName)
-        printf("Error Loading Python String !");
+    if (!pName) {
+        fprintf(stderr, "Error Loading Python String !\n");
+	exit(1);
+    }
         
     pModule = PyImport_Import(pName);
-    if ( !pModule ) 
-        printf("Error Loading Python Module !");
-        
+    if ( !pModule ) {
+        fprintf(stderr, "Error Loading Python Module !\n");
+	exit(1);
+    }
+
     pDict = PyModule_GetDict(pModule);
     pFunc = PyDict_GetItemString(pDict, "opty2Check");
     

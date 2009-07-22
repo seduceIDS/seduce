@@ -33,10 +33,10 @@ int python_engine_init(void)
 
     PyRun_SimpleString("import os");
     PyRun_SimpleString("curDir = os.getcwd()");
-    PyRun_SimpleString("import sys"); 
-    PyRun_SimpleString("sys.path.append(curDir)"); 
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString("sys.path.append(curDir)");
 
-	return 1;
+    return 1;
 }
 
 int python_engine_process(char *data, size_t len, Threat *threat)
