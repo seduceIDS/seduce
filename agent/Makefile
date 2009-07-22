@@ -1,9 +1,6 @@
 #
 # Makefile for 'agent' (and the 'seduce' utility)
 #
-LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 
-CFLAGS_PYTHON = -I/usr/include/python2.5/
-
 AVAIL_ENGINES 	= qemu libemu fnord dummy python
 ENGINE		= python
 
@@ -40,6 +37,11 @@ LDFLAGS_QEMU	= -lqemu
 ifeq ($(ENGINE), libemu)
 CFLAGS_LIBEMU	:= $(shell ${PKG_CONFIG} libemu --cflags)
 LDFLAGS_LIBEMU	:= $(LIBEMU_LIB_BUG) $(shell ${PKG_CONFIG} libemu --libs)
+endif
+
+ifeq ($(ENGINE), python)
+LDFLAGS_PYTHON = -L/usr/lib/python2.5/config -lpython2.5 
+CFLAGS_PYTHON = -I/usr/include/python2.5/
 endif
 
 AGENT_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
@@ -154,7 +156,7 @@ md5.o: md5.c md5.h
 	$(CC) $(CFLAGS) -c md5.c
 
 clean:
-	@rm -f *.o *~ agent seduce 
+	@rm -f *.o *.pyc *~ agent seduce 
 
 install: install-bin install-conf
 	@echo $(NAME) installation completed
