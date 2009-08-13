@@ -1,10 +1,9 @@
 #
 # Makefile for 'agent' (and the 'seduce' utility)
 #
-PYTHON = -L/usr/lib/python2.5/config -lpython2.5 -ldl -lpthread -lutil -lm
 
 AVAIL_ENGINES 	= qemu libemu fnord dummy
-ENGINE		= fnord
+ENGINE		= dummy
 
 # libemu has a bug when registering the library dir to pkg-config
 # for now, specify the location of the libemu library
@@ -43,7 +42,7 @@ endif
 
 AGENT_OBJS	= agent.o detect_engine.o sensor_contact.o item_selection.o error.o alert.o options.o base64_encoder.o md5.o utils.o
 
-SEDUCE_OBJS	= seduce.o detect_engine.o 
+SEDUCE_OBJS	= seduce.o detect_engine.o
 
 ifeq ($(ENGINE), qemu)
 	CFLAGS += $(CFLAGS_QEMU)
@@ -60,9 +59,8 @@ ifeq ($(ENGINE), libemu)
 endif
 
 ifeq ($(ENGINE), fnord)
-    LDFLAGS += $(PYTHON)
-	AGENT_OBJS += detect_engine_fnord.o  
-	SEDUCE_OBJS += detect_engine_fnord.o  
+	AGENT_OBJS += detect_engine_fnord.o
+	SEDUCE_OBJS += detect_engine_fnord.o
 endif
 
 ifeq ($(ENGINE), dummy)
