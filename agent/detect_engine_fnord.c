@@ -11,9 +11,6 @@
 
 #include "utils.h"
 #include "detect_engine.h"
-#include "detect_engine_fnord.h"
-
-#include </usr/include/python2.5/Python.h>
 
 /* minimum number of bytes that is considered a nop sled */
 #define MAXNOP 		128
@@ -289,36 +286,15 @@ int fnord_engine_init(void)
 	return 1;
 }
 
-int fnord_engine_process(char *data, size_t len, Threat *threat)
+int fnord_engine_process(char *data, size_t len, Threat *t)
 {
 	const char *p;
 	int nop, block_size, block_num = 0;
 	void *block;
-	char threat_msg[51];
 
 	if((data == NULL) || (len == 0))
 		return 0;
 
-    PyObject *pName, *pModule, *pDict, *pFunc, *pValue, *pArgs;
-
-    Py_Initialize();
-
-    PyRun_SimpleString("import os");
-    PyRun_SimpleString("curDir = os.getcwd()");
-    PyRun_SimpleString("import sys"); 
-    PyRun_SimpleString("sys.path.append(curDir)"); 
-
-    pName = PyString_FromString("py_fnord");
-    if (!pName)
-        printf("Error Loading Python String !");
-        
-    pModule = PyImport_Import(pName);
-    if ( !pModule ) 
-        printf("Error Loading Python Module !");
-        
-    pDict = PyModule_GetDict(pModule);
-    pFunc = PyDict_GetItemString(pDict, "fnordCheck");
-    
 	while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
 				  block_num++))) 
 	{
@@ -327,43 +303,21 @@ int fnord_engine_process(char *data, size_t len, Threat *threat)
 			perror("malloc failed while building block\n");
 			return -1;
 		}
-		
+
 		memcpy(block, p, block_size);
-		
-		if (PyCallable_Check(pFunc)) 
-        {
-            pArgs = PyTuple_New(1);
-            PyTuple_SetItem(pArgs, 0, PyString_FromString(block));  
-            
-            pValue = PyObject_CallObject(pFunc, pArgs);
-            
-            int percentage = PyInt_AsLong(pValue);
 
-			if (percentage > 70 )
-			{
-			    threat->payload = block;
-			    threat->length = block_size;
-			    threat->severity = SEVERITY_HIGH;
-			    snprintf(threat_msg, 50, "Fnord Detected at block %i !", block_num);
-                threat->msg = strdup(threat_msg);
-                return 1;
-            }
-        }  
-        free(block);
-        
-	}    
-    
-
-    // Clean up
-
-    Py_DECREF(pModule);
-    Py_DECREF(pName);
-
-    // Finish the Python Interpreter
-
-    Py_Finalize();
-   
-
+		nop = fnord_test(data, len);
+	
+		switch(nop) {
+		case FOUND_IA32:
+			prepare_nopsled_threat( "IA32", block, block_size,
+						block_num, t);
+			return 1;
+		default:
+			free(block);
+			break;
+		}
+	}
 	return 0;
 }
 
