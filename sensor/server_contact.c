@@ -229,8 +229,8 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 	*(u_int32_t *)(buf +  8) = htonl(**stream_id);
 	*(u_int16_t *)(buf + 12) = htons(tcp_addr->source);
 	*(u_int16_t *)(buf + 14) = htons(tcp_addr->dest);
-	*(u_int32_t *)(buf + 16) = htonl(tcp_addr->saddr);
-	*(u_int32_t *)(buf + 20) = htonl(tcp_addr->daddr);
+	*(u_int32_t *)(buf + 16) = tcp_addr->saddr;
+	*(u_int32_t *)(buf + 20) = tcp_addr->daddr;
 
 	/* Send the Data */
 	if (sendall(sockfd, buf, msglen) == -1) {
@@ -389,8 +389,8 @@ int send_dgram_data(int sockfd, const struct tuple4 *udp_addr,
 	*(u_int32_t *)(buf +  8) = htonl(id);
 	*(u_int16_t *)(buf + 12) = htons(udp_addr->source);
 	*(u_int16_t *)(buf + 14) = htons(udp_addr->dest);
-	*(u_int32_t *)(buf + 16) = htonl(udp_addr->saddr);
-	*(u_int32_t *)(buf + 20) = htonl(udp_addr->daddr);
+	*(u_int32_t *)(buf + 16) = udp_addr->saddr;
+	*(u_int32_t *)(buf + 20) = udp_addr->daddr;
 
 
 
