@@ -16,12 +16,12 @@
 #include "errors.h"
 #include "thread.h"
 
-#define ANALYZER_CLASS "NIDS"
-#define ANALYZER_MODEL "SEDUCE"
-#define ANALYZER_MANUFACTURER "http://rainbow.cs.unipi.gr/projects/seduce"
+#include "../config.h"
 
-#define DEFAULT_ANALYZER_NAME "seduce"
-#define VERSION "0.1"
+#define ANALYZER_CLASS "NIDS"
+#define ANALYZER_MODEL PACKAGE_STRING
+#define ANALYZER_MANUFACTURER "http://rainbow.cs.unipi.gr/projects/seduce"
+#define DEFAULT_ANALYZER_NAME PACKAGE
 
 static AlertList alertlist;
 

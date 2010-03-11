@@ -38,16 +38,19 @@ int main(int argc, char *argv[])
 	/* Initialization functions */
 	if(init_sniffer() == 0)
 		return 1;
+
 	init_datalists();
 	init_alertlist();
 	init_oom_handler();
 	init_alert_receiver();
+
 	/*
- 	 * I need to be carefull with this one: init_signal_water should only
+ 	 * I need to be carefull with this one: init_signal_waiter should only
 	 * be called by the main thread and before the creation of any other
 	 * thread!!! It creates a signal mask that should be inherited by all
 	 * threads in the process.
 	 */
+
 	init_signal_waiter();
 
 	/* thread starting functions */
