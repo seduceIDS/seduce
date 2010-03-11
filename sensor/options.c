@@ -11,6 +11,7 @@
 #include <confuse.h>
 
 #include "sensor.h"
+#include "../config.h"
 
 /* struct filled with command-line arguments */
 typedef struct _CommandLineOptions {
@@ -51,9 +52,10 @@ static void hlpmsg(int rc)
 static void printusage(int rc)
 {
 	fprintf(stderr, 
-		"\nUsage:\n%s [-c <config_file>] [-h] [-i<interface>] "
+		"%s v%s sensor\n"
+		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
 		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  h : Print this help message.\n"
+		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  i : Network interface. E.g. `eth0', `eth1'.\n"
 		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
@@ -63,7 +65,7 @@ static void printusage(int rc)
 		"  A : Maximum number of agents allowed (default: 256).\n"
 		"  l : Memory usage soft limit in Mb. E.g. `400'.\n"
 		"  L : Memory usage hard limit in Mb. E.g. `390'.\n\n",
-		pv.prog_name);
+		PACKAGE_NAME, PACKAGE_VERSION, pv.prog_name);
 	exit(rc);
 }
 
