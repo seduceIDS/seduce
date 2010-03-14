@@ -1,12 +1,12 @@
 #include <assert.h>
 
-#include "base64_encoder.h"
+#include "base64.h"
 
 static const char base64_alphabet[] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 size_t base64_encode_step(const unsigned char *in, size_t len, char *out,
-							 int *state, int *save)
+		          int *state, int *save)
 {
 	char *outptr;
 	const unsigned char *inptr;
@@ -17,7 +17,7 @@ size_t base64_encode_step(const unsigned char *in, size_t len, char *out,
 	inptr = in;
 	outptr = out;
   
-	if(len + ((char *) save) [0] > 2) {
+	if (len + ((char *) save) [0] > 2) {
 		const unsigned char *inend = in + len - 2;
 		int c1, c2, c3;
 		int already;

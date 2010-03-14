@@ -1,4 +1,7 @@
 AM_CFLAGS = -Wall -O2 -ggdb -D_DEBUG -D_BSD_SOURCE -DCONF_DIR="${sysconfdir}"
+# reset LIBS, because it will append automatically all libs found by
+# AC_SEARCH_LIBS (see ../configure.ac)
+LIBS=
 
 sbin_PROGRAMS = seduce-sensor
 sysconf_DATA = sensor.conf

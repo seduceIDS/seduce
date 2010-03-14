@@ -7,10 +7,9 @@
 #include <errno.h>
 #include <sys/time.h>
 
-#include "detect_engine.h"
+#include "detection_engine.h"
 
-/* exported by the appropriate engine */
-extern DetectEngine engine;
+DetectionEngine *engine;
 
 void *load_file(const char *filename, size_t *fsize)
 {
@@ -65,31 +64,42 @@ int main(int argc, char **argv)
 	int ret;
 	struct timeval start, finish, result;
 
-	if (--argc != 1) {
-		fprintf(stderr,"usage %s <payload-file>\n", argv[0]);
+	if (--argc != 2) {
+		char engine_list[512];
+
+		format_engine_list(engine_list, sizeof(engine_list));
+
+		fprintf(stderr,"usage %s <engine> <payload-file>\n", argv[0]);
+		fprintf(stderr,"[ supported engines ]\n%s", engine_list);
+
 		exit(1);
 	}
 
-	if ((buff = load_file(argv[1], &fsize)) == NULL) 
+	if (!(engine = get_engine_by_name(argv[1]))) {
+		fprintf(stderr, "unknown engine name given!\n");
+		exit(1);
+	}
+
+	if ((buff = load_file(argv[2], &fsize)) == NULL) 
 		exit(1);
 
-	if (engine.init() == 0){
+	if (engine->init() == 0){
 		fprintf(stderr, "could not init detection engine '%s'\n",
-			engine.name);
+			engine->name);
 		exit(1);
 	}
 
-	engine.reset();
+	engine->reset();
 
 	gettimeofday(&start, NULL);
-	ret = engine.process(buff, fsize, &t);
+	ret = engine->process(buff, fsize, &t);
 	gettimeofday(&finish, NULL);
 
 	switch(ret) {
 	case -1:
 		fprintf(stderr, "Detection engine exited prematurely\n");
 		free(buff);
-		engine.destroy();
+		engine->destroy();
 		exit(1);
 	case 0:
 		printf("No threat was detected\n");
@@ -102,10 +112,10 @@ int main(int argc, char **argv)
 
 	timersub(&finish, &start, &result);
 
-	printf("Detection engine time: %ld sec %ld usec\n",
+	printf("Detection engine processing time: %ld sec %ld usec\n",
 		result.tv_sec, result.tv_usec);
 
-	engine.destroy();
+	engine->destroy();
 	free(buff);
 	 
 	return 0;

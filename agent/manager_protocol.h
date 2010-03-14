@@ -1,5 +1,5 @@
-#ifndef _SENSOR_CONTACT_H
-#define _SENSOR_CONTACT_H
+#ifndef _MANAGER_PROTOCOL_H
+#define _MANAGER_PROTOCOL_H
 
 #define PROTO_HDR_SIZE	16
 #define PROTO_PWD_SIZE	16
@@ -44,26 +44,26 @@ typedef struct _Packet {
 	Work work;
 } Packet;
 
-typedef struct _SensorSession {
+typedef struct _ManagerSession {
 	struct sockaddr_in addr;/* udp connection info */
 	int sock; 		/* UDP Socket */
 	char * password;
 	int retries;		/* number of allowed retries */
 	int timeout;		/* Seconds to wait before timeout */
 	unsigned int seq; 	/* Sequence Number */
-	unsigned int id;	/* Agents ID */
+	unsigned int id;	/* Agent ID */
 	Work current;		/* Current Work */
-} SensorSession;
+} ManagerSession;
 
 /* function Declarations */
 
-SensorSession *init_session(struct in_addr addr, unsigned short port,
+ManagerSession *init_session(struct in_addr addr, unsigned short port,
 			    const char *pwd, int timeout, int retries);
 
-void destroy_session(SensorSession **);
+void destroy_session(ManagerSession **);
 
-int sensor_request(SensorSession *, int req_type);
-const Work *fetch_current_work(const SensorSession *);
-inline char * pwdcpy(const SensorSession *, char *buf);
+int manager_request(ManagerSession *, int req_type);
+const Work *fetch_current_work(const ManagerSession *);
+inline char *pwdcpy(const ManagerSession *, char *buf);
 
-#endif /* _SENSOR_CONTACT_H */
+#endif /* _MANAGER_PROTOCOL_H */

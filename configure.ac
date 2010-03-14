@@ -14,9 +14,8 @@ AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
-# Checks for libraries.
+# Checks for libraries (top-level libs we link to)
 
-# These are the top-level libraries we link to
 AC_SEARCH_LIBS([random], [m],, AC_MSG_ERROR([missing math library]))
 AC_SEARCH_LIBS(pthread_create, pthread,, AC_MSG_ERROR([missing pthread library]))
 AC_SEARCH_LIBS(g_hash_table_new_full, glib-2.0,, AC_MSG_ERROR([missing glib library]))
@@ -80,10 +79,63 @@ AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([alarm gethostbyname gettimeofday inet_ntoa memset munmap regcomp select socket strdup strerror strtol])
 
 AC_ARG_WITH(config-dir,
-  [ --with-config-dir=DIR      Directory for config files],
+  [  --with-config-dir=DIR   Directory for config files],
 sysconfdir="${withval}", sysconfdir="${sysconfdir}/seduce")
 
+AC_ARG_ENABLE(qemu,
+ [  --disable-qemu          Disable QEMU-based detection engine],
+ [ DISABLE_QEMU=yes ],)
+
+if test "$DISABLE_QEMU" = "yes"; then
+  AM_CONDITIONAL(HAVE_QEMU, false)
+else
+  AM_CONDITIONAL(HAVE_QEMU, true)
+  AC_DEFINE(HAVE_QEMU, [1], [QEMU detection engine is enabled])
+  QEMU_CFLAGS="-Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/"
+  QEMU_LIBS="libqemu-0.9.0/i386-linux-user/libqemu.a -lm" 
+  AC_SUBST(QEMU_CFLAGS)
+  AC_SUBST(QEMU_LIBS) 
+  AC_CONFIG_SUBDIRS([agent/libqemu-0.9.0])
+fi
+
+AC_ARG_ENABLE(libemu,
+ [  --disable-libemu        Disable libemu-based detection engine],
+ [ DISABLE_LIBEMU=yes ],)
+
+if test "$DISABLE_LIBEMU" = "yes" ; then
+  AM_CONDITIONAL(HAVE_LIBEMU, false)
+else
+  # check for libemu
+  PKG_CHECK_MODULES(LIBEMU, libemu,, AC_MSG_ERROR([libemu is missing]))
+  AM_CONDITIONAL(HAVE_LIBEMU, true)
+  AC_DEFINE(HAVE_LIBEMU, [1], [libemu detection engine])
+  AC_SUBST(LIBEMU_CFLAGS)
+  AC_SUBST(LIBEMU_LIBS)
+fi
+
+AC_ARG_ENABLE(fnord,
+ [  --disable-fnord         Disable fnord-like detection engine],
+ [ DISABLE_FNORD=yes ],)
+
+if test "$DISABLE_FNORD" = "yes" ; then
+  AM_CONDITIONAL(HAVE_FNORD, false)
+else
+  AM_CONDITIONAL(HAVE_FNORD, true)
+  AC_DEFINE(HAVE_FNORD, [1], [fnord detection engine])
+fi
+
+AC_ARG_ENABLE(dummy,
+ [  --disable-dummy         Disable dummy detection engine],
+ [ DISABLE_DUMMY=yes ],)
+
+if test "$DISABLE_DUMMY" = "yes" ; then
+  AM_CONDITIONAL(HAVE_DUMMY, false)
+else
+  AM_CONDITIONAL(HAVE_DUMMY, true)
+  AC_DEFINE(HAVE_DUMMY, [1], [dummy detection engine])
+fi
+
 AC_CONFIG_FILES([Makefile
-                 sensor/Makefile])
-## AC_CONFIG_SUBDIRS([agent/libqemu-0.9.0])
+                 sensor/Makefile
+		 agent/Makefile])
 AC_OUTPUT

@@ -25,7 +25,7 @@ static void print_usage(const char *prog_name, int rc)
 		"\t[-s <sens_addr1,sens_addr2>] [-P <PollingOrder>] "
 		"[-t <timeout>]\n"
 		"\t[-r <retries>] [-w <no_work_wait>] [-m <max_polls>] "
-		"[-f <children>]\n"
+		"[-f <workers>]\n"
 		"\n"
 		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. /etc/agent.conf'.\n"
@@ -155,17 +155,17 @@ static int get_valid_max_polls(const char *str)
 	return max_polls;
 }
 
-static int get_valid_children(const char *str)
+static int get_valid_workers(const char *str)
 {
-	int children;
+	int workers;
 
-	children = str_to_natural(str);
-	if (children < 1) {
-		fprintf(stderr, "children cannot be less than 1\n");
+	workers = str_to_natural(str);
+	if (workers < 1) {
+		fprintf(stderr, "number of workers cannot be less than 1\n");
 		return -1;
 	}
 
-	return children;
+	return workers;
 }
 
 static int validate_password(const char *pwd)
@@ -186,7 +186,7 @@ static int validate_password(const char *pwd)
 #define FQDN_PATTERN HOST_ATOM "(\\." HOST_ATOM ")*"
 #define HOST_PORT_PATTERN FQDN_PATTERN ":[0-9]{1,5}"
 
-static int validate_sensor(const char *str)
+static int validate_manager(const char *str)
 {
 	char pattern[] = "^" HOST_PORT_PATTERN "$";
 
@@ -196,7 +196,7 @@ static int validate_sensor(const char *str)
 		return 0;
 }
 
-static int validate_sensors_str(const char *str)
+static int validate_managers_str(const char *str)
 {
 	char pattern[] = "^" HOST_PORT_PATTERN "(," HOST_PORT_PATTERN ")*$";
 
@@ -206,12 +206,12 @@ static int validate_sensors_str(const char *str)
 		return 0;
 }
 
-static char **split_sensorinfo(const char *cmdline_arg, const char delimiter,
+static char **split_managerinfo(const char *cmdline_arg, const char delimiter,
 			       int *count)
 {
 	char *p, *tmp;
 	int delimiter_count = 0;
-	char **sensors;
+	char **managers;
 	int i;
 	char delim_str[2] = { delimiter, '\0' };
 
@@ -223,48 +223,48 @@ static char **split_sensorinfo(const char *cmdline_arg, const char delimiter,
 			delimiter_count++;
 	}
 
-	if (!(sensors = malloc((delimiter_count+1) * sizeof(char *)))) {
-		fprintf(stderr, "error allocating memory for sensor "
+	if (!(managers = malloc((delimiter_count+1) * sizeof(char *)))) {
+		fprintf(stderr, "error allocating memory for manager "
 				"string pointers\n");
 		return NULL;
 	}
 
 	for (i = 0; i < delimiter_count + 1; i++) {
-		sensors[i] = strsep(&tmp, delim_str);
+		managers[i] = strsep(&tmp, delim_str);
 	}
 	*count = i;
 
-	return sensors;
+	return managers;
 }
 
-static int extract_sensorinfo(int num_sensors, 
-			      const char **sensors,
+static int extract_managerinfo(int num_managers, 
+			      const char **managers,
 			      InputOptions *input)
 {
 	int i;
 
-	if (input->sensors) {
-		fprintf(stderr, "extract_sensorinfo called, but input->sensors"
+	if (input->managers) {
+		fprintf(stderr, "extract_managerinfo called, but input->managers"
 				" was already filled in!\n");
 		return 0;
 	}
 
-	if (!(input->sensors = malloc(num_sensors * sizeof(Sensor)))) {
-		perror("error allocating space for Sensor structs");
+	if (!(input->managers = malloc(num_managers * sizeof(Manager)))) {
+		perror("error allocating space for Manager structs");
 		return 0;
 	}
 	
-	input->num_sensors = 0;
+	input->num_managers = 0;
 
-	for (i = 0; i<num_sensors; i++) {
+	for (i = 0; i<num_managers; i++) {
 		char *tmp;
 		unsigned short tmp_port;
 		char *port_str;
 		char *host_str;
 		struct hostent *he;
 
-		if (!(tmp = strdup(sensors[i]))) {
-			perror("error while duplicating sensor string");
+		if (!(tmp = strdup(managers[i]))) {
+			perror("error while duplicating manager string");
 			goto err;
 		}
 
@@ -282,16 +282,16 @@ static int extract_sensorinfo(int num_sensors,
 			goto err;
 		}
 		
-		input->sensors[i].addr = *((struct in_addr *) he->h_addr);
-		input->sensors[i].port = tmp_port;					
-		input->num_sensors += 1;
+		input->managers[i].addr = *((struct in_addr *) he->h_addr);
+		input->managers[i].port = tmp_port;					
+		input->num_managers += 1;
 
 		free(tmp);
 	}
 	return 1;
 err:
-	free(input->sensors);
-	input->num_sensors = 0;
+	free(input->managers);
+	input->num_managers = 0;
 	return 0;
 }
 
@@ -312,7 +312,7 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 	int f_arg = 0;
 
 	int mgr_count;
-	char **sensors;
+	char **managers;
 
 	while ((c = getopt (argc, argv, "hc:p:r:s:t:w:P:m:f:")) != -1) {
 		switch(c) {
@@ -364,18 +364,18 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				return 0;
 			}
 
-			if (!validate_sensors_str(optarg)){
+			if (!validate_managers_str(optarg)){
 				fprintf(stderr, 
 					"syntax error at -s argument\n");
 				return 0;
 			}
 
-			sensors = split_sensorinfo(optarg, ',', &mgr_count);
-			if (!sensors)
+			managers = split_managerinfo(optarg, ',', &mgr_count);
+			if (!managers)
 				return 0;
 
-			if (!extract_sensorinfo(mgr_count,
-			                        (const char **) sensors,
+			if (!extract_managerinfo(mgr_count,
+			                        (const char **) managers,
 						opts))
 				return 0;
 			break;
@@ -415,8 +415,8 @@ static int get_cloptions(int argc, char *argv[], InputOptions *opts)
 				PRINT_SPECIFY_ONCE('f');
 				return 0;
 			}
-			opts->children = get_valid_children(optarg);
-			if (opts->children == -1)
+			opts->workers = get_valid_workers(optarg);
+			if (opts->workers == -1)
 				return 0;
 			break;
 
@@ -445,7 +445,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "max_polls") == 0)
 		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
-	else if (strcmp(opt->name, "children") == 0)
+	else if (strcmp(opt->name, "workers") == 0)
 		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
 	else
 		ret = 0;
@@ -460,8 +460,8 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 static int parse_fileoptions(const char *filename, InputOptions *opts)
 {
-	char **sensors = NULL;
-	int num_sensors, i, ret, retval = 1;
+	char **managers = NULL;
+	int num_managers, i, ret, retval = 1;
 
 	cfg_opt_t cfg_opts[] = {
 		CFG_STR_LIST("sensors", NULL, CFGF_NONE),
@@ -471,7 +471,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 		CFG_SIMPLE_INT("retries", &opts->retries),
 		CFG_SIMPLE_INT("no_work_wait", &opts->no_work_wait),
 		CFG_SIMPLE_INT("max_polls", &opts->max_polls),
-		CFG_SIMPLE_INT("children", &opts->children),
+		CFG_SIMPLE_INT("workers", &opts->workers),
 		CFG_END()
 	};
 
@@ -488,7 +488,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 	cfg_set_validate_func(cfg,"retries",cfg_validate);
 	cfg_set_validate_func(cfg,"no_work_wait",cfg_validate);
 	cfg_set_validate_func(cfg,"max_polls", cfg_validate);
-	cfg_set_validate_func(cfg,"children", cfg_validate);
+	cfg_set_validate_func(cfg,"workers", cfg_validate);
 
 	ret = cfg_parse(cfg,filename);
 	
@@ -503,29 +503,29 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 
 	/* No sensor addresses found.. Nothing wrong with that! The user might
 	   have already provided these as a cmdline option! */
-	if ((num_sensors = cfg_size(cfg, "sensors")) == 0)
+	if ((num_managers = cfg_size(cfg, "sensors")) == 0)
 		goto exit;
 	
-	if (!(sensors = malloc(num_sensors * sizeof(char *)))) {
-		perror("malloc error while creating array of sensors");
+	if (!(managers = malloc(num_managers * sizeof(char *)))) {
+		perror("malloc error while creating array of managers");
 		retval = 0;
 		goto exit;
 	}
 
-	for(i = 0; i < num_sensors; i++) {
-		sensors[i] = cfg_getnstr(cfg, "sensors", i);
-		if (!validate_sensor(sensors[i])) {
+	for(i = 0; i < num_managers; i++) {
+		managers[i] = cfg_getnstr(cfg, "managers", i);
+		if (!validate_manager(managers[i])) {
 			fprintf(stderr,"invalid sensor string: %s\n",
-				sensors[i]);
+				managers[i]);
 			retval = 0;
 			goto exit;
 		}
 	}
 
-	if (!extract_sensorinfo(num_sensors, (const char **) sensors, opts))
+	if (!extract_managerinfo(num_managers, (const char **) managers, opts))
 		retval = 0;
 exit:
-	free(sensors);
+	free(managers);
 	cfg_free(cfg);
 	return retval;
 }
@@ -551,7 +551,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	final_opts->retries = clo.retries = -1;
 	final_opts->no_work_wait = clo.no_work_wait = -1;
 	final_opts->max_polls = clo.max_polls = -1;
-	final_opts->children = clo.children = -1;
+	final_opts->workers = clo.workers = -1;
 
 	ret = get_cloptions(argc, argv, &clo);
 	if (!ret)
@@ -570,12 +570,12 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	 * options always have a higher priority.
 	 */
 
-	if (clo.sensors) {
-		if (final_opts->sensors)
-			free(final_opts->sensors);
+	if (clo.managers) {
+		if (final_opts->managers)
+			free(final_opts->managers);
 		
-		final_opts->sensors = clo.sensors;
-		final_opts->num_sensors = clo.num_sensors;
+		final_opts->managers = clo.managers;
+		final_opts->num_managers = clo.num_managers;
 	}
 
 	if(clo.password) {
@@ -617,10 +617,10 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	else if(final_opts->max_polls == -1)
 		final_opts->max_polls = DEFAULT_MAX_POLLS;
 
-	if(clo.children != -1)
-		final_opts->children = clo.children;
-	else if(final_opts->children == -1)
-		final_opts->children = DEFAULT_CHILDREN;
+	if(clo.workers != -1)
+		final_opts->workers = clo.workers;
+	else if(final_opts->workers == -1)
+		final_opts->workers = DEFAULT_WORKERS;
 
 
 	/* 
@@ -629,7 +629,7 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 	 * Required options are the connection info (IP/port & password)
 	 */
 
-	if (!final_opts->sensors){
+	if (!final_opts->managers){
 		fprintf(stderr, "Sensor address(es) not set.\n");
 		hlpmsg(final_opts->prog_name, 1);
 	}
@@ -644,8 +644,8 @@ InputOptions *fill_inputopts(int argc, char *argv[])
 
 void destroy_inputopts(InputOptions *opts)
 {
-	if (opts->sensors)
-		free(opts->sensors);
+	if (opts->managers)
+		free(opts->managers);
 
 	if (opts->password)
 		free(opts->password);
@@ -660,7 +660,7 @@ void destroy_inputopts(InputOptions *opts)
 
 int main(int argc, char *argv[])
 {
-	Sensor s;
+	Manager s;
 	InputOptions *in = fill_inputopts(argc, argv);
 	int i;
 
@@ -668,8 +668,8 @@ int main(int argc, char *argv[])
 
 	printf("Options:\n");
 	printf("Sensor Address(es): ");
-	for(i = 0; i < in->num_sensors; i++) {
-		s = in->sensors[i];
+	for(i = 0; i < in->num_managers; i++) {
+		s = in->managers[i];
 		printf("%s:%u ", inet_ntoa(s.addr), ntohs(s.port));
 	}
 	printf("\n");
@@ -688,7 +688,7 @@ int main(int argc, char *argv[])
 	printf("Retries: %d\n", in->retries);
 	printf("No Work Wait: %d\n", in->no_work_wait);
 	printf("Max Polls before sleep: %d\n", in->max_polls);
-	printf("Children: %d\n", in->children);
+	printf("Workers: %d\n", in->workers);
 
 	destroy_inputopts(in);
 

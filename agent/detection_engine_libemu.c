@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "detect_engine.h"
+#include "detection_engine.h"
 #include "utils.h"
 
 #include <emu/emu.h>
@@ -16,8 +16,9 @@ int libemu_engine_init(void);
 void libemu_engine_reset(void);
 void libemu_engine_destroy(void);
 
-DetectEngine engine = {
-	.name = "Libemu Engine",
+DetectionEngine libemu_engine = {
+	.name = "libemu",
+	.descr = "Libemu Detection Engine",
 	.init = &libemu_engine_init,
 	.destroy = &libemu_engine_destroy,
 	.reset = &libemu_engine_reset,
