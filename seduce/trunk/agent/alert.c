@@ -8,14 +8,14 @@
 #include <arpa/inet.h>
 #include <sys/uio.h>
 
-#include "sensor_contact.h"
-#include "detect_engine.h"
-#include "base64_encoder.h"
+#include "manager_protocol.h"
+#include "detection_engine.h"
+#include "base64.h"
 #include "utils.h"
 
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
 
-static int tcp_connect(const SensorSession *s)
+static int tcp_connect(const ManagerSession *s)
 {
 	int sock;
 	socklen_t addrlen = sizeof(struct sockaddr);
@@ -179,7 +179,7 @@ again:
 	if(strcmp(buf, rep) == 0)
 		return 1;
 	else {
-		fprintf(stderr, "Error. Sensor Replied: %s\n", buf);
+		fprintf(stderr, "Error. Manager Replied: %s\n", buf);
 		return 0;
 	}
 }
@@ -297,10 +297,10 @@ int do_request_response(int sock, const char *com, const char *arg)
 
 	ret = check_reply(sock, "OK");
 	if(ret < 0) {
-		fprintf(stderr, "Error when waiting sensors reply");
+		fprintf(stderr, "Error when waiting manager's reply");
 		return 0;
 	} else if(ret == 0) {
-		fprintf(stderr, "Sensor denied to fulfill the command %s\n", 
+		fprintf(stderr, "Manager denied to fulfill the command %s\n", 
 				com);
 		return 0;
 	}
@@ -308,7 +308,7 @@ int do_request_response(int sock, const char *com, const char *arg)
 	return 1;
 }
 
-int submit_alert(const SensorSession *s, const ConnectionInfo *c,
+int submit_alert(const ManagerSession *s, const ConnectionInfo *c,
 		 const Threat *t)
 {
 	int sock;
@@ -318,11 +318,11 @@ int submit_alert(const SensorSession *s, const ConnectionInfo *c,
 
 	/* TODO: I need to check if some threat fields are missing */
 
-	DPRINTF("Connecting to the sensor...");
+	DPRINTF("Connecting to the manager...");
 	
 	sock = tcp_connect(s);
 	if(sock == 0) {
-		fprintf(stderr, "connection to sensor failed\n");
+		fprintf(stderr, "connection to manager failed\n");
 		return 0;
 	} else
 		DPRINTF("done\n");

@@ -1,5 +1,5 @@
-#ifndef _DETECT_ENGINE_H
-#define _DETECT_ENGINE_H
+#ifndef _DETECTION_ENGINE_H
+#define _DETECTION_ENGINE_H
 
 #include <stddef.h> /* for size_t */
 
@@ -23,8 +23,9 @@ typedef struct _Threat{
 	char *msg;		/* Null-Terminated, human-readable, message */
 } Threat;
 
-typedef struct _DetectEngine{
-	const char *name;
+typedef struct _DetectionEngine {
+	char *name;
+	char *descr;
 	int  (*init)(void); 			/* Returns 0 on failure */
 	void (*destroy)(void);
 	void (*reset)(void);
@@ -32,12 +33,16 @@ typedef struct _DetectEngine{
 						      1 on threat detection,
 						      0 otherwise */
 	void *params;
-} DetectEngine;
+} DetectionEngine;
 
 /* Function Declarations */
 
 void destroy_threat(Threat *);
 const char *get_next_block(const char *data, size_t len, int min_len, 
 			   int *block_len, int use_previous_data);
+DetectionEngine *get_engine_by_name(char *name);
+DetectionEngine *cycle_engines(DetectionEngine **context);
+int format_engine_list(char *buf, int bufsize);
+void apply_to_engines(void (*fun)(DetectionEngine *, void *), void *param);
 
-#endif /* _DETECT_ENGINE_H*/
+#endif /* _DETECTION_ENGINE_H */

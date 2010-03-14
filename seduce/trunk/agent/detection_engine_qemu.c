@@ -3,11 +3,12 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#include "detect_engine.h"
+#include "detection_engine.h"
 #include "utils.h"
 
-#include "qemu.h"
-#include "exec-all.h"
+#include "libqemu-0.9.0/i386-linux-user/config.h"
+#include "libqemu-0.9.0/linux-user/qemu.h"
+#include "libqemu-0.9.0/exec-all.h"
 
 typedef struct _QemuVars {
 	struct itimerval value;
@@ -23,8 +24,9 @@ int qemu_engine_process(char *, size_t, Threat *);
 void qemu_engine_reset(void);
 void qemu_engine_destroy(void);
 
-DetectEngine engine = {
-	.name = "QEMU Engine",
+DetectionEngine qemu_engine = {
+	.name = "qemu",
+	.descr = "QEMU-based Detection Engine",
 	.init = &qemu_engine_init,
 	.destroy = &qemu_engine_destroy,
 	.reset = &qemu_engine_reset,

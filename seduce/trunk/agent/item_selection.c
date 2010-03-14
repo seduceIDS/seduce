@@ -1,7 +1,9 @@
 #include <stdlib.h>
+#include <assert.h>
+
 #include "item_selection.h"
 
-void *random_selection(int num_items, void *items, int item_size)
+void *random_selection(int num_items, void *items, int item_size, void **ctx)
 {
         int new_idx;
 
@@ -10,21 +12,23 @@ void *random_selection(int num_items, void *items, int item_size)
         return items + new_idx * item_size;
 }
 
-void *round_robin_selection(int num_items, void *items, int item_size)
+void *round_robin_selection(int num_items, void *items, int item_size, 
+			    void **current)
 {
-        static void *current = NULL;
         void *last_on_list;
+
+	assert(current != NULL);
 
         last_on_list = items + (num_items - 1) * item_size;
 
-        if (!current || current == last_on_list) {
-                current = items;
-                return current;
+        if (!(*current) || (*current == last_on_list)) {
+                *current = items;
+                return *current;
         }
 
-        current += item_size;
+        *current += item_size;
 
-        return current;
+        return *current;
 }
 
 int is_selection_valid(SelectionType s)

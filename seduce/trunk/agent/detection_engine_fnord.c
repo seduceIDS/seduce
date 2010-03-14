@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #include "utils.h"
-#include "detect_engine.h"
+#include "detection_engine.h"
 
 /* minimum number of bytes that is considered a nop sled */
 #define MAXNOP 		128
@@ -22,8 +22,9 @@ int fnord_engine_process(char *, size_t, Threat *);
 void fnord_engine_reset(void);
 void fnord_engine_destroy(void);
 
-DetectEngine engine = {
-	.name = "fnord NOP detection Engine",
+DetectionEngine fnord_engine = {
+	.name = "fnord",
+	.descr = "Fnord NOP Detection Engine",
 	.init = &fnord_engine_init,
 	.destroy = &fnord_engine_destroy,
 	.reset = &fnord_engine_reset,
@@ -330,5 +331,3 @@ void fnord_engine_destroy(void)
 {
 	return;	
 }
-
-

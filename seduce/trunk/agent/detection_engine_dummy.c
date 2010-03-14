@@ -1,20 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "detect_engine.h"
+#include "detection_engine.h"
 #include "utils.h"
 
-#define TIMES	10
+#define TIMES 10
 
 /* function prototypes */
 
 static int dummy_engine_init();
 static void dummy_engine_destroy();
 static void dummy_engine_reset();
-static int dummy_engine_process(char *, size_t, Threat *);
+static int dummy_engine_process(char *, size_t, Threat *t);
 
-DetectEngine engine = {
-	.name = "Dummy Engine",
+DetectionEngine dummy_engine = {
+	.name = "dummy",
+	.descr = "Dummy Detection Engine",
 	.init = &dummy_engine_init,
 	.destroy = &dummy_engine_destroy,
 	.reset = &dummy_engine_reset,
@@ -79,3 +80,4 @@ static int dummy_engine_process(char *data, size_t len, Threat *t)
 	times = 0;
 	return 1;
 }
+
