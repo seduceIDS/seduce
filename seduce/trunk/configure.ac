@@ -14,48 +14,11 @@ AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
-# Checks for libraries (top-level libs we link to)
-
-AC_SEARCH_LIBS([random], [m],, AC_MSG_ERROR([missing math library]))
-AC_SEARCH_LIBS(pthread_create, pthread,, AC_MSG_ERROR([missing pthread library]))
-AC_SEARCH_LIBS(g_hash_table_new_full, glib-2.0,, AC_MSG_ERROR([missing glib library]))
-AC_SEARCH_LIBS(cfg_set_validate_func, confuse,, AC_MSG_ERROR([missing confuse library]))
-AC_SEARCH_LIBS(nids_register_udp, nids,, AC_MSG_ERROR([missing nids library]))
-AC_SEARCH_LIBS(prelude_client_send_idmef, prelude,, AC_MSG_ERROR([missing prelude library]))
-
 # Checks for header files.
 
 AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([arpa/inet.h inttypes.h limits.h malloc.h netdb.h netinet/in.h stddef.h stdlib.h string.h strings.h sys/ioctl.h sys/socket.h sys/time.h syslog.h unistd.h])
-
-# check for glib - does AC_SUBST for GLIB_CFLAGS and GLIB_LIBS internally
-AM_PATH_GLIB_2_0(2.0.0,,,gthread)
-if test "$GLIB_LIBS" = ""; then
-   AC_MSG_ERROR("GLIB 2.0 or later is required to build SEDUCE")
-fi
-
-# check for libconfuse
-PKG_CHECK_MODULES(LIBCONFUSE, libconfuse,, AC_MSG_ERROR("libconfuse is required to build $PACKAGE_NAME"))
-AC_SUBST(LIBCONFUSE_CFLAGS)
-AC_SUBST(LIBCONFUSE_LIBS)
-
-AC_CHECK_HEADER(nids.h,, AC_MSG_ERROR([nids.h header file needed but not found]))
-LIBNIDS_LIBS="-lnids -lpcap -lgthread-2.0 -lnsl"
-AC_SUBST(LIBNIDS_LIBS) 
-
-AC_CHECK_HEADER(pthread.h,, AC_MSG_ERROR([pthread.h header file needed but not found]))
-LIBPTHREAD_LIBS="-lpthread"
-AC_SUBST(LIBPTHREAD_LIBS)
-
-LIBM_LIBS="-lm"
-AC_SUBST(LIBM_LIBS)
-
-AC_CHECK_HEADERS(libprelude/prelude.h,, AC_MSG_ERROR([libprelude.h header file needed but not found!]))
-LIBPRELUDE_CFLAGS=`libprelude-config --cflags`
-LIBPRELUDE_LIBS=`libprelude-config --libs`
-AC_SUBST(LIBPRELUDE_CFLAGS)
-AC_SUBST(LIBPRELUDE_LIBS)
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -78,61 +41,138 @@ AC_FUNC_STAT
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([alarm gethostbyname gettimeofday inet_ntoa memset munmap regcomp select socket strdup strerror strtol])
 
+#  *** HANDLE HARD DEPENDENCIES *** 
+
+## math library
+
+AC_SEARCH_LIBS([random], [m],, AC_MSG_ERROR([missing math library]))
+LIBM_LIBS="-lm"
+AC_SUBST(LIBM_LIBS)
+
+## posix thread library
+
+AC_SEARCH_LIBS(pthread_create, pthread,, AC_MSG_ERROR([missing pthread library]))
+AC_CHECK_HEADER(pthread.h,, AC_MSG_ERROR([pthread.h header file needed but not found]))
+LIBPTHREAD_LIBS="-lpthread"
+AC_SUBST(LIBPTHREAD_LIBS)
+
+## glib 2.0 library
+
+AC_SEARCH_LIBS(g_hash_table_new_full, glib-2.0,, AC_MSG_ERROR([missing glib library]))
+# does AC_SUBST for GLIB_CFLAGS and GLIB_LIBS internally
+AM_PATH_GLIB_2_0(2.0.0,,,gthread)
+if test "$GLIB_LIBS" = ""; then
+   AC_MSG_ERROR("GLIB 2.0 or later is required to build $PACKAGE_NAME")
+fi
+
+## confuse library 
+AC_SEARCH_LIBS(cfg_set_validate_func, confuse,, AC_MSG_ERROR([missing confuse library]))
+PKG_CHECK_MODULES(LIBCONFUSE, libconfuse,, AC_MSG_ERROR("libconfuse is required to build $PACKAGE_NAME"))
+AC_SUBST(LIBCONFUSE_CFLAGS)
+AC_SUBST(LIBCONFUSE_LIBS)
+
+## nids library
+
+AC_SEARCH_LIBS(nids_register_udp, nids,, AC_MSG_ERROR([missing nids library]))
+AC_CHECK_HEADER(nids.h,, AC_MSG_ERROR([nids.h header file needed but not found]))
+LIBNIDS_LIBS="-lnids -lpcap -lgthread-2.0 -lnsl"
+AC_SUBST(LIBNIDS_LIBS) 
+
+## prelude library
+
+AC_SEARCH_LIBS(prelude_client_send_idmef, prelude,, AC_MSG_ERROR([missing prelude library]))
+AC_CHECK_HEADERS(libprelude/prelude.h,, AC_MSG_ERROR([libprelude.h header file needed but not found!]))
+LIBPRELUDE_CFLAGS=`libprelude-config --cflags`
+LIBPRELUDE_LIBS=`libprelude-config --libs`
+AC_SUBST(LIBPRELUDE_CFLAGS)
+AC_SUBST(LIBPRELUDE_LIBS)
+
 AC_ARG_WITH(config-dir,
   [  --with-config-dir=DIR   Directory for config files],
 sysconfdir="${withval}", sysconfdir="${sysconfdir}/seduce")
 
-AC_ARG_ENABLE(qemu,
- [  --disable-qemu          Disable QEMU-based detection engine],
- [ DISABLE_QEMU=yes ],)
+# *** AND NOW FOR THE SOFT DEPS ***
 
-if test "$DISABLE_QEMU" = "yes"; then
-  AM_CONDITIONAL(HAVE_QEMU, false)
-else
+## our patched libqemu implementation (on by default)
+
+use_qemu="yes"
+AC_ARG_ENABLE(qemu,
+ [AS_HELP_STRING([--enable-qemu],
+   [Enable QEMU-based detection engine [on]])],
+   [use_qemu=$enableval])
+
+if test "$use_qemu" = "yes"; then
   AM_CONDITIONAL(HAVE_QEMU, true)
-  AC_DEFINE(HAVE_QEMU, [1], [QEMU detection engine is enabled])
+  AC_DEFINE(HAVE_QEMU, [1], [QEMU detection engine])
   QEMU_CFLAGS="-Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/"
   QEMU_LIBS="libqemu-0.9.0/i386-linux-user/libqemu.a -lm" 
   AC_SUBST(QEMU_CFLAGS)
   AC_SUBST(QEMU_LIBS) 
   AC_CONFIG_SUBDIRS([agent/libqemu-0.9.0])
+else
+  AM_CONDITIONAL(HAVE_QEMU, false)
 fi
 
-AC_ARG_ENABLE(libemu,
- [  --disable-libemu        Disable libemu-based detection engine],
- [ DISABLE_LIBEMU=yes ],)
+## libemu library (autodetected)
 
-if test "$DISABLE_LIBEMU" = "yes" ; then
-  AM_CONDITIONAL(HAVE_LIBEMU, false)
-else
-  # check for libemu
-  PKG_CHECK_MODULES(LIBEMU, libemu,, AC_MSG_ERROR([libemu is missing]))
+AC_ARG_ENABLE(libemu,
+ [AS_HELP_STRING([--enable-libemu],
+    [Enable libemu-based detection engine [auto]])],
+ [use_libemu=$enableval],
+ [use_libemu=auto])
+
+PKG_CHECK_MODULES(LIBEMU, libemu, 
+		  [detected_libemu=yes],
+		  [detected_libemu=no])
+
+case "$use_libemu" in
+  "yes") if test "$detected_libemu" = "no" ; then
+  		AC_MSG_ERROR([libemu not found])
+	 fi ;;
+ "auto") if test "$detected_libemu" = "no" ; then
+ 		use_libemu="no"
+	 else
+	 	use_libemu="yes"
+  	 fi;;
+esac
+
+if test "$use_libemu" = "yes" ; then
   AM_CONDITIONAL(HAVE_LIBEMU, true)
   AC_DEFINE(HAVE_LIBEMU, [1], [libemu detection engine])
   AC_SUBST(LIBEMU_CFLAGS)
   AC_SUBST(LIBEMU_LIBS)
+else
+  AM_CONDITIONAL(HAVE_LIBEMU, false)
 fi
 
-AC_ARG_ENABLE(fnord,
- [  --disable-fnord         Disable fnord-like detection engine],
- [ DISABLE_FNORD=yes ],)
+## fnord nop detector (off by default) 
 
-if test "$DISABLE_FNORD" = "yes" ; then
-  AM_CONDITIONAL(HAVE_FNORD, false)
-else
+use_fnord="no"
+AC_ARG_ENABLE(fnord,
+ [AS_HELP_STRING([--enable-fnord],
+   [Enable fnord-like nop detection engine [off]])],
+ [use_fnord=$enableval])
+
+if test "$use_fnord" = "yes" ; then
   AM_CONDITIONAL(HAVE_FNORD, true)
   AC_DEFINE(HAVE_FNORD, [1], [fnord detection engine])
+else
+  AM_CONDITIONAL(HAVE_FNORD, false)
 fi
 
-AC_ARG_ENABLE(dummy,
- [  --disable-dummy         Disable dummy detection engine],
- [ DISABLE_DUMMY=yes ],)
+## dummy detection engine (off by default) 
 
-if test "$DISABLE_DUMMY" = "yes" ; then
-  AM_CONDITIONAL(HAVE_DUMMY, false)
-else
+use_dummy="no"
+AC_ARG_ENABLE(dummy,
+  [AS_HELP_STRING([--enable-dummy],
+    [Enable dummy detection engine [off]])],
+  [use_dummy=$enableval])
+
+if test "$use_dummy" = "yes" ; then
   AM_CONDITIONAL(HAVE_DUMMY, true)
   AC_DEFINE(HAVE_DUMMY, [1], [dummy detection engine])
+else
+  AM_CONDITIONAL(HAVE_DUMMY, false)
 fi
 
 AC_CONFIG_FILES([Makefile
