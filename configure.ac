@@ -120,11 +120,6 @@ fi
 
 ## libemu library (autodetected)
 
-AC_ARG_WITH(libemu,
-  [AS_HELP_STRING([--with-libemu],[Specify non-standard library path for libemu])],
-  [alt_libemu_path="$withval"],
-  [alt_libemu_path=default])
-
 AC_ARG_ENABLE(libemu,
  [AS_HELP_STRING([--enable-libemu],
     [Enable libemu-based detection engine [auto]])],
@@ -151,10 +146,6 @@ if test "$use_libemu" = "yes" ; then
   AC_DEFINE(HAVE_LIBEMU, [1], [libemu detection engine])
   AC_SUBST(LIBEMU_CFLAGS)
   AC_SUBST(LIBEMU_LIBS)
-  if test "$alt_libemu_path" != "default" ; then
-    LIBEMU_LDFLAGS="-L$alt_libemu_path $LIBEMU_LDFLAGS"
-  fi
-  AC_SUBST(LIBEMU_LDFLAGS)
 else
   AM_CONDITIONAL(HAVE_LIBEMU, false)
 fi
