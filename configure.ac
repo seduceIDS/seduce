@@ -66,17 +66,22 @@ if test "$GLIB_LIBS" = ""; then
 fi
 
 ## confuse library 
+
 AC_SEARCH_LIBS(cfg_set_validate_func, confuse,, AC_MSG_ERROR([missing confuse library]))
-PKG_CHECK_MODULES(LIBCONFUSE, libconfuse,, AC_MSG_ERROR("libconfuse is required to build $PACKAGE_NAME"))
+PKG_CHECK_MODULES(LIBCONFUSE, libconfuse,, 
+ AC_MSG_ERROR("libconfuse is required to build $PACKAGE_NAME"))
 AC_SUBST(LIBCONFUSE_CFLAGS)
 AC_SUBST(LIBCONFUSE_LIBS)
 
 ## nids library
 
-AC_SEARCH_LIBS(nids_register_udp, nids,, AC_MSG_ERROR([missing nids library]))
+LIBNIDS_DEPENDENCIES="-lpcap -lgthread-2.0 -lnsl -lnet"
+AC_SEARCH_LIBS(nids_register_udp, nids,, AC_MSG_ERROR(
+ [libnids (or some dependency of it) is missing. Check config.log for errors.]),
+ $LIBNIDS_DEPENDENCIES)
 AC_CHECK_HEADER(nids.h,, AC_MSG_ERROR([nids.h header file needed but not found]))
-LIBNIDS_LIBS="-lnids -lpcap -lgthread-2.0 -lnsl"
-AC_SUBST(LIBNIDS_LIBS) 
+LIBNIDS_LIBS="-lnids $LIBNIDS_DEPENDENCIES"
+AC_SUBST(LIBNIDS_LIBS)
 
 ## prelude library
 
