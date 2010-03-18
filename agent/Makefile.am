@@ -17,6 +17,9 @@ endif
 
 if HAVE_LIBEMU
 DETECTION_ENGINES += detection_engine_libemu.c
+# libemu registers the wrong libdir to PKG_CONFIG.
+# remove this, once the bug is gone!
+LIBEMU_LIBS += -L/opt/libemu/lib/libemu/
 endif
 
 if HAVE_DUMMY
@@ -32,12 +35,12 @@ seduce_agent_SOURCES = agent.c alert.c base64.c detection_engine.c error.c \
 			utils.c worker.c $(DETECTION_ENGINES)
 seduce_agent_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ \
 			@LIBCONFUSE_CFLAGS@
-seduce_agent_LDADD = $(AM_LDFLAGS) @LIBEMU_LDFLAGS@ @QEMU_LIBS@ $(LIBEMU_LIBS) \
+seduce_agent_LDADD = $(AM_LDFLAGS) @QEMU_LIBS@ $(LIBEMU_LIBS) \
 			@LIBCONFUSE_LIBS@
 
 seduce_SOURCES = standalone.c detection_engine.c $(DETECTION_ENGINES)
 seduce_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@
-seduce_LDADD = $(AM_LDFLAGS) @LIBEMU_LDFLAGS@ @QEMU_LIBS@ $(LIBEMU_LIBS)
+seduce_LDADD = $(AM_LDFLAGS) @QEMU_LIBS@ $(LIBEMU_LIBS)
 
 install-exec-hook:
 	chown root:root $(DESTDIR)$(bindir)/seduce-agent
