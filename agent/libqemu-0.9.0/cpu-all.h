@@ -1030,6 +1030,4 @@ extern int64_t kqemu_ret_intr_count;
 
 #endif
 
-void flush_translations(CPUState *env);
-
 #endif /* CPU_ALL_H */

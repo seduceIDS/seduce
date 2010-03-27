@@ -175,7 +175,6 @@ int cpu_loop(CPUX86State *env)
 {
     int trapnr;
 
-    /* cpu_dump_state(env, stderr, fprintf, 0); */
     for(;;) {
         trapnr = cpu_x86_exec(env);
         switch(trapnr) {

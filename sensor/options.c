@@ -11,37 +11,15 @@
 #include <confuse.h>
 
 #include "sensor.h"
-#include "../config.h"
 
 /* struct filled with command-line arguments */
 typedef struct _CommandLineOptions {
+	char *server;
 	char *portlist_expr;
 	char *homenet_expr;
 	char *interface;
 	char *conf_file;
-	char *agent_port;
-	char *max_agents;
-	char *mem_softlimit;
-	char *mem_hardlimit;
-	char *password;
 } CLO;
-
-/* 
- * The next value defines the acceptable port range for the agent server. The
- * values were not picked randomly. Actually to open a port which is in the
- * range 1-1024 you need root permission and manager is not supposed to be
- * running with root priveleges. On the other hand at least for the 2.6 version
- * of the linux kernel, the ephemeral port range is 32768-61000, so we picked
- * the inbetween to be the acceptable port range. Feel free to change the bellow
- * values.
- */
-#define MIN_PORT_LIMIT 1025
-#define MAX_PORT_LIMIT 32768
-
-/* Defaults */
-#define MAX_AGENTS	256
-#define AGENT_PORT	28001 /* 28001-28239 are unassigned. If you care see: */
-			      /* http://www.iana.org/assignments/port-numbers */
 
 static void hlpmsg(int rc)
 {
@@ -52,20 +30,16 @@ static void hlpmsg(int rc)
 static void printusage(int rc)
 {
 	fprintf(stderr, 
-		"%s v%s sensor\n"
-		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
+		"\nUsage:\n%s [-c <config_file>] [-h] [-i<interface>] "
 		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  h : Prints this help message.\n"
+		"  h : Print this help message.\n"
 		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  i : Network interface. E.g. `eth0', `eth1'.\n"
 		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
-		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n"
-		"  P : Password for the agents (default: seduce).\n"
-		"  a : Port to listen for agent requests (default: 28001).\n"
-		"  A : Maximum number of agents allowed (default: 256).\n"
-		"  l : Memory usage soft limit in Mb. E.g. `400'.\n"
-		"  L : Memory usage hard limit in Mb. E.g. `390'.\n\n",
-		PACKAGE_NAME, PACKAGE_VERSION, pv.prog_name);
+		"  s : Server Address in HOST:Port format. "
+		       "E.g. `localhost:3540'.\n"
+		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
+		pv.prog_name);
 	exit(rc);
 }
 
@@ -181,7 +155,7 @@ static int getpts(char *origexpr)
 }
 
 
-static int fill_network(const char *network)
+static int fill_network(char *network)
 {
 	if(nids_params.pcap_filter)
 		free(nids_params.pcap_filter);
@@ -196,46 +170,66 @@ static int fill_network(const char *network)
 	return 1;
 }
 
-static int str_to_natural(const char *str)
+
+static unsigned short get_valid_port(const char *port_str)
 {
-	int natural = 0;
+	int port;
 	size_t size;
 	int i;
 
-	if (str == NULL)
-		return -1;
+	/* atoi does not detect errors */
+	if (port_str == NULL)
+		return 0;
+	size = strlen(port_str);
+	for(i = 0; i < size; i++)
+		if(!isdigit(port_str[i])) {
+			fprintf(stderr, "Port should be a number. ");
+			return 0;
+		}
 
-	size = strlen(str);
-	for(i = 0; i < size; i++) {
-
-		if(!isdigit(str[i]))
-			return -1;
-		
-		natural = (natural * 10) + (str[i] - '0');
+	port = atoi(port_str);
+	if (port <= 0 || port > 65535) {
+		fprintf(stderr, "Port is not valid. "
+				"Valid port range: [0-65535]. ");
+		return 0;
 	}
 
-	return natural;
+	return (unsigned short) port;
 }
 
-static int get_valid_port(const char *str)
+
+/* 
+ * Fill the server IP and Port in the pv struct.
+ * Returns 1 on success and 0 on error.
+ */
+static int fill_serveraddr(char *str)
 {
-	int port = str_to_natural(str);
-	if (port < 1)
-		/* Maybe port is not a number at all */
-		goto err;
+	char *addr;
+	char *port;
+	struct hostent *he;
 
-	if (port < MIN_PORT_LIMIT || port > MAX_PORT_LIMIT)
-		goto err;
+	addr = strtok(str, ":");
+	if (addr == NULL)
+		return 0;
 
-	return port;
-err:
-	return 0;
+	port = strtok(NULL,"");
+	if (port == NULL)
+		return 0;
 
-}
+	he = gethostbyname(addr);
+	if(!he) {
+		herror("gethostbyname");
+		return 0;
+	}
+	pv.server_addr = *(in_addr_t *)he->h_addr;
+	if(pv.server_addr == INADDR_NONE)
+		return 0;
 
-static int validate_password(const char *pwd)
-{
-	return (strlen(pwd) > MAX_PWD_SIZE) ? 0 : 1;
+	pv.server_port = get_valid_port(port);
+	if(pv.server_port == 0)
+		return 0;
+
+	return 1;
 }
 
 
@@ -247,48 +241,13 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 {
 	int ret;
 
-	if (strcmp(opt->name, "portlist") == 0) {
-	
+	if (strcmp(opt->name, "server_addr") == 0)
+		ret = fill_serveraddr(*(char **)opt->simple_value);
+	else if (strcmp(opt->name, "portlist") == 0)
 		ret = getpts(*(char **)opt->simple_value);
-
-	} else if (strcmp(opt->name, "home_net") == 0) {
-
+	else if (strcmp(opt->name, "home_net") == 0)
 		ret = fill_network(*(char **)opt->simple_value);
-	
-	} else if (strcmp(opt->name, "agent_port") == 0) {
-
-		if((*(int *)opt->simple_value < MIN_PORT_LIMIT) ||
-                   (*(int *)opt->simple_value > MAX_PORT_LIMIT)) {
-
-			cfg_error(cfg,"Valid agent ports: %d-%d\n",
-					MIN_PORT_LIMIT, MAX_PORT_LIMIT);
-			ret = 0;
-		} else 
-			ret = 1;
-		
-	} else if ((strcmp(opt->name, "max_agents") == 0)    ||
-	           (strcmp(opt->name, "mem_softlimit") == 0) ||
-	           (strcmp(opt->name, "mem_hardlimit") == 0)) {
-
-		if((*(int *)opt->simple_value < 1)) {
-
-			cfg_error(cfg, "'%s' must be at least 1", opt->name);
-			
-			ret = 0;
-		} else
-			ret = 1;
-
-	} else if (strcmp(opt->name, "password") == 0) {
-
-		if (!validate_password(*(char **)opt->simple_value)) {
-
-			cfg_error(cfg, "Password can't be longer that %d "
-					"characters", MAX_PWD_SIZE);
-			ret = 0;
-		} else
-			ret = 1;
-	} else
-		/* should never reach here */
+	else
 		ret = 0;
 
 	if(!ret)
@@ -297,24 +256,20 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	return (ret) ? 0 : -1;
 }
 
+
 /* parse a config file */
 static int parse_file(char *filename)
 {
 	char *home_net = NULL;
+	char *server_addr = NULL;
 	char *portlist = NULL;
 	int ret;
 
 	cfg_opt_t opts[] = {
 		CFG_SIMPLE_STR("interface", &nids_params.device),
+		CFG_SIMPLE_STR("server_addr",&server_addr),
 		CFG_SIMPLE_STR("home_net",&home_net),
 		CFG_SIMPLE_STR("portlist",&portlist),
-		CFG_SIMPLE_INT("agent_port", &pv.agent_port),
-		CFG_SIMPLE_INT("max_agents", &pv.max_agents),
-		CFG_SIMPLE_INT("mem_softlimit", &pv.mem_softlimit),
-		CFG_SIMPLE_INT("mem_hardlimit", &pv.mem_hardlimit),
-		CFG_SIMPLE_STR("password", &pv.password),
-	
-		/* libnids params */
 		CFG_SIMPLE_INT("n_tcp_streams", &nids_params.n_tcp_streams),
 		CFG_SIMPLE_INT("n_hosts", &nids_params.n_hosts),
 		CFG_SIMPLE_STR("filename", &nids_params.filename),
@@ -326,37 +281,37 @@ static int parse_file(char *filename)
 #if (NIDS_MINOR > 20)
 		CFG_SIMPLE_BOOL("multiproc", &nids_params.multiproc),
 		CFG_SIMPLE_INT("queue_limit", &nids_params.queue_limit),
-		CFG_SIMPLE_BOOL("tcp_workarounds",&nids_params.tcp_workarounds),
+		CFG_SIMPLE_BOOL("tcp_workarounds", &nids_params.tcp_workarounds),
 #endif
 		CFG_END()
 	};
+	cfg_t *cfg;
 
-	cfg_t *cfg = cfg_init(opts, 0);
+	cfg = cfg_init(opts, 0);
 
 	/* set validation callback functions */
-	cfg_set_validate_func(cfg, "portlist", cfg_validate);
-	cfg_set_validate_func(cfg, "home_net", cfg_validate);
-	cfg_set_validate_func(cfg, "agent_port", cfg_validate);
-	cfg_set_validate_func(cfg, "max_agents", cfg_validate);
-	cfg_set_validate_func(cfg, "password", cfg_validate);
-	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
-	cfg_set_validate_func(cfg, "mem_hardlimit", cfg_validate);
+	cfg_set_validate_func(cfg,"server_addr",cfg_validate);
+	cfg_set_validate_func(cfg,"portlist",cfg_validate);
+	cfg_set_validate_func(cfg,"home_net",cfg_validate);
 
 	ret = cfg_parse(cfg,filename);
+	
 	if(ret != CFG_SUCCESS) {
 		if (ret == CFG_FILE_ERROR)
 			fprintf(stderr, "Can't open config file for reading. "
-					"Check the -c option again\n");
+				"Check the -c option again\n");
 		cfg_free(cfg);
 		return 0;
 	}
 
+	if(server_addr)
+		free(server_addr);
 	if(home_net)
 		free(home_net);
 	if(portlist)
 		free(portlist);
+
 	cfg_free(cfg);
-	
 	return 1;
 }
 
@@ -365,21 +320,17 @@ static int parse_file(char *filename)
  * Get the command line options
  */
 #define PRINT_SPECIFY_ONCE(x) \
-	fprintf(stderr, "The -%c option should be specified only once.\n", x)
-static void get_cloptions(int argc, char *argv[], CLO *clo)
+	fprintf(stderr, "The -%c option should be specified only once\n", x)
+static int get_cloptions(int argc, char *argv[], CLO *clo)
 {
 	int c;
 	int c_arg = 0;
 	int i_arg = 0;
 	int n_arg = 0;
+	int s_arg = 0;
 	int p_arg = 0;
-	int P_arg = 0;
-	int a_arg = 0;
-	int A_arg = 0;
-	int l_arg = 0;
-	int L_arg = 0;
 
-	while ((c = getopt (argc, argv, "hc:i:n:s:p:P:a:A:l:L:")) != -1) {
+	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
 		switch(c) {
 		case 'h':
 			printusage(0);
@@ -387,16 +338,16 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'c':
 			if (c_arg) {
 				PRINT_SPECIFY_ONCE('c');
-				goto err;
+				return 0;
 			}
-			c_arg =1;
+			c_arg = 1;
 			clo->conf_file = strdup(optarg);
 			break;
 
 		case 'i':
 			if (i_arg) {
 				PRINT_SPECIFY_ONCE('i');
-				goto err;
+				return 0;
 			}
 			i_arg = 1;
 			clo->interface = strdup(optarg);
@@ -405,75 +356,36 @@ static void get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'n':
 			if (n_arg) {
 				PRINT_SPECIFY_ONCE('n');
-				goto err;
+				return 0;
 			}
 			n_arg = 1;
 			clo->homenet_expr = strdup(optarg);
 			break;
 
+		case 's':
+			if (s_arg) {
+				PRINT_SPECIFY_ONCE('s');
+				return 0;
+			}
+			s_arg = 1;
+			clo->server =  strdup(optarg);
+			break;
+
 		case 'p':
 			if (p_arg) {
 				PRINT_SPECIFY_ONCE('p');
-				goto err;
+				return 0;
 			}
 			p_arg = 1;
 			clo->portlist_expr = strdup(optarg);
 			break;
 
-		case 'P':
-			if (P_arg) {
-				PRINT_SPECIFY_ONCE('P');
-				goto err;
-			}
-			P_arg = 1;
-			clo->password = strdup(optarg);
-			break;
-
-		case 'a':
-			if (a_arg) {
-				PRINT_SPECIFY_ONCE('a');
-				goto err;
-			}
-			a_arg = 1;
-			clo->agent_port = strdup(optarg);
-			break;
-
-		case 'A':
-			if (A_arg) {
-				PRINT_SPECIFY_ONCE('A');
-				goto err;
-			}
-			A_arg = 1;
-			clo->max_agents = strdup(optarg);
-			break;
-
-		case 'l':
-			if (l_arg) {
-				PRINT_SPECIFY_ONCE('l');
-				goto err;
-			}
-			l_arg = 1;
-			clo->mem_softlimit = strdup(optarg);
-			break;
-
-		case 'L':
-			if (L_arg) {
-				PRINT_SPECIFY_ONCE('L');
-				goto err;
-			}
-			L_arg = 1;
-			clo->mem_hardlimit = strdup(optarg);
-			break;
-
 		default:
-			goto err;
+			return 0;
 		}
 	}
 
-	return;
-
-err:
-	hlpmsg(1);
+	return 1;
 }
 
 
@@ -484,107 +396,58 @@ void fill_progvars(int argc, char *argv[])
 	CLO clo;
 
 	memset(&clo, '\0', sizeof(CLO));
+
 	memset(&pv, '\0', sizeof(PV));
 	pv.prog_name = argv[0];
 
-	get_cloptions(argc, argv, &clo);
+	if(!get_cloptions(argc, argv, &clo))
+		goto err;
 
-	if (clo.conf_file) {
+
+	if(clo.conf_file) {
 		if(!parse_file(clo.conf_file))
 			goto err;
 		free(clo.conf_file);
 	}
 
-	if (clo.portlist_expr) {
+	if(clo.server) {
+		if(!fill_serveraddr(clo.server)) {
+			fprintf(stderr, "Error while parsing `-s' option.\n");
+			goto err;
+		}
+		free(clo.server);
+	}
+
+	if(clo.portlist_expr) {
 		if(!getpts(clo.portlist_expr)) {
-			fprintf(stderr, "Portlist expression is not valid. ");
+			fprintf(stderr, "Error while parsing `-p' option.\n");
 			goto err;
 		}
 		free(clo.portlist_expr);
 	}
 
-	if (clo.homenet_expr) {
+	if(clo.homenet_expr) {
 		if(!fill_network(clo.homenet_expr)) {
-			fprintf(stderr, "Not a valid Home Network. ");
+			fprintf(stderr, "Error while parsing `-n' option.\n");
 			goto err;
 		}
 		free(clo.homenet_expr);
 	}
 
-	if (clo.interface) {
+	if(clo.interface) {
 		if(nids_params.device)
 			free(nids_params.device);
 		nids_params.device = clo.interface;
 	}
-	
-	if (clo.agent_port) {
-		if(!(pv.agent_port = get_valid_port(clo.agent_port))) {
-			fprintf(stderr, "Valid agent ports: %d-%d. ",
-						MIN_PORT_LIMIT, MAX_PORT_LIMIT);
-			goto err;
-		}
-		free(clo.agent_port);
-	} else if(!pv.agent_port)
-		pv.agent_port = AGENT_PORT;
 
-	if (clo.max_agents) {
-		if((pv.max_agents = str_to_natural(clo.max_agents)) < 1) {
-			fprintf(stderr, "Valid values for the maximum number of"
-				    " allowed agents are positive integers.\n");
-			goto err;
-		}
-		free(clo.max_agents);
-	} else if(!pv.max_agents)
-		pv.max_agents = MAX_AGENTS;
-
-	if (clo.mem_softlimit) {
-		if((pv.mem_softlimit = str_to_natural(clo.mem_softlimit)) < 1) {
-			fprintf(stderr, "Not a valid soft limit value ");
-			goto err;
-		}
-		free(clo.mem_softlimit);
-	}
-
-	if (clo.mem_hardlimit) {
-		if((pv.mem_hardlimit = str_to_natural(clo.mem_hardlimit)) < 1) {
-			fprintf(stderr, "Not a valid hard limit value ");
-			goto err;
-		}
-		free(clo.mem_hardlimit);
-	}
-
-	if(clo.password) {
-		if(!validate_password(clo.password)) {
-			fprintf(stderr, "Password can't be longer than %d "
-					"characters. ", MAX_PWD_SIZE);
-			goto err;
-		}
-		if(pv.password)
-			free(pv.password);
-
-		pv.password = clo.password;
-	}
-
-	/* sanity checks */
-	if(!pv.password) {
-		fprintf(stderr, "Password is not set. ");
+	/* Check if all needed program variables are set */
+	if(pv.server_addr == 0 || pv.server_port == 0) {
+		fprintf(stderr, "Manager connection info is missing. "
+				"Either use the `-s' command line option "
+				"or the `server_addr' variable of the "
+				"configuration file.\n");
 		goto err;
 	}
-
-	if(!pv.mem_softlimit || !pv.mem_hardlimit) {
-		fprintf(stderr, "Memory limits are not set. ");
-		goto err;
-	}
-
-	if(pv.mem_softlimit > pv.mem_hardlimit) {
-		fprintf(stderr, "Memory soft limit cannot be greater than the "
-			        "memory hard limit\n");
-		goto err;
-	}
-
-	/* OK, now convert the limits from MB to bytes */
-	pv.mem_hardlimit <<= 20;
-	pv.mem_softlimit <<= 20;
 
 	/* check if port list is set */
 	for (i = 0; i < 65536; i++)
@@ -613,11 +476,9 @@ int main(int argc, char *argv[])
 	fill_progvars(argc, argv);
 
 	printf("Options:\n");
-	printf("Agent Port: %d\n", pv.agent_port);
-	printf("Max Agents: %d\n", pv.max_agents);
-	printf("Soft limit: %d\n", pv.mem_softlimit);
-	printf("Hard limit: %d\n", pv.mem_hardlimit);
-	printf("Password:   %s\n", pv.password);
+	printf("Sever Address: %s\n", inet_ntoa(*(struct in_addr *)
+							&pv.server_addr));
+	printf("Server Port: %u\n", pv.server_port);
 
 	return 0;
 }

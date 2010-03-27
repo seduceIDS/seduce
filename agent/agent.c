@@ -1,150 +1,221 @@
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stdio.h>
+#include <signal.h>
+#include <errno.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
-#include "utils.h"
+#include "agent.h"
+#include "alert.h"
+#include "error.h"
 #include "options.h"
-#include "worker.h"
 
-int max_workers;
-int running_workers;
-pid_t *worker_pids;
 
-/* expecting worker's union problems on this one... */
-static void kill_all_workers(void)
+/* Globals */
+static ProgVars pv;
+
+/*
+ * Function: manager_connect()
+ *
+ * Purpose: use the server address/port info of pv and connect to the manager
+ *
+ * Arguments:
+ *
+ * Returns:  1 => Connected 
+ *           0 => Not Connected
+ */
+static int manager_connect(struct in_addr addr, unsigned short port,
+				const char * pwd, int timeout, int retries)
 {
-	int i; 
-	pid_t pid;
+	int ret;
 	
-        for(i = 0; i < max_workers; i++) {
-                if ((pid = worker_pids[i]) != 0) {
-                        DPRINTF("sending TERM signal to worker %d\n", pid);
-                        kill(pid, SIGTERM);
-                }
-        }
+	pv.server_session = init_session(addr, port, pwd, timeout, retries);
+	if(pv.server_session == NULL)
+		critical_error(1, "Unable to initialize the connection info");
 
-	while(running_workers > 0)
-		pause();
+	ret = server_request(pv.server_session, SEND_NEW_AGENT);
+	if(ret == -1) {
+		
+		/* 
+		 * If something needs to be cleaned up before quiting,
+		 * here is the place to do it.
+		 */
+		critical_error(1, "The communication with the server is bad");
+	}
+
+	return ret;
 }
 
-static void agent_signal_handler(int signum)
+/*
+ * Function: manager_disconnect()
+ *
+ * Purpose: Disconnect from the manager and release all resources
+ *
+ * Arguments:
+ *
+ * Returns: 
+ */
+static void manager_disconnect(void)
 {
-	kill_all_workers();
+	server_request(pv.server_session, SEND_QUIT);
+	destroy_session(pv.server_session);
+}
+
+/*
+ * Function: get_new_work()
+ *
+ * Purpose: Get a new data group by the manager
+ *
+ * Arguments:
+ *
+ * Returns:  NULL => No new Data group available
+ *           work => Data Group's Heading data
+ */
+static const Work * get_new_work()
+{
+	int ret;
+
+	ret = server_request(pv.server_session, SEND_NEW_WORK);
+
+	if(ret == 1)
+		return fetch_current_work(pv.server_session);
+	else if(ret == -1)
+		critical_error(1, "The communication with the server is bad");
+
+	/* ret == 0 */
+	return NULL;
+}
+
+/*
+ * Function: get_new_work()
+ *
+ * Purpose: Get a new data group by the manager
+ *
+ * Arguments:
+ *
+ * Returns:  NULL => No next Data available
+ *           work => next data in this data_group
+ */
+static const Work * get_next_work(void)
+{
+	int ret;
+
+	ret = server_request(pv.server_session, SEND_GET_NEXT);
+
+	if(ret == 1)
+		return fetch_current_work(pv.server_session);
+	else if(ret == -1)
+		critical_error(1, "The communication with the server is bad");
+
+	/* ret == 0 */
+	return NULL;
+}
+
+void quit_handler(int s)
+{
+	pv.detect_engine->destroy();
+	printf("Sending QUIT Message...\n");
+	manager_disconnect();
 	exit(0);
 }
 
-static void worker_reaper(int signum)
+static void main_loop(int wait_time)
 {
-	int status, i;
-	pid_t pid;
+	const Work *w;
+	Threat t;
+	int ret;
 
-	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-		if (WIFEXITED(status))
-			fprintf(stderr, "worker %d exited with status %d\n",
-				pid, WEXITSTATUS(status));
-		else if (WIFSIGNALED(status))
-			fprintf(stderr, "worker %d exited with signal %d\n",
-				pid, WTERMSIG(status));
-
-		for(i = 0; i < max_workers; i++) {
-			if (worker_pids[i] == pid) {
-				worker_pids[i] = 0;
-				running_workers -= 1;
-			}
+	pv.detect_engine->init();
+	for (;;) {
+		w = get_new_work();
+		if(w == NULL) {
+			printf("No work is available, I'll sleep\n");
+			fflush(stdout);
+			sleep(wait_time);
+			continue;	
 		}
-	}
-}
 
-/* returns PID of newly spawned worker or 0 if an error occured */
+		printf("Got a new data_group\n");
 
-static pid_t spawn_worker(InputOptions *in)
-{
-	pid_t pid;
-
-	if ((pid = fork())== -1) {
-		perror("error while forking worker process");
-		return 0;
-	}
+		/* reset the detect engine */
+		pv.detect_engine->reset();
 	
-	if (!pid)  /* child code */
-		worker_init(in);
+		do {
+			printf("Detect data\n");
+			ret = pv.detect_engine->process(w->payload, w->length);
+			if(ret == 1) {
+				printf("Threat Detected\n");
+				pv.detect_engine->get_threat(&t);
 
-	/* parent code */
-	running_workers += 1;
-	return pid;
+				/* send the treat */
+				ret = submit_alert(pv.server_session,
+								&w->info, &t);
+				destroy_threat(&t);
+				if(ret <= 0) {
+					fprintf(stderr,"Couln't send alert\n");
+					quit_handler(0);
+				}
+			} else if(ret == -1) {
+	
+				/* detection engine error */
+			}
+		} while((w = get_next_work()) != NULL);
+	}
 }
+
+/* Someone should export this */
+extern DetectEngine engine;
 
 int main(int argc, char *argv[])
 {
 	struct sigaction sa;
 	InputOptions *in;
-	int i;
+	int no_work_wait;
+	
+	pv.detect_engine = &engine;
 	
 	/* get the input options */
-	if ((in = fill_inputopts(argc, argv)) == NULL)
-		return 1;
-	
-	max_workers = in->workers;
+	in = fill_inputopts(argc, argv);
+	if(in == NULL)
+		goto err1;
 
-	if (!(worker_pids = malloc(max_workers * sizeof(pid_t)))) {
-		perror("error allocating memory for worker pid array");
-		return 1;
+	pv.prog_name = in->prog_name;
+
+	no_work_wait = in->no_work_wait;
+
+	/* Try to connect to the sceduler */
+	if(!manager_connect(in->addr, in->port, in->password, in->timeout,
+								in->retries)) {
+		fprintf(stderr, "Can't connect to the scheduler\n");
+		goto err2;
 	}
 
-	memset(worker_pids, 0, max_workers * sizeof(pid_t));
-	running_workers = 0;
+	/* no longer needed */
+	destroy_inputopts(in);
 
-	/* initialize handlers for quiting */
-	sa.sa_handler = agent_signal_handler;
+	/* if connected, initialize handlers for quiting */
+	sa.sa_handler = quit_handler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
-
 	if (sigaction(SIGINT, &sa, NULL) == -1) {
-		perror("error while registering agent SIGINT handler");
-		return 1;
+		perror("sigaction");
+		exit(1);
 	}
-
 	if (sigaction(SIGTERM, &sa, NULL) == -1) {
-		perror("error while registering agent SIGTERM handler");
-		return 1;
+		perror("sigaction");
+		exit(1);
 	}
 
-	sa.sa_handler = worker_reaper;
-	sa.sa_flags = SA_NOCLDSTOP;
+	/* Everything is initialized, go to the main loop */
+	main_loop(no_work_wait);
 
-	if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-		perror("error while registering agent SIGCHLD handler");
-		return 1;
-	}
+	/* never reached */
+	return 0;
 
-	for(i = 0; i < max_workers; i++) {
-		if (!(worker_pids[i] = spawn_worker(in)))
-			goto err;
-	}
-
-	while (1) {
-		pause();
-
-		/* If we get here, 1 or more workers have died.
-		   We thus ressurect them */
-
-		for(i = 0; i < max_workers; i++) {
-			if (!worker_pids[i] && !(worker_pids[i] = spawn_worker(in)))
-				goto err;
-		}
-
-	}
-
-err:
-	/* reached only on error */
-
-	kill_all_workers();
+err2:
 	destroy_inputopts(in);
-	free(worker_pids);
-
+err1:
 	return 1;
 }

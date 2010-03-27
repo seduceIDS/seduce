@@ -207,7 +207,7 @@ OBJS+= flatload.o
 endif
 
 ifeq ($(TARGET_ARCH), i386)
-LIBOBJS+= vm86.o
+OBJS+= vm86.o
 endif
 ifeq ($(TARGET_ARCH), arm)
 OBJS+=nwfpe/fpa11.o nwfpe/fpa11_cpdo.o \
@@ -228,9 +228,7 @@ OBJS+= libqemu.a
 
 # cpu emulator library
 LIBOBJS=exec.o kqemu.o translate-op.o translate-all.o cpu-exec.o\
-        translate.o op.o main.o syscall.o mmap.o signal.o path.o\
-	osdep.o thunk.o elfload.o linuxload.o rawload.o vm86.o
-
+        translate.o op.o 
 ifdef CONFIG_SOFTFLOAT
 LIBOBJS+=fpu/softfloat.o
 else
@@ -307,7 +305,7 @@ LIBOBJS+=sh4-dis.o
 endif
 
 ifdef CONFIG_GDBSTUB
-LIBOBJS+=gdbstub.o
+OBJS+=gdbstub.o
 endif
 
 all: $(PROGS)
@@ -576,12 +574,10 @@ $(OBJS) $(LIBOBJS) $(VL_OBJS): config.h ../config-host.h
 clean:
 	rm -f *.o  *.a *~ $(PROGS) gen-op.h opc.h op.h nwfpe/*.o slirp/*.o fpu/*.o
 
-# install: all 
-# ifneq ($(PROGS),)
-#	$(INSTALL) -m 755 -s $(PROGS) "$(DESTDIR)$(bindir)"
-# endif
-
-install:
+install: all 
+ifneq ($(PROGS),)
+	$(INSTALL) -m 755 -s $(PROGS) "$(DESTDIR)$(bindir)"
+endif
 
 ifneq ($(wildcard .depend),)
 include .depend
