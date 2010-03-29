@@ -1,6 +1,7 @@
 #ifndef _SENSOR_H
 #define _SENSOR_H
 
+#include <netinet/in.h> /* for in_addr_t */
 
 /* Program variables */
 typedef struct _progvars {
