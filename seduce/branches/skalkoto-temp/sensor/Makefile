@@ -27,8 +27,8 @@ PCAPLIB		= -lpcap
 LIBS_CFLAGS	= $(PCAP_CFLAGS)
 LIBS		= -lnids $(PCAPLIB) -lgthread-2.0 -lnsl -lconfuse
 
-OBJS		= sensor.o chksum_ctl.o libseduce_sensor.a options.o
-HDRS		= sensor.h server_contact.h
+OBJS		= sniffer.o sensor.o chksum_ctl.o libseduce_sensor.a options.o
+HDRS		= sensor.h sniffer.o server_contact.h
 
 
 .PHONY: all libs clean install install-bin install-conf

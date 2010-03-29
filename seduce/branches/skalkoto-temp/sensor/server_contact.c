@@ -90,6 +90,7 @@ enum {
  */
 int manager_connect(int *sockfd, in_addr_t addr,unsigned short port)
 {
+#ifndef TWO_TIER_ARCH
 	struct sockaddr_in server_addr;
 	unsigned int msglen;
 	char buf[8];
@@ -165,6 +166,9 @@ int manager_connect(int *sockfd, in_addr_t addr,unsigned short port)
 		close(*sockfd);
 		return 0;
 	}
+#else
+	return 1;
+#endif
 }
 
 
@@ -181,6 +185,7 @@ int manager_connect(int *sockfd, in_addr_t addr,unsigned short port)
  */
 int manager_disconnect(int sockfd)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	char buf[8];
 
@@ -196,6 +201,7 @@ int manager_disconnect(int sockfd)
 	}
 
 	close(sockfd);
+#endif
 	return 1;
 }
 
@@ -217,11 +223,11 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 	char buf[24];
 
 	if ((*stream_id = init_stream()) == NULL) {
-		fprintf(stderr, "could not get new stream id\n");
+		fprintf(stderr, "Could not get new stream id\n");
 		return 0;
 	}
 
-
+#ifndef TWO_TIER_ARCH
 	/* Fill the packet buffer with data in Network Byte Order */
 	msglen = 24;
 	*(u_int32_t *)(buf +  0) = htonl(msglen);
@@ -239,6 +245,9 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 	}
 
 	return 1;
+#else /* TWO_TIER_ARCH */
+	return 	new_tcp(**stream_id, &a_tcp->addr);
+#endif
 }
 
 
@@ -255,6 +264,7 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
  */
 int close_stream_connection(int sockfd, unsigned *stream_id)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	char buf[12];
 
@@ -270,7 +280,9 @@ int close_stream_connection(int sockfd, unsigned *stream_id)
 		perror("sendall");
 		return 0;
 	}
-
+#else /* TWO_TIER_ARCH */
+	close_tcp(**stream_id);
+#endif
 	free(stream_id);
 
 	return 1;
@@ -335,6 +347,7 @@ int send_stream_data(int sockfd, unsigned stream_id, const void *data,
 
 int break_stream_data(int sockfd, unsigned int stream_id)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	char buf[12];
 
@@ -352,6 +365,9 @@ int break_stream_data(int sockfd, unsigned int stream_id)
 	}
 
 	return 1;
+#else /* TWO_TIER_ARCH */
+	return tcp_break(**stream_id);
+#endif
 }
 
 
