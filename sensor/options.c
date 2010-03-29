@@ -53,8 +53,9 @@ static void printusage(int rc)
 {
 	fprintf(stderr, 
 		"%s v%s sensor\n"
-		"usage: %s [-c <config_file>] [-h] [-i<interface>] "
-		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
+		"Usage: %s [-h] [-c <config_file>] [-n<home_network>] "
+		"[-i<interface>] [-p<portlist>] [-p<password>] [-a<agent_port>]"
+		" [-A<max_agents>] [-l<mem_softlimit>] [-L<mem_hardlimit>] \n\n"
 		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. sensor.conf'.\n"
 		"  i : Network interface. E.g. `eth0', `eth1'.\n"
