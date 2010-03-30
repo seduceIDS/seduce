@@ -1,5 +1,5 @@
-#ifndef _SCHEDULER_H
-#define _SCHEDULER_H
+#ifndef _MANAGER_H
+#define _MANAGER_H
 
 typedef struct _ProgVars {
 	char *prog_name;
@@ -16,5 +16,5 @@ extern PV pv;
 
 #define MAX_PWD_SIZE	16
 
-#endif /* _SCHEDULER_H */
+#endif /* _MANAGER_H */
  
