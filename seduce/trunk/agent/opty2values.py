@@ -1,11 +1,11 @@
-''' Opty2 Detection Values - Used in conjuction with detect_engine_opty2.py 
-    to determine if the current stream of data is encoded with the 
-    opty2 metasploit encoder 
-    15-7-2009 by Panagiotopoulos Spyridon
+''' Opty2 Python Detection module
+    The Opty2 jump tables illustrated below come from 
+    the Metasploit framework.
 '''
 
-values = [1048582,1048590,1048598,1048606,65575,65583,65591,65599,65600,131137,262210,524355,1048644,2097221,4194374,8388679,65608,131145,262218,524363,1048652,2097229,4194382,8388687,1048656,1048657,1048658,1048659,1048660,1048661,1048662,1048663,1114200,1179737,1310810,1572955,1048668,3145821,5242974,9437279,1048672,144,196753,327826,589971,1114260,2162837,4259990,8454295,65688,262297,155,1048732,65695,65750,245,248,249,252,253]
+import random
 
+values = [1048582,1048590,1048598,1048606,65575,65583,65591,65599,65600,131137,262210,524355,1048644,2097221,4194374,8388679,65608,131145,262218,524363,1048652,2097229,4194382,8388687,1048656,1048657,1048658,1048659,1048660,1048661,1048662,1048663,1114200,1179737,1310810,1572955,1048668,3145821,5242974,9437279,1048672,144,196753,327826,589971,1114260,2162837,4259990,8454295,65688,262297,155,1048732,65695,65750,245,248,249,252,253]
 
 SharedShift0 = [
 			65796,66565,1048582,65804,66573,1048590,65812,66581,1048598,65820,66589,
@@ -296,3 +296,64 @@ StateTable = [
 # 0x100
 			[[1048582,1048590,1048598,1048606,65575,65583,65591,65599,65600,131137,262210,524355,1048644,2097221,4194374,8388679,65608,131145,262218,524363,1048652,2097229,4194382,8388687,1048656,1048657,1048658,1048659,1048660,1048661,1048662,1048663,1114200,1179737,1310810,1572955,1048668,3145821,5242974,9437279,1048672,144,196753,327826,589971,1114260,2162837,4259990,8454295,65688,262297,155,1048732,65695,65750,245,248,249,252,253]],
 		]
+
+def do_opty2_scan(data):
+    data = data[::-1]  # reverse string to start checking
+    length = len(data)
+    sled = ''
+    prev = 256
+    slen = 0
+    suspiciousCount = 0
+    foundByte = 0
+
+    counts=[]
+    for i in range(1,256):
+        counts.append(0)
+
+    mask = 3145728
+    bad_bytes = []
+
+    while length > 0:
+        low  = -1
+        lows = []   
+        for selectedList in StateTable[prev]:  # for every list in states table
+            found = False
+            for token in selectedList:
+                if (token & mask) != 0:        # Make some important checking
+                    continue
+                if (((token >> 8) & 0xff) > slen):   
+                    continue
+                byte = token & 0xff
+                if (low == -1) or (low > counts[byte]):
+                    low  = counts[byte]
+                    lows = [byte]
+                elif low == counts[byte]:
+                    lows.reverse
+                    lows.append(byte)
+                    lows.reverse
+                    
+                    index = len(data) - length
+                    if byte == ord(data[index]):  #locate suspicious byte
+                        print ("Suspicious Byte %0x Detected At Index %i " +
+			      "with LookUpTable = %i !") % (byte, index, prev)
+                        foundByte = byte
+                        suspiciousCount += 1
+                        found = True
+                        break
+            if found == True:
+                break
+            if found == False:
+                prev = 256  # if byte was not found, restart with next byte
+                suspiciousCount = 0
+        if found == True:
+            if suspiciousCount >= 10:
+                    return suspiciousCount
+            prev = foundByte    # if byte was found, continue with the next
+            counts[prev] += 1
+        slen   += 1
+        length -= 1
+    
+    # percentage = float(( 1.0 * suspiciousCount / len(data) )) * 100
+    # returns result as a percentage of malicious bytes
+    # return percentage
+    return 0
