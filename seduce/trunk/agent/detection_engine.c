@@ -18,8 +18,8 @@
 #ifdef HAVE_FNORD 
         extern DetectionEngine fnord_engine; 
 #endif 
-#ifdef HAVE_PYOPTI 
-        extern DetectionEngine pyopti_engine; 
+#ifdef HAVE_PYOPTY2 
+        extern DetectionEngine pyopty2_engine; 
 #endif 
  
 static DetectionEngine *avail_engines[] = { 
@@ -35,8 +35,8 @@ static DetectionEngine *avail_engines[] = {
 #ifdef HAVE_FNORD 
         &fnord_engine, 
 #endif 
-#ifdef HAVE_PYOPTI 
-        &pyopti_engine, 
+#ifdef HAVE_PYOPTY2
+        &pyopty2_engine, 
 #endif 
         NULL 
 }; 
