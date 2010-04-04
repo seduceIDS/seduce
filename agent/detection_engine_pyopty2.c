@@ -50,6 +50,11 @@ int pyopty2_engine_init(void)
 
 	pDict = PyModule_GetDict(pModule);
 	scanner = PyDict_GetItemString(pDict, "do_opty2_scan");
+	
+	if (!PyCallable_Check(scanner)) {
+		perror("the do_opty2_scan python symbol is not callable!");
+		exit(1);
+	}
 
 	Py_DECREF(pName);
 	Py_DECREF(pModule);
@@ -61,7 +66,7 @@ int pyopty2_engine_init(void)
 int pyopty2_engine_process(char *data, size_t len, Threat * threat) 
 {
 	const char *p;
-	int block_size, block_num = 0;
+	int block_size, bytesNum, block_num = 0;
 	void *block;
 	char threat_msg[51];
 	PyObject *pValue, *pArgs;
@@ -80,26 +85,24 @@ int pyopty2_engine_process(char *data, size_t len, Threat * threat)
 
 		memcpy(block, p, block_size);
 
-		if (PyCallable_Check(scanner)) {
-			pArgs = PyTuple_New(1);
-			PyTuple_SetItem(pArgs, 0, PyString_FromString(block));
+		pArgs = PyTuple_New(1);
+		PyTuple_SetItem(pArgs, 0, PyString_FromString(block));
 
-			pValue = PyObject_CallObject(scanner, pArgs);
-			Py_DECREF(pArgs);
+		pValue = PyObject_CallObject(scanner, pArgs);
+		Py_DECREF(pArgs);
 
-			int bytesNum = PyInt_AsLong(pValue);
-			Py_DECREF(pValue);
+		bytesNum = PyInt_AsLong(pValue);
+		Py_DECREF(pValue);
 
-			if (bytesNum > 9) {
-				threat->payload = block;
-				threat->length = block_size;
-				threat->severity = SEVERITY_HIGH;
-				snprintf(threat_msg, 50,
-					 "Opty2 Nops Detected at block %i !",
-					 block_num);
-				threat->msg = strdup(threat_msg);
-				return 1;
-			}
+		if (bytesNum > 9) {
+			threat->payload = block;
+			threat->length = block_size;
+			threat->severity = SEVERITY_HIGH;
+			snprintf(threat_msg, 50,
+				 "Opty2 Nops Detected at block %i !",
+				 block_num);
+			threat->msg = strdup(threat_msg);
+			return 1;
 		}
 		free(block);
 	}
