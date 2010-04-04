@@ -1,5 +1,5 @@
 ''' Opty2 Python Detection module
-    The Opty2 jump tables illustrated below come from 
+    The Opty2 jump tables included below come from 
     the Metasploit framework.
 '''
 

@@ -93,8 +93,9 @@ AC_SUBST(LIBPRELUDE_CFLAGS)
 AC_SUBST(LIBPRELUDE_LIBS)
 
 AC_ARG_WITH(config-dir,
-  [  --with-config-dir=DIR   Directory for config files],
-sysconfdir="${withval}", sysconfdir="${sysconfdir}/seduce")
+  [AS_HELP_STRING([  --with-config-dir=DIR],
+    [Directory for config files])],
+  sysconfdir="${withval}", sysconfdir="${sysconfdir}/seduce")
 
 # *** AND NOW FOR THE SOFT DEPS ***
 
@@ -138,14 +139,17 @@ case "$use_libemu" in
  		use_libemu="no"
 	 else
 	 	use_libemu="yes"
-  	 fi;;
+  	 fi ;;
 esac
 
 if test "$use_libemu" = "yes" ; then
   AM_CONDITIONAL(HAVE_LIBEMU, true)
   AC_DEFINE(HAVE_LIBEMU, [1], [libemu detection engine])
-  AC_SUBST(LIBEMU_CFLAGS)
+  # libemu registers the wrong libdir to PKG_CONFIG.
+  # remove this, once the bug is gone!
+  LIBEMU_LIBS="-L/opt/libemu/lib/libemu $LIBEMU_LIBS"
   AC_SUBST(LIBEMU_LIBS)
+  AC_SUBST(LIBEMU_CFLAGS)
 else
   AM_CONDITIONAL(HAVE_LIBEMU, false)
 fi
@@ -165,6 +169,44 @@ else
   AM_CONDITIONAL(HAVE_FNORD, false)
 fi
 
+## pyopty2 detection engine (off by default)
+
+use_pyopty2="no"
+AC_ARG_ENABLE(pyopty2,
+  [AS_HELP_STRING([--enable-pyopty2],
+    [Enable pyopty2 detection engine [off]])],
+  [use_pyopty2=$enableval])
+
+if test "$use_pyopty2" = "yes" ; then
+  AC_CHECK_PROG(PYTHON_CONFIG, [python-config], here, absent)
+
+  if test "$PYTHON_CONFIG" = "here" ; then
+    LIBPYTHON_CFLAGS=`python-config --cflags`
+    LIBPYTHON_LIBS=`python-config --libs`
+    # yes, this is ugly but it's how you specify which include-dirs
+    # will be used during the conftest build process
+    CPPFLAGS=`python-config --includes`
+  else
+    AC_MSG_ERROR([python-config not found!])
+  fi
+
+  AM_PATH_PYTHON(2.5.0,, 
+    AC_MSG_ERROR([Python interpreter not found or too old (must be of version 2.5.x)]))
+  AC_SEARCH_LIBS(PyImport_Import, python2.5,, 
+    AC_MSG_ERROR([missing python2.5 library]))
+  AC_CHECK_HEADER(Python.h,, 
+    AC_MSG_ERROR([Python.h header file needed but not found]))
+
+  AM_CONDITIONAL(HAVE_PYOPTY2, true)
+  AC_DEFINE(HAVE_PYOPTY2, [1], [pyopty2 detection engine])
+  AC_SUBST(LIBPYTHON_CFLAGS)
+  AC_SUBST(LIBPYTHON_LIBS)
+  # reset it back to normal
+  CPPFLAGS=
+else
+  AM_CONDITIONAL(HAVE_PYOPTY2, false)
+fi
+
 ## dummy detection engine (off by default) 
 
 use_dummy="no"
@@ -180,7 +222,13 @@ else
   AM_CONDITIONAL(HAVE_DUMMY, false)
 fi
 
+# reset LIBS, because it has automatically appended
+# all libs discovered by AC_SEARCH_LIBS
+# This results in adding unrelated libs to executables
+LIBS=
+
 AC_CONFIG_FILES([Makefile
                  sensor/Makefile
-		 agent/Makefile])
+		 agent/Makefile
+		 doc/Makefile])
 AC_OUTPUT

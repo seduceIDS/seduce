@@ -8,9 +8,9 @@
 
 /* function prototypes */
 
-static int dummy_engine_init();
-static void dummy_engine_destroy();
-static void dummy_engine_reset();
+static int dummy_engine_init(void);
+static void dummy_engine_destroy(void);
+static void dummy_engine_reset(void);
 static int dummy_engine_process(char *, size_t, Threat *t);
 
 DetectionEngine dummy_engine = {
