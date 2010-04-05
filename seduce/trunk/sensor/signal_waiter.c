@@ -6,10 +6,46 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <time.h>
 
 static sigset_t signal_set;
 
-void compute_stats(void)
+static void dump_time_measurements(void)
+{
+       int i, remainder;
+       time_t *sec;
+       suseconds_t *usec;
+       char filename[] = "/tmp/seduce.out";
+       FILE * fp;
+
+       fp = fopen(filename, "w");
+
+       for (i = 0; i < MEASURED_TIMES; i++) {
+
+               sec = & measured_times[i].tv_sec;
+               usec = & measured_times[i].tv_usec;
+
+               remainder = *sec % SAMPLE_NUMBER;
+               remainder *= 1000000;
+               remainder /= SAMPLE_NUMBER;
+               
+               *sec /= SAMPLE_NUMBER;
+               *usec /= SAMPLE_NUMBER;
+               *usec += remainder;
+
+               if(*usec >= 1000000) {
+                       *usec -= 1000000;
+                       *sec += 1;
+               }
+
+               fprintf(fp, "%d:\t%llu\t%llu\n", i+1,
+                               (long long int)*sec, (long long int)*usec);
+       }
+
+       fclose(fp);
+}
+
+static void compute_stats(void)
 {
 	StatUnit in, out, proto, oom, left;
 
@@ -59,6 +95,7 @@ void *signal_waiter(void *arg)
 		switch(sig_number) {
 		case SIGINT:
 			compute_stats();
+			dump_time_measurements();
 			exit(0);
 		default:
 			printf("Ignoring signal with ID: %d.\n", sig_number);

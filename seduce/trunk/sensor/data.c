@@ -20,6 +20,8 @@ Sensor sensor;
 /* The grouplist (not to be viewed outside the file) */
 static GroupList grouplist;
 
+struct timeval measured_times[MEASURED_TIMES + 1]; // 1 extra for garbage
+
 /*
  * Function: init_datalists()
  *
@@ -27,6 +29,10 @@ static GroupList grouplist;
  */
 void init_datalists(void)
 {
+	int i;
+	for (i = 0; i < MEASURED_TIMES; i++)
+		timerclear(&measured_times[i]);
+
 	/* Initialize the Sensor struct */
 	sensor.sessionlist_head = NULL;
 	sensor.sessionlist_tail = NULL;
@@ -284,20 +290,43 @@ void *add_data(Session *session, void *payload, size_t len)
 	return ret;
 }
 
+static void new_sample(const struct timeval *start)
+{
+       static int i = 0;
+       static int cnt = 0;
+
+       struct timeval end;
+
+       if (gettimeofday(&end, NULL) != 0)
+               errno_abort("Error in gettimeofday\n");
+
+       timersub(&end, start, &end);
+       timeradd(&measured_times[i], &end, &measured_times[i]);
+
+       if(++cnt == SAMPLE_NUMBER) {
+               cnt = 0;
+
+               if(i != MEASURED_TIMES)
+                       i++;
+       }
+
+       DPRINTF("i=%d, cnt=%d\n", i, cnt);
+}
+
 /*
- * Function: consume_group(int (*)(), void *)
+ * Function: consume_group(int (*)(), void *, int)
  *
  * Purpose: Removes the oldest group of the list and exetute the function passed
  *          as argument on the heading data of the group just removed.
  *
  * Arguments: func=> Pointer to a function which will be aplied on the data.  
  *            params=> Optional parameter for the function func points to.
- *
+ *            record_time=> (boolean) whether to record a time sample
  * Returns: Whatever the function returns or -1 if an error occures before the
  *          function is applied.
  */
 
-int consume_group(int (*func)(), void *params)
+int consume_group(int (*func)(), void *params, int record_time)
 {
 	int ret;
 	Group *group_to_remove;
@@ -323,6 +352,9 @@ int consume_group(int (*func)(), void *params)
 		grouplist.head->prev = NULL;
 	
 	mutex_unlock (&grouplist.mutex);
+
+        if (record_time)
+               new_sample(&group_to_remove->start);
 
 	/* Executing the Group */
 	mutex_lock(&sensor.mutex);
@@ -377,6 +409,13 @@ int add_group(Session *this_session, void *data)
 		group_to_add->grouphead.data.tcp = data;
 	else
 		group_to_add->grouphead.data.udp = data;
+
+        /*
+         * If I put the timestamp after the mutex_lock it will be more
+         * accurate, but I don't want to enter kernel mode with locked mutexes.
+         */
+        if (gettimeofday(&group_to_add->start, NULL) != 0)
+               errno_abort("Error in gettimeofday\n");
 
 
 	DPRINTF("Adding Group for Session: %u\n",this_session->id);
