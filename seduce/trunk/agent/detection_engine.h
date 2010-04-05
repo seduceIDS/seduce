@@ -41,7 +41,7 @@ void destroy_threat(Threat *);
 const char *get_next_block(const char *data, size_t len, int min_len, 
 			   int *block_len, int use_previous_data);
 DetectionEngine *get_engine_by_name(char *name);
-DetectionEngine *cycle_engines(DetectionEngine **context);
+DetectionEngine *cycle_engines(DetectionEngine ***context);
 int format_engine_list(char *buf, int bufsize);
 void apply_to_engines(void (*fun)(DetectionEngine *, void *), void *param);
 
