@@ -151,6 +151,5 @@ int init_sniffer(void)
 void start_sniffer(void)
 {
 	nids_run();
-	
 }
 

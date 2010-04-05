@@ -6,9 +6,9 @@
 #include <glib.h>
 #include <netinet/in.h>
 
+#include <sys/time.h> /* timeval */
+
 #include <nids.h> /* struct tuple4 */
-
-
 
 
 typedef struct _TCPData {
@@ -79,6 +79,7 @@ typedef struct _Group {
 	struct _Group *next;
 	struct _Group *prev;
 	DataInfo grouphead; /* The heading data of a group */
+	struct timeval start; /* for time measuring */
 } Group;
 
 typedef struct _GroupList {
@@ -90,6 +91,12 @@ typedef struct _GroupList {
 
 extern Sensor sensor;
 
+/* time measuring */
+
+#define SAMPLE_NUMBER  100
+#define MEASURED_TIMES 1000
+extern struct timeval measured_times[];
+
 /* Functions */
 void init_datalists(void);
 
@@ -100,8 +107,8 @@ int close_session (unsigned id);
 /* returns a TCPData or UDPData pointer */ 
 void *add_data(Session *, void *payload, size_t len);
 
-int  add_group(Session *, void *);
-int consume_group(int (*func)(), void *params);
+int add_group(Session *, void *);
+int consume_group(int (*func)(), void *params, int record_time);
 
 TCPData *get_next_data(const TCPData *);
 

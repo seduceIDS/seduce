@@ -344,7 +344,7 @@ static int send_new_work(AgentInfo *agent)
 		mutex_unlock(&sensor.mutex);
 	}
 
-	ret = consume_group(send_work, agent);
+	ret = consume_group(send_work, agent, 1);
 	if (ret != -1)  /* a job was consumed */
 		return ret;
 
