@@ -121,17 +121,17 @@ DetectionEngine *get_engine_by_name(char *name)
 	return NULL;
 }
 
-DetectionEngine *cycle_engines(DetectionEngine **context)
+DetectionEngine *cycle_engines(DetectionEngine ***context)
 {
 	assert(context != NULL);
-	
+
 	/* reset point */
-	if (*context == NULL)
-		*context = avail_engines[0];
+	if (*context == NULL || **context == NULL)
+		*context = &avail_engines[0];
 	else
 		*context += 1;
 	
-	return *context;
+	return **context;
 }
 
 int format_engine_list(char *buf, int bufsize)

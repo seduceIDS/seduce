@@ -188,7 +188,7 @@ static const Work * find_work(InputOptions *in)
 
 static int process_work(const Work *w)
 {
-	DetectionEngine *e, *ctx;
+	DetectionEngine *e, **ctx = NULL;
 	int alert_ret, proc_ret, retval = 0;
 	Threat t;
 	struct in_addr src_addr;

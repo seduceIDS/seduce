@@ -513,7 +513,7 @@ static int parse_fileoptions(const char *filename, InputOptions *opts)
 	}
 
 	for(i = 0; i < num_managers; i++) {
-		managers[i] = cfg_getnstr(cfg, "managers", i);
+		managers[i] = cfg_getnstr(cfg, "sensors", i);
 		if (!validate_manager(managers[i])) {
 			fprintf(stderr,"invalid sensor string: %s\n",
 				managers[i]);
