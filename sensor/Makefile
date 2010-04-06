@@ -55,7 +55,7 @@ libseduce_sensor.a: server_contact.o
 	$(RANLIB) $@
 
 clean:
-	rm -f *.o *.a *.so *~ sensor
+	rm -f *.o *.a *.so *~ a.out sensor
 
 install: install-bin install-conf
 	@echo $(NAME) installation completed

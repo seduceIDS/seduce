@@ -12,6 +12,10 @@
 
 #include "sensor.h"
 
+#ifdef TWO_TIER_ARCH
+#include "../manager/options.h"
+#endif
+
 /* struct filled with command-line arguments */
 typedef struct _CommandLineOptions {
 	char *server;
@@ -23,7 +27,7 @@ typedef struct _CommandLineOptions {
 
 static void hlpmsg(int rc)
 {
-	fprintf(stderr,"Type `%s -h' for help.\n", pv.prog_name);
+	fprintf(stderr,"Type `%s -h' for help.\n", spv.prog_name);
 	exit(rc);
 }
 
@@ -39,7 +43,7 @@ static void printusage(int rc)
 		"  s : Server Address in HOST:Port format. "
 		       "E.g. `localhost:3540'.\n"
 		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
-		pv.prog_name);
+		spv.prog_name);
 	exit(rc);
 }
 
@@ -61,7 +65,7 @@ static int getpts(char *origexpr)
 	int tcpportcount = 0, udpportcount = 0;
 
 	/* first zero the port_table */
-	memset(pv.port_table, '\0', 65536);
+	memset(spv.port_table, '\0', 65536);
 
 	range_type |= TCP_PORT;
 	range_type |= UDP_PORT;
@@ -117,7 +121,7 @@ static int getpts(char *origexpr)
 		/* Now I have a rangestart and a rangeend,
 		 * so I can add these ports */
 		while (rangestart <= rangeend) {
-			if (pv.port_table[rangestart] & range_type) {
+			if (spv.port_table[rangestart] & range_type) {
 				if (!portwarning) {
 					printf("WARNING: Duplicate port number"
 							    "(s) specified.\n");
@@ -128,7 +132,7 @@ static int getpts(char *origexpr)
 					tcpportcount++;
 				if (range_type & UDP_PORT)
 					udpportcount++;
-				pv.port_table[rangestart] |= range_type;
+				spv.port_table[rangestart] |= range_type;
 			}
 			rangestart++;
 		}
@@ -197,13 +201,13 @@ static unsigned short get_valid_port(const char *port_str)
 	return (unsigned short) port;
 }
 
-
 /* 
  * Fill the server IP and Port in the pv struct.
  * Returns 1 on success and 0 on error.
  */
 static int fill_serveraddr(char *str)
 {
+#ifndef TWO_TIER_ARCH
 	char *addr;
 	char *port;
 	struct hostent *he;
@@ -221,17 +225,17 @@ static int fill_serveraddr(char *str)
 		herror("gethostbyname");
 		return 0;
 	}
-	pv.server_addr = *(in_addr_t *)he->h_addr;
-	if(pv.server_addr == INADDR_NONE)
+	spv.server_addr = *(in_addr_t *)he->h_addr;
+	if(spv.server_addr == INADDR_NONE)
 		return 0;
 
-	pv.server_port = get_valid_port(port);
-	if(pv.server_port == 0)
+	spv.server_port = get_valid_port(port);
+	if(spv.server_port == 0)
 		return 0;
 
 	return 1;
+#endif
 }
-
 
 /* 
  * function wrapper to use it with libconfuse
@@ -256,6 +260,26 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	return (ret) ? 0 : -1;
 }
 
+cfg_opt_t * merge_fileopts(const cfg_opt_t *opt1, const cfg_opt_t *opt2)
+{
+	int size1 = cfg_numopts(opt1);
+	int size2 = cfg_numopts(opt2);
+	int size = size1 + size2;
+
+	cfg_opt_t *res = malloc((size + 1) * sizeof(cfg_opt_t));
+
+	memcpy(res, opt1, size1 * sizeof(cfg_opt_t));
+	memcpy(res + size1, opt2, (size2 + 1)* sizeof(cfg_opt_t));
+
+	return res;
+}
+
+void release_fileopts(cfg_opt_t *opts)
+{
+#ifdef TWO_TIER_ARCH
+	free(opts);
+#endif
+}
 
 /* parse a config file */
 static int parse_file(char *filename)
@@ -265,7 +289,7 @@ static int parse_file(char *filename)
 	char *portlist = NULL;
 	int ret;
 
-	cfg_opt_t opts[] = {
+	cfg_opt_t sensor_opts[] = {
 		CFG_SIMPLE_STR("interface", &nids_params.device),
 		CFG_SIMPLE_STR("server_addr",&server_addr),
 		CFG_SIMPLE_STR("home_net",&home_net),
@@ -285,14 +309,20 @@ static int parse_file(char *filename)
 #endif
 		CFG_END()
 	};
-	cfg_t *cfg;
 
-	cfg = cfg_init(opts, 0);
+#ifdef TWO_TIER_ARCH
+	cfg_opt_t *opts = merge_fileopts(sensor_opts, get_manager_fileopts());
+#else
+	cfg_opt_t *opts = sensor_opts;
+#endif
+	cfg_t *cfg = cfg_init(opts, 0);
 
 	/* set validation callback functions */
 	cfg_set_validate_func(cfg,"server_addr",cfg_validate);
 	cfg_set_validate_func(cfg,"portlist",cfg_validate);
 	cfg_set_validate_func(cfg,"home_net",cfg_validate);
+
+
 
 	ret = cfg_parse(cfg,filename);
 	
@@ -300,8 +330,7 @@ static int parse_file(char *filename)
 		if (ret == CFG_FILE_ERROR)
 			fprintf(stderr, "Can't open config file for reading. "
 				"Check the -c option again\n");
-		cfg_free(cfg);
-		return 0;
+		goto err;
 	}
 
 	if(server_addr)
@@ -312,9 +341,47 @@ static int parse_file(char *filename)
 		free(portlist);
 
 	cfg_free(cfg);
+	release_fileopts(opts);
 	return 1;
+err:
+	cfg_free(cfg);
+        release_fileopts(opts);
+        return 0;
 }
 
+#ifdef TWO_TIER_ARCH
+static char * merge_clops(const char *s1, const char *s2)
+{
+	size_t len1 = strlen(s1);
+	size_t len2 = strlen(s2);
+	size_t len = len1 + len2;
+
+	char * clops = malloc((len + 1 ) * sizeof(char));
+
+	strcpy(clops, s1);
+	strcpy(clops + len1, s2);
+
+	return clops;
+}
+#endif
+
+char *get_clops()
+{
+	static char *clops = "hc:i:n:s:p:";
+
+#ifndef TWO_TIER_ARCH
+	return clops;
+#else
+	return merge_clops(clops, get_manager_optstring());
+#endif
+}
+
+void release_clops(char *clops)
+{
+#ifdef TWO_TIER_ARCH
+	free(clops);
+#endif
+}
 
 /*
  * Get the command line options
@@ -329,8 +396,12 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 	int n_arg = 0;
 	int s_arg = 0;
 	int p_arg = 0;
+	
+	int ret;
 
-	while ((c = getopt (argc, argv, "hc:i:n:s:p:")) != -1) {
+	char * clops = get_clops();
+
+	while ((c = getopt (argc, argv, clops)) != -1) {
 		switch(c) {
 		case 'h':
 			printusage(0);
@@ -338,7 +409,7 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'c':
 			if (c_arg) {
 				PRINT_SPECIFY_ONCE('c');
-				return 0;
+				goto err;
 			}
 			c_arg = 1;
 			clo->conf_file = strdup(optarg);
@@ -347,7 +418,7 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'i':
 			if (i_arg) {
 				PRINT_SPECIFY_ONCE('i');
-				return 0;
+				goto err;
 			}
 			i_arg = 1;
 			clo->interface = strdup(optarg);
@@ -356,7 +427,7 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'n':
 			if (n_arg) {
 				PRINT_SPECIFY_ONCE('n');
-				return 0;
+				goto err;
 			}
 			n_arg = 1;
 			clo->homenet_expr = strdup(optarg);
@@ -365,7 +436,7 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 		case 's':
 			if (s_arg) {
 				PRINT_SPECIFY_ONCE('s');
-				return 0;
+				goto err;
 			}
 			s_arg = 1;
 			clo->server =  strdup(optarg);
@@ -374,18 +445,24 @@ static int get_cloptions(int argc, char *argv[], CLO *clo)
 		case 'p':
 			if (p_arg) {
 				PRINT_SPECIFY_ONCE('p');
-				return 0;
+				goto err;
 			}
 			p_arg = 1;
 			clo->portlist_expr = strdup(optarg);
 			break;
-
 		default:
-			return 0;
+			ret = process_manager_optchars(c);
+			if(ret == 0)
+				goto err;
 		}
 	}
 
+	release_clops(clops);
 	return 1;
+
+err:
+	release_clops(clops);
+	return 0;
 }
 
 
@@ -395,11 +472,11 @@ void fill_progvars(int argc, char *argv[])
 
 	CLO clo;
 
+	memset(&spv, '\0', sizeof(SPV));
+	spv.prog_name = argv[0];
+
 	memset(&clo, '\0', sizeof(CLO));
-
-	memset(&pv, '\0', sizeof(PV));
-	pv.prog_name = argv[0];
-
+	
 	if(!get_cloptions(argc, argv, &clo))
 		goto err;
 
@@ -409,7 +486,7 @@ void fill_progvars(int argc, char *argv[])
 			goto err;
 		free(clo.conf_file);
 	}
-
+#ifndef TWO_TIER_ARCH
 	if(clo.server) {
 		if(!fill_serveraddr(clo.server)) {
 			fprintf(stderr, "Error while parsing `-s' option.\n");
@@ -417,7 +494,7 @@ void fill_progvars(int argc, char *argv[])
 		}
 		free(clo.server);
 	}
-
+#endif
 	if(clo.portlist_expr) {
 		if(!getpts(clo.portlist_expr)) {
 			fprintf(stderr, "Error while parsing `-p' option.\n");
@@ -439,24 +516,27 @@ void fill_progvars(int argc, char *argv[])
 			free(nids_params.device);
 		nids_params.device = clo.interface;
 	}
-
+#ifndef TWO_TIER_ARCH
 	/* Check if all needed program variables are set */
-	if(pv.server_addr == 0 || pv.server_port == 0) {
+	if(spv.server_addr == 0 || spv.server_port == 0) {
 		fprintf(stderr, "Manager connection info is missing. "
 				"Either use the `-s' command line option "
 				"or the `server_addr' variable of the "
 				"configuration file.\n");
 		goto err;
 	}
-
+#endif
 	/* check if port list is set */
 	for (i = 0; i < 65536; i++)
-		if(pv.port_table[i] != 0)
+		if(spv.port_table[i] != 0)
 			break;
 	if (i == 65536)
-		/* No port is set, I'll set them ports */
-		memset(pv.port_table, TCP_PORT | UDP_PORT, 65536);
+		/* No port is set, I'll set them all */
+		memset(spv.port_table, TCP_PORT | UDP_PORT, 65536);
 
+#ifdef TWO_TIER_ARCH
+	fill_manager_progvars(argc, argv);
+#endif
 	return;
 
 err:
@@ -464,22 +544,36 @@ err:
 }
 
 
-#if 0
+#if 1
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-PV pv;
+#ifdef TWO_TIER_ARCH
+#include "../manager/manager.h"
+
+MPV mpv;
+#endif
+
+SPV spv;
 
 int main(int argc, char *argv[])
 {
 	fill_progvars(argc, argv);
 
 	printf("Options:\n");
-	printf("Sever Address: %s\n", inet_ntoa(*(struct in_addr *)
-							&pv.server_addr));
-	printf("Server Port: %u\n", pv.server_port);
 
+#ifdef TWO_TIER_ARCH
+	printf("Agent Port:%d\n", mpv.agent_port);
+	printf("Max Agents:%d\n", mpv.max_agents);
+	printf("Soft limit:%d\n", mpv.mem_softlimit);
+	printf("Hard limit:%d\n", mpv.mem_hardlimit);
+	printf("Password:%s\n", mpv.password);
+#else
+	printf("Sever Address: %s\n", inet_ntoa(*(struct in_addr *)
+							&spv.server_addr));
+	printf("Server Port: %u\n", spv.server_port);
+#endif
 	return 0;
 }
 #endif

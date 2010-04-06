@@ -3,20 +3,24 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
-#include <confuse.h>
 
+#include "options.h"
 #include "manager.h"
 
 typedef struct _CommandLineOptions {
 	char *agent_port;
+#ifndef TWO_TIER_ARCH
 	char *sensor_port;
-	char *max_agents;
 	char *max_sensors;
+	char *conf_file;
+#endif
+	char *max_agents;
 	char *mem_softlimit;
 	char *mem_hardlimit;
 	char *password;
-	char *conf_file;
 } CLO;
+
+static CLO clo;
 
 /* 
  * The next 2 values define the acceptable port range for the agent and sensor
@@ -45,7 +49,7 @@ static void printusage(int rc)
 		"[-s<sensor_port>] [-S<max_sensors>] [-p<password>]\n\n"
 		"  h: Print this message.\n"
 		"  c: Confuguration file. E.g. `manager.conf'.\n"
-		"  p: Password for the agents.\n"
+		"  P: Password for the agents.\n"
 		"  a: Specify the port to listen for agent requests. "
 		"Default value is 28002.\n"
 		"  A: Maximum number of agents allowed. "
@@ -56,7 +60,7 @@ static void printusage(int rc)
 		"Default value is 28001.\n"
 		"  S: Maximum number of sensor connections allowed. "
 		"The Default value is 8.\n\n",
-		pv.prog_name);
+		mpv.prog_name);
 	exit(rc);
 }
 
@@ -112,108 +116,6 @@ static int validate_password(const char *pwd)
 }
 
 
-#define PRINT_SPECIFY_ONCE(x) \
-	fprintf(stderr, "The -%c option should be specified only once\n", x)
-static void get_cloptions(int argc, char *argv[], CLO *clo)
-{
-	int c;
-	int a_arg = 0;
-	int A_arg = 0;
-	int c_arg = 0;
-	int l_arg = 0;
-	int L_arg = 0;
-	int p_arg = 0;
-	int s_arg = 0;
-	int S_arg = 0;
-
-	while((c = getopt(argc, argv, "a:A:c:hl:L:p:s:S:")) != -1) {
-		switch(c) {
-		case 'h':
-			printusage(0);
-
-		case 'a':
-			if (a_arg) {
-				PRINT_SPECIFY_ONCE('a');
-				goto err;
-			}
-			a_arg = 1;
-			clo->agent_port = strdup(optarg);
-			break;
-
-		case 'A':
-			if (A_arg) {
-				PRINT_SPECIFY_ONCE('A');
-				goto err;
-			}
-			A_arg = 1;
-			clo->max_agents = strdup(optarg);
-			break;
-
-		case 'c':
-			if (c_arg) {
-				PRINT_SPECIFY_ONCE('c');
-				goto err;
-			}
-			c_arg = 1;
-			clo->conf_file = strdup(optarg);
-			break;
-
-		case 'l':
-			if (l_arg) {
-				PRINT_SPECIFY_ONCE('l');
-				goto err;
-			}
-			l_arg = 1;
-			clo->mem_softlimit = strdup(optarg);
-			break;
-
-		case 'L':
-			if (L_arg) {
-				PRINT_SPECIFY_ONCE('L');
-				goto err;
-			}
-			L_arg = 1;
-			clo->mem_hardlimit = strdup(optarg);
-			break;
-
-		case 's':
-			if (s_arg) {
-				PRINT_SPECIFY_ONCE('s');
-				goto err;
-			}
-			s_arg = 1;
-			clo->sensor_port = strdup(optarg);
-			break;
-
-		case 'S':
-			if (S_arg) {
-				PRINT_SPECIFY_ONCE('S');
-				goto err;
-			}
-			S_arg = 1;
-			clo->max_sensors = strdup(optarg);
-			break;
-
-		case 'p':
-			if (p_arg) {
-				PRINT_SPECIFY_ONCE('p');
-				goto err;
-			}
-			p_arg = 1;
-			clo->password = strdup(optarg);
-			break;
-
-		default:
-			goto err;
-		}
-	}
-
-	return;
-
-err:
-	printusage(1);
-}
-
 static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 {
 	if ((strcmp(opt->name, "sensor_port") == 0) ||
@@ -243,24 +145,8 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	return 0;
 }
 
-static int parse_file(char *filename)
+void validate_manager_fileopts(cfg_t *cfg)
 {
-	int ret;
-
-	cfg_opt_t opts[] = {
-		CFG_SIMPLE_INT("agents_port", &pv.agent_port),
-		CFG_SIMPLE_INT("sensors_port", &pv.sensor_port),
-		CFG_SIMPLE_INT("max_agents", &pv.max_agents),
-		CFG_SIMPLE_INT("max_sensors", &pv.max_sensors),
-		CFG_SIMPLE_INT("mem_softlimit", &pv.mem_softlimit),
-		CFG_SIMPLE_INT("mem_hardlimit", &pv.mem_hardlimit),
-		CFG_SIMPLE_STR("password", &pv.password),
-		CFG_END()
-	};
-	cfg_t *cfg;
-
-	cfg = cfg_init(opts, 0);
-
 	/* set validation callback functions */
 	cfg_set_validate_func(cfg, "sensors_port", cfg_validate);
 	cfg_set_validate_func(cfg, "agents_port", cfg_validate);
@@ -269,6 +155,34 @@ static int parse_file(char *filename)
 	cfg_set_validate_func(cfg, "password", cfg_validate);
 	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
 	cfg_set_validate_func(cfg, "mem_hardlimit", cfg_validate);
+}
+
+cfg_opt_t *get_manager_fileopts()
+{
+	static cfg_opt_t opts[] = {
+		CFG_SIMPLE_INT("agents_port", &mpv.agent_port),
+#ifndef TWO_TIER_ARCH
+		CFG_SIMPLE_INT("sensors_port", &mpv.sensor_port),
+		CFG_SIMPLE_INT("max_sensors", &mpv.max_sensors),
+#endif
+		CFG_SIMPLE_INT("max_agents", &mpv.max_agents),
+		CFG_SIMPLE_INT("mem_softlimit", &mpv.mem_softlimit),
+		CFG_SIMPLE_INT("mem_hardlimit", &mpv.mem_hardlimit),
+		CFG_SIMPLE_STR("password", &mpv.password),
+		CFG_END()
+		};
+
+       return opts;
+}
+
+
+static int parse_file(char *filename)
+{
+	int ret;
+
+	cfg_t *cfg = cfg_init(get_manager_fileopts(), 0);
+
+	validate_manager_fileopts(cfg);
 
 	ret = cfg_parse(cfg,filename);
 	
@@ -283,16 +197,145 @@ static int parse_file(char *filename)
 	return 1;
 }
 
-void fill_progvars(int argc, char *argv[])
+
+const char *get_manager_optstring(void)
 {
-	CLO clo;
+#ifndef TWO_TIER_ARCH
+	return "a:A:c:hl:L:P:s:S:";
+#else
+	return "a:A:l:L:P:";
+#endif
+}
 
+#define PRINT_SPECIFY_ONCE(x) \
+	fprintf(stderr, "The -%c option should be specified only once\n", x)
+int process_manager_optchars(int c)
+{
+	static int a_arg = 0;
+	static int A_arg = 0;
+	static int l_arg = 0;
+	static int L_arg = 0;
+	static int P_arg = 0;
+#ifndef TWO_TIER_ARCH
+	static int c_arg = 0;
+	static int s_arg = 0;
+	static int S_arg = 0;
+#endif
+
+	switch(c) {
+	case 'h':
+		printusage(0);
+
+	case 'a':
+		if (a_arg) {
+			PRINT_SPECIFY_ONCE('a');
+			goto err;
+		}
+		a_arg = 1;
+		clo.agent_port = strdup(optarg);
+		break;
+
+	case 'A':
+		if (A_arg) {
+			PRINT_SPECIFY_ONCE('A');
+			goto err;
+		}
+		A_arg = 1;
+		clo.max_agents = strdup(optarg);
+		break;
+#ifndef TWO_TIER_ARCH
+	case 'c':
+		if (c_arg) {
+			PRINT_SPECIFY_ONCE('c');
+			goto err;
+		}
+		c_arg = 1;
+		clo.conf_file = strdup(optarg);
+		break;
+	case 's':
+		if (s_arg) {
+			PRINT_SPECIFY_ONCE('s');
+			goto err;
+		}
+		s_arg = 1;
+		clo.sensor_port = strdup(optarg);
+		break;
+
+	case 'S':
+		if (S_arg) {
+			PRINT_SPECIFY_ONCE('S');
+			goto err;
+		}
+		S_arg = 1;
+		clo.max_sensors = strdup(optarg);
+		break;
+#endif
+	case 'l':
+		if (l_arg) {
+			PRINT_SPECIFY_ONCE('l');
+			goto err;
+		}
+		l_arg = 1;
+		clo.mem_softlimit = strdup(optarg);
+		break;
+
+	case 'L':
+		if (L_arg) {
+			PRINT_SPECIFY_ONCE('L');
+			goto err;
+		}
+		L_arg = 1;
+		clo.mem_hardlimit = strdup(optarg);
+		break;
+
+	case 'P':
+		if (P_arg) {
+			PRINT_SPECIFY_ONCE('P');
+			goto err;
+		}
+		P_arg = 1;
+		clo.password = strdup(optarg);
+		break;
+	default:
+		return 2;
+	}
+
+	return 1;
+err:
+	return 0;
+}
+
+static void get_cloptions(int argc, char *argv[])
+{
+	int ret, c;
+	while((c = getopt(argc, argv, get_manager_optstring())) != -1) {
+		ret = process_manager_optchars(c);
+		if (ret == 0)
+			goto err;
+	}
+
+	return;
+err:
+	printusage(1);
+}
+
+void clear_manager_clops()
+{
 	memset(&clo, '\0', sizeof(CLO));
+}
 
-	memset(&pv, '\0', sizeof(PV));
-	pv.prog_name = argv[0];
+void fill_manager_progvars(int argc, char *argv[])
+{
 
-	get_cloptions(argc, argv, &clo);
+#ifndef TWO_TIER_ARCH
+	clear_manager_clops();
+	memset(&mpv, '\0', sizeof(MPV));
+#endif
+	mpv.prog_name = argv[0];
+
+#ifndef TWO_TIER_ARCH
+	
+	get_cloptions(argc, argv);
 
 	if(clo.conf_file) {
 		if(!parse_file(clo.conf_file))
@@ -301,42 +344,42 @@ void fill_progvars(int argc, char *argv[])
 	}
 
 	if (clo.sensor_port) {
-		if(!(pv.sensor_port = get_valid_port(clo.sensor_port)))
+		if(!(mpv.sensor_port = get_valid_port(clo.sensor_port)))
 			exit(1);
 		free(clo.sensor_port);
-	} else if(!pv.sensor_port)
-		pv.sensor_port = SENSOR_PORT;
-
-
-	if (clo.agent_port) {
-		if(!(pv.agent_port = get_valid_port(clo.agent_port)))
-			exit(1);
-		free(clo.agent_port);
-	} else if(!pv.agent_port)
-		pv.agent_port = AGENT_PORT;
-
-	if (clo.max_agents) {
-		if((pv.max_agents = str_to_natural(clo.max_agents)) < 1) {
-			fprintf(stderr, "Maximum number of allowed agents must "
-					"be at least 1\n");
-			exit(1);
-		}
-		free(clo.max_agents);
-	} else if(!pv.max_agents)
-		pv.max_agents = MAX_AGENTS;
+	} else if(!mpv.sensor_port)
+		mpv.sensor_port = SENSOR_PORT;
 
 	if (clo.max_sensors) {
-		if((pv.max_sensors = str_to_natural(clo.max_sensors)) < 1) {
+		if((mpv.max_sensors = str_to_natural(clo.max_sensors)) < 1) {
 			fprintf(stderr, "Maximum number of allowed sensors "
 					"must be at least 1\n");
 			exit(1);
 		}
 		free(clo.max_sensors);
-	} else if(!pv.max_sensors)
-		pv.max_sensors = MAX_SENSORS;
+	} else if(!mpv.max_sensors)
+		mpv.max_sensors = MAX_SENSORS;
+#endif
+	if (clo.agent_port) {
+		if(!(mpv.agent_port = get_valid_port(clo.agent_port)))
+			exit(1);
+		free(clo.agent_port);
+	} else if(!mpv.agent_port)
+		mpv.agent_port = AGENT_PORT;
+
+	if (clo.max_agents) {
+		if((mpv.max_agents = str_to_natural(clo.max_agents)) < 1) {
+			fprintf(stderr, "Maximum number of allowed agents must "
+					"be at least 1\n");
+			exit(1);
+		}
+		free(clo.max_agents);
+	} else if(!mpv.max_agents)
+		mpv.max_agents = MAX_AGENTS;
 
 	if (clo.mem_softlimit) {
-		if((pv.mem_softlimit = str_to_natural(clo.mem_softlimit)) < 1) {
+		if((mpv.mem_softlimit = 
+				str_to_natural(clo.mem_softlimit)) < 1) {
 			fprintf(stderr, "Not a valid soft limit value\n");
 			exit(1);
 		}
@@ -344,7 +387,8 @@ void fill_progvars(int argc, char *argv[])
 	}
 
 	if (clo.mem_hardlimit) {
-		if((pv.mem_hardlimit = str_to_natural(clo.mem_hardlimit)) < 1) {
+		if((mpv.mem_hardlimit =
+				str_to_natural(clo.mem_hardlimit)) < 1) {
 			fprintf(stderr, "Not a valid hard limit value\n");
 			exit(1);
 		}
@@ -352,54 +396,55 @@ void fill_progvars(int argc, char *argv[])
 	}
 
 	if(clo.password) {
+		fprintf(stderr, "I'm in  password\n");
 		if(!validate_password(clo.password)) {
 			fprintf(stderr, "Password can't be longer than %d "
 					"characters\n", MAX_PWD_SIZE);
 			exit(1);
 		}
-		if(pv.password)
-			free(pv.password);
-		pv.password = clo.password;
+		if(mpv.password)
+			free(mpv.password);
+		mpv.password = clo.password;
 	}
 
 	/* sanity checks */
-	if(!pv.password) {
+	if(!mpv.password) {
 		fprintf(stderr, "Password is not set. Type -h for help.\n");
 		exit(1);
 	}
 
-	if(!pv.mem_softlimit || !pv.mem_hardlimit) {
+	if(!mpv.mem_softlimit || !mpv.mem_hardlimit) {
 		fprintf(stderr, "Memory limits are not set. "
 				"Type -h for help.\n");
 		exit(1);
 	}
 
-	if(pv.mem_softlimit > pv.mem_hardlimit) {
+	if(mpv.mem_softlimit > mpv.mem_hardlimit) {
 		fprintf(stderr, "Memory soft limit cannot be greater than the "
 			        "memory hard limit\n");
 		exit(1);
 	}
 
 	/* OK, now convert the limits to MB */
-	pv.mem_hardlimit <<= 20;
-	pv.mem_softlimit <<= 20;
+	mpv.mem_hardlimit <<= 20;
+	mpv.mem_softlimit <<= 20;
 }
 
 #if 0
-PV pv;
+MPV mpv;
 
 int main(int argc, char *argv[])
 {
-	fill_progvars(argc, argv);
+	fill_manager_progvars(argc, argv);
 	
 	printf("Options:\n");
-	printf("Sensor Port:%d\n", pv.sensor_port);
-	printf("Agent Port:%d\n", pv.agent_port);
-	printf("Max Sensors:%d\n", pv.max_sensors);
-	printf("Max Agents:%d\n", pv.max_agents);
-	printf("Soft limit:%d\n", pv.mem_softlimit);
-	printf("Hard limit:%d\n", pv.mem_hardlimit);
-	printf("Password:%s\n", pv.password);
+	printf("Sensor Port:%d\n", mpv.sensor_port);
+	printf("Agent Port:%d\n", mpv.agent_port);
+	printf("Max Sensors:%d\n", mpv.max_sensors);
+	printf("Max Agents:%d\n", mpv.max_agents);
+	printf("Soft limit:%d\n", mpv.mem_softlimit);
+	printf("Hard limit:%d\n", mpv.mem_hardlimit);
+	printf("Password:%s\n", mpv.password);
 
 	return 0;
 }

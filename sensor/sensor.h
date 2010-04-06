@@ -4,14 +4,16 @@
 #include <netinet/in.h> /* for in_addr_t */
 
 /* Program variables */
-typedef struct _progvars {
+typedef struct _SensorProgVars {
 	char *prog_name;
+#ifndef TWO_TIER_ARCH
 	in_addr_t server_addr;
 	unsigned short server_port;
+#endif
 	u_int8_t port_table[65536];
-} PV;
+} SPV;
 
-extern PV pv;
+extern SPV spv;
 
 #define TCP_PORT	0x01
 #define UDP_PORT	0x10
