@@ -476,6 +476,10 @@ void fill_progvars(int argc, char *argv[])
 	spv.prog_name = argv[0];
 
 	memset(&clo, '\0', sizeof(CLO));
+
+#ifndef TWO_TIER_ARCH
+	clear_manager_clops();
+#endif
 	
 	if(!get_cloptions(argc, argv, &clo))
 		goto err;
