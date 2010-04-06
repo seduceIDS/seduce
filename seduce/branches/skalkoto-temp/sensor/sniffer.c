@@ -49,7 +49,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
 
 	switch (a_tcp->nids_state) {
 	case NIDS_JUST_EST:
-		if (pv.port_table[a_tcp->addr.dest] & TCP_PORT) {
+		if (spv.port_table[a_tcp->addr.dest] & TCP_PORT) {
 			if (new_stream_connection(sockfd, &a_tcp->addr,
 						  stream_id, STREAM_DATA)) 
 			{
@@ -106,7 +106,7 @@ void tcp_sniff (struct tcp_stream *a_tcp, unsigned int **stream_id)
  */
 void udp_sniff (struct tuple4 *addr, u_char *data, int len, struct ip *pkt)
 {
-	if (pv.port_table[addr->dest] & UDP_PORT) {
+	if (spv.port_table[addr->dest] & UDP_PORT) {
 		send_dgram_data(sockfd, addr, data, len, DGRAM_DATA);
 		DPRINTF("New UDP DATA: %s\n",adres(*addr));
 	}
@@ -129,7 +129,7 @@ int init_sniffer(void)
 	}
 
 	/* connect to the manager */
-	if (manager_connect(&sockfd, pv.server_addr, pv.server_port) == 0) {
+	if (manager_connect(&sockfd, spv.server_addr, spv.server_port) == 0) {
 		fprintf(stderr,"Can't Connect to the Server\n");
 		return 0;
 	}

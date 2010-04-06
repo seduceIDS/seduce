@@ -55,7 +55,7 @@ int add_sensor (struct in_addr ip,
 	Sensor *new_sensor;
 	unsigned int id;
 
-	if (sensorlist.cnt >= pv.max_sensors)
+	if (sensorlist.cnt >= mpv.max_sensors)
 		return 1;
 
 	/* Create a unique id */

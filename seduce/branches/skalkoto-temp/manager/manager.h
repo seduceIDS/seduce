@@ -1,20 +1,24 @@
-#ifndef _SCHEDULER_H
-#define _SCHEDULER_H
+#ifndef _MANAGER_H
+#define _MANAGER_H
 
-typedef struct _ProgVars {
+typedef struct _ManagerProgVars {
 	char *prog_name;
+#ifndef TWO_TIER_ARCH
 	int sensor_port;
+	int max_sensors;
+#endif
 	int agent_port;
 	int max_agents;
-	int max_sensors;
 	int mem_softlimit;
 	int mem_hardlimit;
 	char *password;
-} PV;
+} MPV;
 
-extern PV pv;
+extern MPV mpv;
+
+int start_manager(void);
 
 #define MAX_PWD_SIZE	16
 
-#endif /* _SCHEDULER_H */
+#endif /* _MANAGER_H */
  

@@ -11,6 +11,7 @@
 #include <signal.h>
 
 #include "manager.h"
+#include "options.h"
 #include "thread.h"
 #include "sensor_contact.h"
 #include "errors.h"
@@ -21,12 +22,11 @@
 #include "oom_handler.h"
 #include "alert_recv.h"
 
-extern void fill_progvars(int, char **);
 extern void *agents_contact();
 
 /* Globals */
 
-PV pv;
+MPV mpv;
 
 static void start_oom_handler(void)
 {
@@ -62,21 +62,20 @@ static void start_sensor_thread(int socket, struct in_addr ip,
 }
 
 
-int main(int argc, char *argv[])
+int start_manager(void)
 {
 	int sockfd, connfd, one;
 	struct sockaddr_in my_addr;
 	struct sockaddr_in their_addr;
 	socklen_t addr_len;
 
-	fill_progvars(argc, argv);
 
 	sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1)
 		errno_abort("socket");
 
 	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(pv.sensor_port);
+	my_addr.sin_port = htons(mpv.sensor_port);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset( &(my_addr.sin_zero), '\0', 8);
 
@@ -102,7 +101,7 @@ int main(int argc, char *argv[])
 	start_alert_thread();
 	start_agents_thread();
 	start_oom_handler();
-
+#ifndef TWO_TIER_ARCH
 	/* Wait for new sensor connections */
 	while (1) {
 		addr_len = sizeof(their_addr);
@@ -118,5 +117,15 @@ int main(int argc, char *argv[])
 		start_sensor_thread(connfd, their_addr.sin_addr,
 							their_addr.sin_port);
 	}
+#endif
 	return 0;
 }
+
+#ifndef TWO_TIER_ARCH
+int main(int argc, char *argv[])
+{
+	fill_manager_progvars(argc, argv);
+
+	return start_manager();
+}
+#endif

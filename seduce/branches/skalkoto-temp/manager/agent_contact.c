@@ -82,7 +82,7 @@ static int cleanup_map(Agents *agents)
 /* just check the password and return TRUE if it matches */
 int check_password(const char *pwd)
 {
-	return (strncmp(pwd, pv.password, MAX_PWD_SIZE)) ? 0 : 1;
+	return (strncmp(pwd, mpv.password, MAX_PWD_SIZE)) ? 0 : 1;
 }
 
 
@@ -592,7 +592,7 @@ static void udp_request(Agents *agents)
  */
 static void init_agents(Agents *agents)
 {
-	agents->max = pv.max_agents;
+	agents->max = mpv.max_agents;
 	agents->table = calloc(agents->max, sizeof(AgentInfo));
 	if (agents->table == NULL)
 		errno_abort("calloc");
@@ -623,7 +623,7 @@ void *agents_contact(void)
 	init_agents(&agents);
 
 	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(pv.agent_port);
+	my_addr.sin_port = htons(mpv.agent_port);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	memset(&(my_addr.sin_zero), '\0', 8);
 

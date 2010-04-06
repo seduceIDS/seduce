@@ -79,7 +79,7 @@ void *oom_handler(void)
 
 		occupied_mem = compute_mem_usage();
 
-		if(occupied_mem > pv.mem_hardlimit)
-			free_memory(pv.mem_softlimit);
+		if(occupied_mem > mpv.mem_hardlimit)
+			free_memory(mpv.mem_softlimit);
 	}
 }
