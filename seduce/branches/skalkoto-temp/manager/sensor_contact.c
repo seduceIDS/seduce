@@ -27,13 +27,13 @@ typedef struct {
 	Sensor *my_sensor;		/* Pointer to the Sensor struct	*/
 } SensorPacket;
 
-static int sensor_connect(SensorPacket *);
-static int sensor_disconnect(SensorPacket *);
-static int new_tcp(SensorPacket *);
-static int tcp_close(SensorPacket *);
-static int tcp_data(SensorPacket *);
-static int tcp_break(SensorPacket *);
-static int udp_data(SensorPacket *);
+static int pck_sensor_connect(SensorPacket *);
+static int pck_sensor_disconnect(SensorPacket *);
+static int pck_new_tcp(SensorPacket *);
+static int pck_close_tcp(SensorPacket *);
+static int pck_tcp_data(SensorPacket *);
+static int pck_tcp_break(SensorPacket *);
+static int pck_udp_data(SensorPacket *);
 
 /* Protocol Table */
 const struct {
@@ -44,13 +44,13 @@ const struct {
 proto_tbl[] = {
 /*  Type    Header Size		Data		Handler           */
 /*----------------------------------------------------------------*/
-{/*   0   */	8,		NO,		sensor_connect},
-{/*   1   */	8,		NO,		sensor_disconnect},
-{/*   2   */	24,		NO,		new_tcp},
-{/*   3   */	12,		NO,		tcp_close},
-{/*   4   */	12,		YES,		tcp_data},
-{/*   5   */	12,		NO,		tcp_break},
-{/*   6   */	24,		YES,		udp_data}
+{/*   0   */	8,		NO,		pck_sensor_connect},
+{/*   1   */	8,		NO,		pck_sensor_disconnect},
+{/*   2   */	24,		NO,		pck_new_tcp},
+{/*   3   */	12,		NO,		pck_close_tcp},
+{/*   4   */	12,		YES,		pck_tcp_data},
+{/*   5   */	12,		NO,		pck_tcp_break},
+{/*   6   */	24,		YES,		pck_udp_data}
 /*-----------------------------------------------------------------*/
 };
 #define MAX_TYPE 6
@@ -178,14 +178,14 @@ err1:
 err2:
 	if(pck.data)
 		free(pck.data);
-	sensor_disconnect(&pck);
+	pck_sensor_disconnect(&pck);
 
 	/* Never Called */
 	return NULL;
 }
 
 
-static int sensor_connect(SensorPacket *p)
+static int pck_sensor_connect(SensorPacket *p)
 {
 	int reply;
 	const char *connreply[] = {
@@ -215,7 +215,7 @@ static int sensor_connect(SensorPacket *p)
 }
 
 
-static int sensor_disconnect(SensorPacket *p)
+static int pck_sensor_disconnect(SensorPacket *p)
 {
 	int ret = 0;
 
@@ -245,75 +245,82 @@ static int sensor_disconnect(SensorPacket *p)
 	return 1;
 }
 
-#ifdef _DEBUG
-#define int_ntoa(x)	inet_ntoa(*((struct in_addr *)&x))
-#endif
+int new_tcp(Sensor *s, unsigned id, const struct tuple4 *addr)
+{
+	Session *new_session;
 
-static int new_tcp(SensorPacket *p)
+	DPRINTF("Stream ID %u\n", id);
+	DPRINT_TUPLE4(addr);
+	
+	mutex_lock(&s->mutex);
+
+	new_session = add_session(s, id, addr, IPPROTO_TCP);
+	
+	mutex_unlock(&s->mutex);
+
+	return (new_session)?1:0;
+
+}
+
+static int pck_new_tcp(SensorPacket *p)
 {
 	unsigned int id;
 	struct tuple4 addr;
-	Session * new_session;
 
 	id = ntohl(   *(u_int32_t *)((*p).header + 0));
 	addr.s_port = *(u_int16_t *)((*p).header + 4);
 	addr.d_port = *(u_int16_t *)((*p).header + 6);
 	addr.s_addr = *(u_int32_t *)((*p).header + 8);
 	addr.d_addr = *(u_int32_t *)((*p).header + 12);
-	DPRINTF("Stream ID %u\n", id);
-	DPRINTF("Source: %s:%u\n",int_ntoa(addr.s_addr), ntohs(addr.s_port));
-	DPRINTF("Destin: %s:%u\n",int_ntoa(addr.d_addr), ntohs(addr.d_port));
-	
-	mutex_lock(&p->my_sensor->mutex);
 
-	new_session = add_session(p->my_sensor, id, &addr, IPPROTO_TCP);
-	
-	mutex_unlock(&p->my_sensor->mutex);
 
-	return (new_session)?1:0;
+	return new_tcp(p->my_sensor, id, &addr);
 }
 
 
-static int tcp_close(SensorPacket *p)
+int close_tcp(Sensor *s, unsigned id)
 {
 	int ret;
-	unsigned int id; 
 
 	DPRINTF("\n");	
-	id = htonl(*((u_int32_t *)(*p).header));
 	DPRINTF("TCP Connection with stream ID %u has Closed\n", id);
 	
-	mutex_lock(&p->my_sensor->mutex);
+	mutex_lock(&s->mutex);
 
-	ret = close_session(p->my_sensor, id);
+	ret = close_session(s, id);
 
-	mutex_unlock(&p->my_sensor->mutex);
+	mutex_unlock(&s->mutex);
 
 	return ret;
 }
 
+static int pck_close_tcp(SensorPacket *p)
+{
+	unsigned id = htonl(*((u_int32_t *)(*p).header));
+	
+	return close_tcp(p->my_sensor, id);
+}
 
-static int tcp_data(SensorPacket *p)
+
+int tcp_data(Sensor *s, unsigned id, void *payload, size_t len)
 {
 	Session *this_session;
 	TCPData *new_data = NULL;
-	unsigned int new_id, last_id, stream_id;
+	unsigned int new_id, last_id;
 	int add_in_joblist; /* Do we add the new data in the joblist? */
 
 	DPRINTF("\n");
-
-	stream_id = ntohl(*((u_int32_t *)(*p).header));
-	DPRINTF("DATA for TCP with stream ID %u\n", stream_id);
-	DPRINTF("DATA length is %u\n", p->data_len);
+	DPRINTF("DATA for TCP with stream ID %u\n", id);
+	DPRINTF("DATA length is %u\n", len);
 	
-	mutex_lock(&p->my_sensor->mutex);
+	mutex_lock(&s->mutex);
 
-	this_session = find_session(p->my_sensor, stream_id);
+	this_session = find_session(s, id);
 	if (this_session)
-		new_data = add_data(this_session, p->data, p->data_len);
+		new_data = add_data(this_session, payload, len);
 	
 	if(new_data == NULL) {
-		mutex_unlock(&p->my_sensor->mutex);
+		mutex_unlock(&s->mutex);
 		return 0;
 	}
 
@@ -323,31 +330,35 @@ static int tcp_data(SensorPacket *p)
 	new_id  = new_data->id;
 	last_id = (new_data->prev) ? new_data->prev->id : 0;
 
+	mutex_unlock(&s->mutex);
+
 	add_in_joblist = (last_id) && (new_id == last_id + 1) ? 0 : 1;
-
-	mutex_unlock(&p->my_sensor->mutex);
-
+	
 	if(add_in_joblist)
-		return add_job(p->my_sensor, this_session, new_data);
+		return add_job(s, this_session, new_data);
 
 	return 1;
 }
 
-static int tcp_break(SensorPacket *p)
+static int pck_tcp_data(SensorPacket *p)
+{
+	unsigned stream_id = ntohl(*((u_int32_t *)(*p).header));
+	
+	return tcp_data(p->my_sensor, stream_id, p->data, p->data_len);
+}
+
+int tcp_break(Sensor *s, unsigned id)
 {
 	Session *this_session;
-	unsigned int stream_id;
-
 
 	DPRINTF("\n");	
-	stream_id = htonl(*((u_int32_t *)(*p).header));
-	DPRINTF("TCP Connection with Stream ID %u had a break\n", stream_id);
+	DPRINTF("TCP Connection with Stream ID %u had a break\n", id);
 
-	this_session = find_session(p->my_sensor,stream_id);
+	this_session = find_session(s, id);
 	if (!this_session)
 		return 0;
 
-	mutex_lock(&p->my_sensor->mutex);
+	mutex_lock(&s->mutex);
 
 	/* 
 	 * Increase data id counter. This way we can assure 
@@ -355,19 +366,63 @@ static int tcp_break(SensorPacket *p)
 	 */
 	this_session->next_data_id++;
 
-	mutex_unlock(&p->my_sensor->mutex);
+	mutex_unlock(&s->mutex);
 
 	return 1;
 }
 
+static int pck_tcp_break(SensorPacket *p)
+{
+	unsigned int stream_id;
 
-static int udp_data(SensorPacket *p)
+
+	stream_id = htonl(*((u_int32_t *)(*p).header));
+
+	return tcp_break(p->my_sensor, stream_id);
+}
+
+int udp_data(Sensor *s, const struct tuple4 *addr, void *payload, 
+		size_t len, unsigned id)
 {
 	int no_errors = 0;
-	struct tuple4 addr;
-	unsigned int id;
 	Session *new_session = NULL;
 	UDPData *new_data = NULL;
+
+	DPRINTF("\n");
+	DPRINTF("ID %u\n", id);
+	DPRINT_TUPLE4(addr);
+	DPRINTF("Data Length %u\n",len);
+
+	mutex_lock(&s->mutex);
+
+	/* Open a new session */
+	DPRINTF("Adding a new Session...\n");
+	new_session = add_session(s, id, addr, IPPROTO_UDP);
+	
+	/* Add the data */
+	if (new_session) {
+		DPRINTF("Session added, adding new Data...\n");
+		new_data = add_data (new_session, payload, len);
+	}
+
+	/* Close the session */
+	if (new_data != NULL) {
+		DPRINTF("Data Added, closing the session...\n");
+		no_errors = close_session(s, id);
+	}
+
+	mutex_unlock(&s->mutex);
+
+	if (no_errors)
+		return add_job(s, new_session, new_data);
+	else
+		return 0;
+}
+
+static int pck_udp_data(SensorPacket *p)
+{
+	struct tuple4 addr;
+	unsigned int id;
 
 	DPRINTF("\n");
 	id = ntohl(*((u_int32_t *)(*p).header));
@@ -375,33 +430,7 @@ static int udp_data(SensorPacket *p)
 	addr.d_port = *(u_int16_t *) ((*p).header + 6);
 	addr.s_addr = *(u_int32_t *) ((*p).header + 8);
 	addr.d_addr = *(u_int32_t *) ((*p).header + 12);
-	DPRINTF("ID %u\n", id);
-	DPRINTF("Source: %s:%u\n",int_ntoa(addr.s_addr), ntohs(addr.s_port));
-	DPRINTF("Destin: %s:%u\n",int_ntoa(addr.d_addr), ntohs(addr.d_port));
-	DPRINTF("Data Length %u\n",p->data_len);
 
-	mutex_lock(&p->my_sensor->mutex);
-
-	/* Open a new session */
-	DPRINTF("Adding a new Session...\n");
-	new_session = add_session (p->my_sensor, id, &addr, IPPROTO_UDP);
-	
-	/* Add the data */
-	if (new_session) {
-		DPRINTF("Session added, adding new Data...\n");
-		new_data = add_data (new_session, p->data, p->data_len);
-	}
-
-	/* Close the session */
-	if (new_data != NULL) {
-		DPRINTF("Data Added, closing the session...\n");
-		no_errors = close_session(p->my_sensor, id);
-	}
-
-	mutex_unlock(&p->my_sensor->mutex);
-
-	if (no_errors)
-		return add_job(p->my_sensor, new_session, new_data);
-	else return 0;
+	return udp_data(p->my_sensor, &addr, p->data, p->data_len, id);	
 }
 

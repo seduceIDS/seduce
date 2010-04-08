@@ -15,17 +15,17 @@ struct tuple4 {
 };
 
 typedef struct _TCPData {
-	unsigned char *payload;		/* The data pointer */
-	int length;			/* The data dength */
-	unsigned int id;		/* The data ID */
+	void *payload;			/* The data pointer */
+	size_t length;			/* The data dength */
+	unsigned id;			/* The data ID */
 
 	struct _TCPData *next;
 	struct _TCPData *prev;
 } TCPData;
 
 typedef struct _UDPData {
-	unsigned char *payload;		/* The data pointer */
-	int length;			/* The data length */
+	void *payload;			/* The data pointer */
+	size_t length;			/* The data length */
 } UDPData;
 
 typedef struct _Session {
@@ -91,20 +91,20 @@ typedef struct _SensorList {
 /* Functions */
 void init_sensorlist (void);
 
-int  add_sensor    (struct in_addr, unsigned short port, Sensor **);
-int close_sensor  (Sensor *);
-int destroy_sensor (Sensor *);
+int  add_sensor(struct in_addr, unsigned short port, Sensor **);
+int close_sensor(Sensor *);
+int destroy_sensor(Sensor *);
 
-Session * add_session (Sensor *, unsigned int, struct tuple4 *, int proto);
-Session * find_session (Sensor *, unsigned int stream_id);
-int close_session (Sensor *, unsigned int stream_id);
+Session * add_session(Sensor *, unsigned, const struct tuple4 *, int proto);
+Session * find_session(Sensor *, unsigned stream_id);
+int close_session(Sensor *, unsigned stream_id);
 
 /* returns a TCPData or UDPData pointer */ 
-void *add_data (Session *, unsigned char * payload, int length);
+void *add_data(Session *, void *payload, size_t len);
 
-TCPData *get_next_data (TCPData *);
+TCPData *get_next_data(const TCPData *);
 
-int destroy_data (DataInfo *);
-int destroy_datagroup (DataInfo *);
+int destroy_data(DataInfo *);
+int destroy_datagroup(DataInfo *);
 
 #endif /* _DATA_H */
