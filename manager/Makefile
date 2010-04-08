@@ -41,7 +41,7 @@ $(NAME): $(OBJS) $(HEADERS)
 	$(CC) -o $@ $(OBJS) $(LIBS)
 
 clean:
-	rm -f *.o *~ manager
+	rm -f *.o *~ a.out manager
 
 install: install-bin install-conf
 	@echo $(NAME) installation completed

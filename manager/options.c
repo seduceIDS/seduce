@@ -22,6 +22,11 @@ typedef struct _CommandLineOptions {
 
 static CLO clo;
 
+void clear_manager_clops()
+{
+	memset(&clo, '\0', sizeof(CLO));
+}
+
 /* 
  * The next 2 values define the acceptable port range for the agent and sensor
  * servers. The values were not picked randomly. Actually to open a port which 
@@ -41,26 +46,50 @@ static CLO clo;
 #define MAX_SENSORS	8
 #define PASSWORD	"password"
 
-static void printusage(int rc)
+char *get_manager_usage()
 {
-	fprintf(stderr,
-		"\nUsage:\n%s [-h] [-a<agent_port>] [-A<max_agents>] "
-		"[-l<mem_softlimit>] [-L<mem_hardlimit>] "
-		"[-s<sensor_port>] [-S<max_sensors>] [-p<password>]\n\n"
+	static char usage[] = 
+#ifndef TWO_TIER_ARCH
+		" [-h] [-s<sensor_port>] [-S<max_sensors>]"
+#endif
+		" [-a<agent_port>] [-A<max_agents>] "
+		"[-l<mem_softlimit>] [-L<mem_hardlimit>]  [-p<password>]";
+	return usage;
+}
+
+
+char *get_manager_usage_details()
+{
+	static char usage[] =
+#ifndef TWO_TIER_ARCH
 		"  h: Print this message.\n"
 		"  c: Confuguration file. E.g. `manager.conf'.\n"
+		"  s: Specify the port to listen for sensor connections. "
+		"Default value is 28001.\n"
+		"  S: Maximum number of sensor connections allowed. "
+		"The Default value is 8.\n"
+#endif
 		"  P: Password for the agents.\n"
 		"  a: Specify the port to listen for agent requests. "
 		"Default value is 28002.\n"
 		"  A: Maximum number of agents allowed. "
 		"Default value is 256.\n"
 		"  l: Memory usage soft limit in Mb. E.g. `400'.\n"
-		"  L: Memory usage hard limit in Mb. E.g. `390'.\n"
-		"  s: Specify the port to listen for sensor connections. "
-		"Default value is 28001.\n"
-		"  S: Maximum number of sensor connections allowed. "
-		"The Default value is 8.\n\n",
-		mpv.prog_name);
+		"  L: Memory usage hard limit in Mb. E.g. `390'.\n";
+	
+	return usage;
+}
+
+static void printusage(int rc)
+{
+	fprintf(stderr,"\nUsage:\n%s [-h] %s\n%s\n",mpv.prog_name,
+			get_manager_usage(), get_manager_usage_details());
+	exit(rc);
+}
+
+static void hlpmsg(int rc)
+{
+	fprintf(stderr,"Type `%s -h' for help.\n", mpv.prog_name);
 	exit(rc);
 }
 
@@ -148,9 +177,11 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 void validate_manager_fileopts(cfg_t *cfg)
 {
 	/* set validation callback functions */
+#ifndef TWO_TIER_ARCH
 	cfg_set_validate_func(cfg, "sensors_port", cfg_validate);
-	cfg_set_validate_func(cfg, "agents_port", cfg_validate);
 	cfg_set_validate_func(cfg, "max_sensors", cfg_validate);
+#endif
+	cfg_set_validate_func(cfg, "agents_port", cfg_validate);
 	cfg_set_validate_func(cfg, "max_agents", cfg_validate);
 	cfg_set_validate_func(cfg, "password", cfg_validate);
 	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
@@ -160,11 +191,11 @@ void validate_manager_fileopts(cfg_t *cfg)
 cfg_opt_t *get_manager_fileopts()
 {
 	static cfg_opt_t opts[] = {
-		CFG_SIMPLE_INT("agents_port", &mpv.agent_port),
 #ifndef TWO_TIER_ARCH
 		CFG_SIMPLE_INT("sensors_port", &mpv.sensor_port),
 		CFG_SIMPLE_INT("max_sensors", &mpv.max_sensors),
 #endif
+		CFG_SIMPLE_INT("agents_port", &mpv.agent_port),
 		CFG_SIMPLE_INT("max_agents", &mpv.max_agents),
 		CFG_SIMPLE_INT("mem_softlimit", &mpv.mem_softlimit),
 		CFG_SIMPLE_INT("mem_hardlimit", &mpv.mem_hardlimit),
@@ -316,12 +347,7 @@ static void get_cloptions(int argc, char *argv[])
 
 	return;
 err:
-	printusage(1);
-}
-
-void clear_manager_clops()
-{
-	memset(&clo, '\0', sizeof(CLO));
+	hlpmsg(1);
 }
 
 void fill_manager_progvars(int argc, char *argv[])
@@ -396,7 +422,6 @@ void fill_manager_progvars(int argc, char *argv[])
 	}
 
 	if(clo.password) {
-		fprintf(stderr, "I'm in  password\n");
 		if(!validate_password(clo.password)) {
 			fprintf(stderr, "Password can't be longer than %d "
 					"characters\n", MAX_PWD_SIZE);
