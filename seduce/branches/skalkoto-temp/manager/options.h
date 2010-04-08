@@ -12,4 +12,7 @@ void validate_manager_fileopts(cfg_t *cfg);
 
 void fill_manager_progvars(int, char **);
 
+char *get_manager_usage();
+char *get_manager_usage_details();
+
 #endif /* _MANAGER_OPTIONS_H */

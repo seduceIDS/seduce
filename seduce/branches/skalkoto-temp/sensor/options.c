@@ -31,19 +31,48 @@ static void hlpmsg(int rc)
 	exit(rc);
 }
 
+char *get_sensor_usage()
+{
+	static char usage[] =
+		"[-c <config_file>] [-h] [-i<interface>] "
+#ifndef TWO_TIER_ARCH
+		"[-s<server_address>] "
+#endif
+		"[-n<home_network>] [-p<portlist>] ";
+
+	return usage;
+}
+
+char *get_sensor_usage_details()
+{
+	static char usage[] =
+		"  h: Print this help message.\n"
+		"  c: Specify a config file. `E.g. sensor.conf'.\n"
+		"  i: Network interface. E.g. `eth0', `eth1'.\n"
+		"  n: Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
+#ifndef TWO_TIER_ARCH
+		"  s: Server Address in HOST:Port format. "
+		       "E.g. `localhost:3540'.\n"
+#endif
+		"  p: Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n";
+
+	return usage;
+}
+
+
 static void printusage(int rc)
 {
+#ifndef TWO_TIER_ARCH
 	fprintf(stderr, 
-		"\nUsage:\n%s [-c <config_file>] [-h] [-i<interface>] "
-		"[-n<home_network>] [-p<portlist>] [-s<server_address>]\n\n"
-		"  h : Print this help message.\n"
-		"  c : Specify a config file. `E.g. sensor.conf'.\n"
-		"  i : Network interface. E.g. `eth0', `eth1'.\n"
-		"  n : Home network in CIDR notation. E.g. `10.10.1.32/27'.\n"
-		"  s : Server Address in HOST:Port format. "
-		       "E.g. `localhost:3540'.\n"
-		"  p : Portlist to sniff. E.g. `[1-80],T:6000,U:531'.\n\n",
-		spv.prog_name);
+		"\nUsage:\n%s %s\n%s\n", spv.prog_name,
+		get_sensor_usage(), get_sensor_usage_details());
+#else
+	fprintf(stderr, 
+		"\nUsage:\n%s %s%s\n%s%s\n", spv.prog_name,
+		get_sensor_usage(), get_manager_usage(),
+	       	get_sensor_usage_details(), get_manager_usage_details());
+#endif
+
 	exit(rc);
 }
 

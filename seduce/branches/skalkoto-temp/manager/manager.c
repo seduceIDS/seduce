@@ -43,6 +43,7 @@ static void start_agents_thread(void)
 	create_thread (agents_contact, NULL);
 }
 
+#ifndef TWO_TIER_ARCH
 static void start_sensor_thread(int socket, struct in_addr ip, 
 						unsigned short port)
 {
@@ -60,6 +61,7 @@ static void start_sensor_thread(int socket, struct in_addr ip,
 
 	create_thread ((void *)sensor_contact, data);
 }
+#endif
 
 
 int start_manager(void)
