@@ -5,13 +5,30 @@
 #include <netinet/in.h> /* for struct in_addr */
 
 #ifdef _DEBUG
-	#define DPRINTF(...) do {\
-		fprintf(stderr,"%s:\t",__func__); \
-		fprintf(stderr, __VA_ARGS__); \
-	} while(0)
+
+#define DPRINTF(...) do { \
+	fprintf(stderr,"%s:\t",__func__); \
+	fprintf(stderr, __VA_ARGS__); \
+} while(0)
+
+#define int_ntoa(x) inet_ntoa(*((struct in_addr *)&x))
+
+#define DPRINT_ADDR(MSG, IP, PORT) \
+	DPRINTF("%s: %s:%u\n", MSG, int_ntoa(IP), PORT)
+
+#define DPRINT_TUPLE4(x) do { \
+	DPRINT_ADDR("Source", (x)->s_addr, (x)->s_port); \
+	DPRINT_ADDR("Destin", (x)->d_addr, (x)->d_port); \
+} while (0)
+
 #else
-	#define DPRINTF(...)
-#endif
+
+#define DPRINTF(...)
+#define int_ntoa(x) ""
+#define DPRINT_ADDR(MSG, IP, PORT)
+#define DPRINT_TUPLE4(x)
+
+#endif /* _DEBUG */
 
 #undef  MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -34,4 +51,4 @@ int str2num(const char *);
 int addrtok(char *buf, struct in_addr *addr, unsigned short *port);
 int get_empty_line(int sock);
 
-#endif
+#endif /* _UTILS_H */

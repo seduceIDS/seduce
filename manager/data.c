@@ -205,7 +205,7 @@ Session *find_session(Sensor *sensor, unsigned int stream_id)
  * Returns: Pointer to the newly added session on success, NULL on error
  */
 Session *add_session(Sensor *sensor, unsigned int stream_id,
-		     		struct tuple4 *addr, int proto)
+		     		const struct tuple4 *addr, int proto)
 {
 	Session *new_session;
 	unsigned int correct_id; 
@@ -328,7 +328,7 @@ static void close_all_sessions(Sensor *sensor)
 }
 
 
-static TCPData *add_tcpdata(Session *session, unsigned char *data, int length)
+static TCPData *add_tcpdata(Session *session, void *data, size_t length)
 {
 	TCPData *data_struct;
 
@@ -356,7 +356,7 @@ static TCPData *add_tcpdata(Session *session, unsigned char *data, int length)
 }
 
 
-static UDPData *add_udpdata(Session *session, unsigned char *data, int length)
+static UDPData *add_udpdata(Session *session, void *data, size_t length)
 {
 	UDPData *data_struct;
 
@@ -375,7 +375,7 @@ static UDPData *add_udpdata(Session *session, unsigned char *data, int length)
 
 
 /*
- * Function: add_data(Session *, char *, int)
+ * Function: add_data(Session *, void *, size_t)
  *
  * Purpose: Add new data under a session
  *
@@ -388,7 +388,7 @@ static UDPData *add_udpdata(Session *session, unsigned char *data, int length)
 
 #define OOM_WAKEUP_THRESHOLD	10
 
-void *add_data(Session *session, unsigned char *data, int length)
+void *add_data(Session *session, void *data, size_t length)
 {
 	static int cnt = 0;
 	void * ret;
@@ -426,7 +426,7 @@ void *add_data(Session *session, unsigned char *data, int length)
 	return ret;
 }
 
-inline TCPData *get_next_data(TCPData *data)
+inline TCPData *get_next_data(const TCPData *data)
 {
 	if(!data->next)
 		return NULL;
