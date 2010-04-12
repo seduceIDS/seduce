@@ -79,6 +79,19 @@ typedef struct _DataInfo {	/* A triplet that defines a unite of data */
 	int is_grouphead; /* Are those data the head of a group? */
 } DataInfo;
 
+typedef struct _Group {
+	struct _Group *next;
+	struct _Group *prev;
+	DataInfo grouphead; /* The heading data of a group */
+} Group;
+
+typedef struct _GroupList {
+	Group *head;
+	Group *tail;
+	int cnt;
+	pthread_mutex_t mutex;
+} GroupList;
+
 typedef struct _SensorList {
 	Sensor *head;
 	Sensor *tail;
@@ -89,7 +102,7 @@ typedef struct _SensorList {
 
 
 /* Functions */
-void init_sensorlist (void);
+void init_datalists(void);
 
 int  add_sensor(struct in_addr, unsigned short port, Sensor **);
 int close_sensor(Sensor *);
@@ -106,5 +119,8 @@ TCPData *get_next_data(const TCPData *);
 
 int destroy_data(DataInfo *);
 int destroy_datagroup(DataInfo *);
+
+int add_group(Sensor *, Session *, void *);
+int consume_group(int (*func)(), void * params);
 
 #endif /* _DATA_H */
