@@ -7,9 +7,11 @@
 GHashTable *new_hash_table(void);
 void destroy_hash_table(GHashTable *);
 
+#ifndef TWO_TIER_ARCH
 Sensor *hash_sensor_insert(GHashTable *, unsigned int);
 Sensor *hash_sensor_lookup(GHashTable *, unsigned int);
 int     hash_sensor_remove(GHashTable *, unsigned int);
+#endif
 
 Session *hash_session_insert(GHashTable *, unsigned int);
 Session *hash_session_lookup(GHashTable *, unsigned int);

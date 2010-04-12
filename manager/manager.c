@@ -42,7 +42,25 @@ static void start_agents_thread(void)
 	create_thread (agents_contact, NULL);
 }
 
-#ifndef TWO_TIER_ARCH
+#ifdef TWO_TIER_ARCH
+int start_manager(void)
+{
+	/* Initialization functions */
+	init_datalists();
+	init_alertlist();
+	init_oom_handler();
+	init_alert_receiver();
+
+	/* thread starting functions */
+	start_alert_thread();
+	start_agents_thread();
+	start_oom_handler();
+
+	return 0;
+}
+
+#else /* THREE_TIER_ARCH */
+
 static void start_sensor_thread(int socket, struct in_addr ip, 
 						unsigned short port)
 {
@@ -60,12 +78,12 @@ static void start_sensor_thread(int socket, struct in_addr ip,
 
 	create_thread ((void *)sensor_contact, data);
 }
-#endif
 
 
 int start_manager(void)
 {
-	int sockfd, connfd, one;
+	int sockfd, one;
+	int connfd;
 	struct sockaddr_in my_addr;
 	struct sockaddr_in their_addr;
 	socklen_t addr_len;
@@ -90,7 +108,6 @@ int start_manager(void)
 	if (listen(sockfd, 10) == -1)
 		errno_abort("listen");
 
-
 	/* Initialization functions */
 	init_datalists();
 	init_alertlist();
@@ -101,7 +118,7 @@ int start_manager(void)
 	start_alert_thread();
 	start_agents_thread();
 	start_oom_handler();
-#ifndef TWO_TIER_ARCH
+
 	/* Wait for new sensor connections */
 	while (1) {
 		addr_len = sizeof(their_addr);
@@ -117,11 +134,9 @@ int start_manager(void)
 		start_sensor_thread(connfd, their_addr.sin_addr,
 							their_addr.sin_port);
 	}
-#endif
 	return 0;
 }
 
-#ifndef TWO_TIER_ARCH
 int main(int argc, char *argv[])
 {
 	fill_manager_progvars(argc, argv);

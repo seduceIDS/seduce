@@ -180,12 +180,13 @@ static void remove_agent(Agents *agents, unsigned int id)
 		mutex_lock(&this_agent->history.sensor->mutex);
 		ret = destroy_datagroup(&this_agent->history);
 		mutex_unlock(&this_agent->history.sensor->mutex);
-
+#ifndef TWO_TIER_ARCH
 		if(ret == 2) {
 			mutex_lock(&sensorlist.mutex);
 			destroy_sensor(this_agent->history.sensor);
 			mutex_unlock(&sensorlist.mutex);
 		}
+#endif
 
 	}
 
@@ -292,10 +293,10 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 
 	if(work->is_grouphead) {
 		*(u_int32_t *)(buf + 16) = htonl(work->session->proto);
-		*(u_int16_t *)(buf + 20) = work->session->addr.s_port;
-		*(u_int16_t *)(buf + 22) = work->session->addr.d_port;
-		*(u_int32_t *)(buf + 24) = work->session->addr.s_addr;
-		*(u_int32_t *)(buf + 28) = work->session->addr.d_addr;
+		*(u_int16_t *)(buf + 20) = work->session->addr.source;
+		*(u_int16_t *)(buf + 22) = work->session->addr.dest;
+		*(u_int32_t *)(buf + 24) = work->session->addr.saddr;
+		*(u_int32_t *)(buf + 28) = work->session->addr.daddr;
 		memcpy(buf + 32, payload, payload_length); 
 	} else
 		memcpy(buf + 16, payload, payload_length);
@@ -345,7 +346,7 @@ static int send_new_work(AgentInfo *agent)
 
 		mutex_unlock(&agent->history.sensor->mutex);
 
-
+#ifndef TWO_TIER_ARCH
 		/* If safe, destroy the sensor too */
 		if(ret == 2) {
 
@@ -355,6 +356,7 @@ static int send_new_work(AgentInfo *agent)
 
 			mutex_unlock(&sensorlist.mutex);
 		}
+#endif
 	}
 
 	ret = consume_group(send_work, agent);
@@ -536,8 +538,8 @@ static void process_udp_packet(Agents *agents, UDPPacket *pck)
 			send_current_work(this_agent);
 		}
 	}
-	else if(pck->seq == (this_agent->seq + 1)) { /* new_request */
-
+	else if(pck->seq == (this_agent->seq + 1)) {
+		/* new_request */
 		switch(pck->type) {
 		case UDP_NEW_WORK:
 			this_agent->seq = pck->seq;

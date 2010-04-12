@@ -17,8 +17,8 @@
 	DPRINTF("%s: %s:%u\n", MSG, int_ntoa(IP), PORT)
 
 #define DPRINT_TUPLE4(x) do { \
-	DPRINT_ADDR("Source", (x)->s_addr, (x)->s_port); \
-	DPRINT_ADDR("Destin", (x)->d_addr, (x)->d_port); \
+	DPRINT_ADDR("Source", (x)->saddr, (x)->source); \
+	DPRINT_ADDR("Destin", (x)->daddr, (x)->dest); \
 } while (0)
 
 #else

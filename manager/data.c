@@ -3,6 +3,7 @@
  */
 
 #include <strings.h>
+#include <stdio.h>
 
 #include "manager.h"
 #include "data.h"
@@ -11,17 +12,44 @@
 #include "utils.h"
 #include "oom_handler.h"
 
+/* The grouplist (not to be viewed outside the file) */
+static GroupList grouplist;
+
+#ifdef TWO_TIER_ARCH
+
+Sensor default_sensor;
+
+void init_datalists(void)
+{
+	/* Initialize the default sensor */
+
+	default_sensor.id_start = get_rand();
+
+	mutex_init (&default_sensor.mutex);
+
+	default_sensor.hash = new_hash_table();
+	if (default_sensor.hash == NULL) {
+		fprintf(stderr,
+			"Couldn't initialize the hash tabe of the sensor\n");
+		exit(1);
+	}
+
+	/* Initialize the Group list */
+	grouplist.head = grouplist.tail = NULL;
+	grouplist.cnt = 0;
+
+	mutex_init (&grouplist.mutex);
+}
+
+#else /* TREE_TIER_ARCH */
 
 /* The Sensor List */
 SensorList sensorlist;
 
-/* The grouplist (not to be viewed outside the file) */
-static GroupList grouplist;
-
 /*
- * Function: init_sensorlist()
+ * Function: init_datalists()
  *
- * Purpose: Initialize the sensorlist struct
+ * Purpose: Initialize the sensorlist and the grouplist struncts
  */
 void init_datalists(void)
 {
@@ -179,6 +207,7 @@ int destroy_sensor(Sensor *this_sensor)
 	return	hash_sensor_remove(sensorlist.hash, this_sensor->id);
 }
 
+#endif /* THREE_TIER_ARCH */
 
 /*
  * Function: find_session(Sensor *, unsigned int)
@@ -282,11 +311,11 @@ int destroy_session(Sensor *sensor, Session *session)
 	ret = hash_session_remove(sensor->hash, session->id);
 	if(!ret)
 		return 0;
-
+#ifndef TWO_TIER_ARCH
 	/* Do we need to remove the sensor too? */
 	if((!sensor->sessionlist_head) && (sensor->is_connected == NO))
 		return 2;
-
+#endif
 	return 1;
 }
 
