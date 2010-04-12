@@ -7,7 +7,6 @@
 
 #include "sensor_contact.h"
 #include "errors.h"
-#include "job.h"
 #include "data.h"
 #include "utils.h"
 
@@ -307,7 +306,7 @@ int tcp_data(Sensor *s, unsigned id, void *payload, size_t len)
 	Session *this_session;
 	TCPData *new_data = NULL;
 	unsigned int new_id, last_id;
-	int add_in_joblist; /* Do we add the new data in the joblist? */
+	int add_in_grouplist; /* Do we add the new data in the grouplist? */
 
 	DPRINTF("\n");
 	DPRINTF("DATA for TCP with stream ID %u\n", id);
@@ -325,17 +324,17 @@ int tcp_data(Sensor *s, unsigned id, void *payload, size_t len)
 	}
 
 	/* If the new data have an ID that is equal to previous data ID + 1
-	 * we don't add them in the joblist.*/
+	 * we don't add them in the grouplist.*/
 
 	new_id  = new_data->id;
 	last_id = (new_data->prev) ? new_data->prev->id : 0;
 
 	mutex_unlock(&s->mutex);
 
-	add_in_joblist = (last_id) && (new_id == last_id + 1) ? 0 : 1;
+	add_in_grouplist = (last_id) && (new_id == last_id + 1) ? 0 : 1;
 	
-	if(add_in_joblist)
-		return add_job(s, this_session, new_data);
+	if(add_in_grouplist)
+		return add_group(s, this_session, new_data);
 
 	return 1;
 }
@@ -414,7 +413,7 @@ int udp_data(Sensor *s, const struct tuple4 *addr, void *payload,
 	mutex_unlock(&s->mutex);
 
 	if (no_errors)
-		return add_job(s, new_session, new_data);
+		return add_group(s, new_session, new_data);
 	else
 		return 0;
 }

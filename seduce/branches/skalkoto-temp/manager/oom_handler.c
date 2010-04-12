@@ -3,7 +3,7 @@
 #include "oom_handler.h"
 #include "utils.h"
 #include "manager.h"
-#include "job.h"
+#include "data.h"
 
 pthread_mutex_t oom_mutex;
 pthread_cond_t oom_cond;
@@ -47,9 +47,9 @@ static int free_memory(int limit_to_reach)
 	DPRINTF("Freeing memory");
 
 	do {
-		int ret = consume_job(destroy_datagroup, NULL);
+		int ret = consume_group(destroy_datagroup, NULL);
 		if(ret == -1) {
-			/* joblist is empty, couldn't delete enough data */
+			/* grouplist is empty, couldn't delete enough data */
 			return 0;
 		} else if(ret == 2) {
 			/* 

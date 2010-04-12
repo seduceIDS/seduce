@@ -17,7 +17,6 @@
 #include "errors.h"
 #include "utils.h"
 #include "data.h"
-#include "job.h"
 #include "alert.h"
 #include "oom_handler.h"
 #include "alert_recv.h"
@@ -93,8 +92,7 @@ int start_manager(void)
 
 
 	/* Initialization functions */
-	init_sensorlist();
-	init_joblist();
+	init_datalists();
 	init_alertlist();
 	init_oom_handler();
 	init_alert_receiver();

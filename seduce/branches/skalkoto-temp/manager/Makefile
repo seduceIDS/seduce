@@ -22,13 +22,11 @@ LIBS		= `pkg-config --libs glib-2.0` \
 		  `libprelude-config --libs` \
 		  -lpthread -lm -lconfuse
 
-OBJS		= manager.o sensor_contact.o data.o hash.o job.o \
-		  alert.o utils.o agent_contact.o thread.o options.o \
-		  oom_handler.o alert_recv.o
+OBJS		= manager.o sensor_contact.o data.o hash.o alert.o utils.o \
+		  agent_contact.o thread.o options.o oom_handler.o alert_recv.o
 
 HEADERS		= data.h sensor_contact.h agent_contact.h hash.h errors.h \
-		  job.h alert.h utils.h thread.h oom_handler.h alert_recv.h \
-		  options.h
+		  alert.h utils.h thread.h oom_handler.h alert_recv.h options.h
 
 .PHONY: all clean install install-bin install-conf
 

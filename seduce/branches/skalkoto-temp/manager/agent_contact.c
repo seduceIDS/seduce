@@ -12,7 +12,6 @@
 #include "utils.h"
 #include "hash.h"
 #include "errors.h"
-#include "job.h"
 #include "alert_recv.h"
 
 
@@ -323,7 +322,7 @@ static int send_work(AgentInfo *agent, DataInfo *work)
 /*
  * Function: send_new_work(AgentInfo *)
  *
- * Purpose: send new work to an agent, by removing it from the joblist
+ * Purpose: send new work to an agent, by removing it from the grouplist
  *
  * Arguments:  agent=> struct with info about an agent
  *
@@ -358,8 +357,8 @@ static int send_new_work(AgentInfo *agent)
 		}
 	}
 
-	ret = consume_job(send_work, agent);
-	if (ret != -1)  /* a job was consumed */
+	ret = consume_group(send_work, agent);
+	if (ret != -1)  /* a group was consumed */
 		return ret;
 
 	/* Clear the history */
