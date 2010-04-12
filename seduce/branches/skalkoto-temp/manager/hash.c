@@ -18,6 +18,7 @@ void destroy_hash_table (GHashTable *hash)
 	g_hash_table_destroy(hash);
 }
 
+#ifndef TWO_TIER_ARCH
 		/* Sensor functions */
 Sensor *hash_sensor_insert(GHashTable *hash, unsigned int id)
 {
@@ -45,6 +46,7 @@ int hash_sensor_remove(GHashTable *hash, unsigned int id)
 
 	return (ret == TRUE) ? 1 : 0;
 }
+#endif
 
 		/* Session functions */
 Session *hash_session_insert(GHashTable *hash, unsigned int id)

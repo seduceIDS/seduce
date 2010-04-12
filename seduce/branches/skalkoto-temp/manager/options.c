@@ -233,7 +233,7 @@ const char *get_manager_optstring(void)
 {
 #ifndef TWO_TIER_ARCH
 	return "a:A:c:hl:L:P:s:S:";
-#else
+#else /* THREE_TIER_ARCH */
 	return "a:A:l:L:P:";
 #endif
 }

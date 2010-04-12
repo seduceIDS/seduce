@@ -52,14 +52,15 @@ static int free_memory(int limit_to_reach)
 			/* grouplist is empty, couldn't delete enough data */
 			return 0;
 		} else if(ret == 2) {
+#ifndef TWO_TIER_ARCH
 			/* 
 			 * TODO: this is really important!!! I need to destroy
 			 * a sensor but I don't know which. I think I cannot
 			 * avoid searching the hole sensor list to find the one
 			 * that has sessionlist_head == NULL & is_connected = NO
 			 */
+#endif
 		}
-
 		mem = compute_mem_usage();
 
 	} while(mem > limit_to_reach);

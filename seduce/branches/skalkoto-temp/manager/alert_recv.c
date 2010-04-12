@@ -283,14 +283,14 @@ static int new_alrt(Alert **ap)
 static int exec_submit(int sock, Alert **ap)
 {
 	/* check SRC_ADDRESS */
-	if((*ap)->addr.s_port == 0) {
+	if((*ap)->addr.source == 0) {
 		if(proto_reply(sock, "ERROR: Source address is missing. "
 				"Please run SRC_ADDR command\n")) return -1;
 		return 0;
 	}
 
 	/* check DST_ADDRESS */
-	if((*ap)->addr.d_port == 0) {
+	if((*ap)->addr.dest == 0) {
 		if(proto_reply(sock, "ERROR: Destination address is missing. "
 				"Please run SRC_ADDR command\n")) return -1;
 		return 0;
@@ -395,8 +395,8 @@ static int exec_src_addr(int sock, Alert *a, char *str)
 		return 0;
 	}
 
-	a->addr.s_port = port;
-	a->addr.s_addr = (u_int32_t) addr.s_addr;
+	a->addr.source = port;
+	a->addr.saddr = (u_int32_t) addr.s_addr;
 
 	return 1;
 }
@@ -425,8 +425,8 @@ static int exec_dst_addr(int sock, Alert *a, char *str)
 		return 0;
 	}
 
-	a->addr.d_port = port;
-	a->addr.d_addr = (u_int32_t) addr.s_addr;
+	a->addr.dest = port;
+	a->addr.daddr = (u_int32_t) addr.s_addr;
 
 	return 1;
 }
@@ -602,18 +602,18 @@ static int exec_print(int sock, Alert *a, char *arg)
 
 	if(proto_reply(sock, "\nCurrent Alert Data\n")) return -1;
 
-	tmp_addr.s_addr = a->addr.s_addr;
+	tmp_addr.s_addr = a->addr.saddr;
 	sprintf(buf, "Source Address:\t%s\n",inet_ntoa(tmp_addr));
 	if(proto_reply(sock, buf)) return -1;
 
-	sprintf(buf, "Source Port:\t%d\n", a->addr.s_port);
+	sprintf(buf, "Source Port:\t%d\n", a->addr.source);
 	if(proto_reply(sock, buf)) return -1;
 
-	tmp_addr.s_addr = a->addr.d_addr;
+	tmp_addr.s_addr = a->addr.daddr;
 	sprintf(buf, "Dest. Address:\t%s\n",inet_ntoa(tmp_addr));
 	if(proto_reply(sock, buf)) return -1;
 
-	sprintf(buf, "Dest. Port:\t%d\n", a->addr.d_port);
+	sprintf(buf, "Dest. Port:\t%d\n", a->addr.dest);
 	if(proto_reply(sock, buf)) return -1;
 
 	sprintf(buf, "Protocol Num.:\t%d\n", a->proto);

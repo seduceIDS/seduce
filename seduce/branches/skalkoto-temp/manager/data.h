@@ -8,11 +8,20 @@
 
 #include "thread.h"
 
-
-struct tuple4 {
-	u_int16_t s_port,d_port;	/* source and destination port */
-	u_int32_t s_addr,d_addr;	/* source and destination ip   */
+#ifndef TWO_TIER_ARCH
+struct tuple4
+{
+  u_short source; /* source port */
+  u_short dest;   /* destination port */
+  u_int saddr;    /* source address */
+  u_int daddr;    /* destination address */
 };
+
+#else /* TWO_TIER_ARCH */
+
+#include <nids.h> /* for struct tuple4 */
+
+#endif /* TWO_TIER_ARCH */
 
 typedef struct _TCPData {
 	void *payload;			/* The data pointer */
@@ -50,8 +59,9 @@ typedef struct _Session {
 } Session;
 
 typedef struct _Sensor {
-	struct _Sensor *next;
 
+#ifndef TWO_TIER_ARCH
+	struct _Sensor *next;
 	int is_connected;		/* Is the Sensor still connected? */
 	time_t start;			/* Connect time */
 	time_t stop;			/* Close time */
@@ -59,7 +69,7 @@ typedef struct _Sensor {
 	u_int16_t port;			/* Sensor's Port */
 	struct in_addr ip;		/* Sensor's Address */
 	unsigned int id;
-
+#endif
 	Session *sessionlist_head;
 	Session *sessionlist_tail;
 
@@ -104,9 +114,11 @@ typedef struct _SensorList {
 /* Functions */
 void init_datalists(void);
 
+#ifndef TWO_TIER_ARCH
 int  add_sensor(struct in_addr, unsigned short port, Sensor **);
 int close_sensor(Sensor *);
 int destroy_sensor(Sensor *);
+#endif
 
 Session * add_session(Sensor *, unsigned, const struct tuple4 *, int proto);
 Session * find_session(Sensor *, unsigned stream_id);
