@@ -313,6 +313,7 @@ int close_stream_connection(int sockfd, unsigned *stream_id)
 int send_stream_data(int sockfd, unsigned stream_id, const void *data, 
 		     size_t datalen)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	unsigned int hdrlen;
 	char buf[12];
@@ -342,6 +343,15 @@ int send_stream_data(int sockfd, unsigned stream_id, const void *data,
 	}
 
 	return 1;
+#else
+	void *data_copy = malloc(datalen);
+	if(data_copy == NULL) {
+		perror("malloc");
+		return 0;
+	}
+
+	return tcp_data(stream_id, data_copy, datalen);
+#endif
 }
 
 /*
@@ -395,6 +405,7 @@ int break_stream_data(int sockfd, unsigned int stream_id)
 int send_dgram_data(int sockfd, const struct tuple4 *udp_addr, 
 		    const void *data, size_t datalen, enum data_t type)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	unsigned int hdrlen;
 	unsigned int id;
@@ -432,4 +443,17 @@ int send_dgram_data(int sockfd, const struct tuple4 *udp_addr,
 	}
 
 	return 1;
+#else
+	void *data_copy;
+
+	data_copy = malloc(datalen);
+	if(data_copy == NULL) {
+		perror("malloc");
+		return 0;
+	}
+
+	memcpy(data_copy, data, datalen);
+
+	return udp_data(udp_addr, data_copy, datalen, get_new_id());
+#endif
 }
