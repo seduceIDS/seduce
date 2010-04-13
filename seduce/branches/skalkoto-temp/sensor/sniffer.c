@@ -127,13 +127,13 @@ int init_sniffer(void)
 		fprintf(stderr,"Error in all_local_ipaddrs_chksum_disable\n");
 		return 0;
 	}
-
+#ifndef TWO_TIER_ARCH
 	/* connect to the manager */
 	if (manager_connect(&sockfd, spv.server_addr, spv.server_port) == 0) {
 		fprintf(stderr,"Can't Connect to the Server\n");
 		return 0;
 	}
-
+#endif
 	return 1;
 }
 
