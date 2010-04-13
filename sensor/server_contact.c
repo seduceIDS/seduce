@@ -15,6 +15,10 @@
 
 #include "server_contact.h"
 
+#ifdef TWO_TIER_ARCH
+#include "../manager/sensor_contact.h"
+#endif
+
 /* 
  * Returns the next available ID
  */
@@ -219,6 +223,7 @@ int manager_disconnect(int sockfd)
 int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 			  unsigned int **stream_id, enum data_t type)
 {
+#ifndef TWO_TIER_ARCH
 	unsigned int msglen;
 	char buf[24];
 
@@ -227,7 +232,6 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 		return 0;
 	}
 
-#ifndef TWO_TIER_ARCH
 	/* Fill the packet buffer with data in Network Byte Order */
 	msglen = 24;
 	*(u_int32_t *)(buf +  0) = htonl(msglen);
@@ -246,7 +250,13 @@ int new_stream_connection(int sockfd, const struct tuple4 *tcp_addr,
 
 	return 1;
 #else /* TWO_TIER_ARCH */
-	return 	new_tcp(**stream_id, &a_tcp->addr);
+
+	if ((*stream_id = init_stream()) == NULL) {
+		fprintf(stderr, "Could not get new stream id\n");
+		return 0;
+	}
+
+	return 	new_tcp(**stream_id, tcp_addr);
 #endif
 }
 
@@ -281,7 +291,7 @@ int close_stream_connection(int sockfd, unsigned *stream_id)
 		return 0;
 	}
 #else /* TWO_TIER_ARCH */
-	close_tcp(**stream_id);
+	close_tcp(*stream_id);
 #endif
 	free(stream_id);
 
@@ -366,7 +376,7 @@ int break_stream_data(int sockfd, unsigned int stream_id)
 
 	return 1;
 #else /* TWO_TIER_ARCH */
-	return tcp_break(**stream_id);
+	return tcp_break(stream_id);
 #endif
 }
 

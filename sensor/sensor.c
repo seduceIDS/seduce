@@ -5,7 +5,7 @@
 #include "sniffer.h"
 
 #ifdef TWO_TIER_ARCH
-include "../manager/manager.h"
+#include "../manager/manager.h"
 #endif
 
 extern void fill_progvars(int, char **);

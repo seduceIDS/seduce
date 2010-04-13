@@ -262,8 +262,8 @@ static int fill_serveraddr(char *str)
 	if(spv.server_port == 0)
 		return 0;
 
-	return 1;
 #endif
+	return 1;
 }
 
 /* 
@@ -577,7 +577,7 @@ err:
 }
 
 
-#if 1
+#if 0
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
