@@ -345,7 +345,7 @@ static int send_new_work(AgentInfo *agent)
 	}
 
 	ret = consume_group(send_work, agent, 1);
-	if (ret != -1)  /* a job was consumed */
+	if (ret != -1)  /* a group was consumed */
 		return ret;
 
 	/* Clear the history */
