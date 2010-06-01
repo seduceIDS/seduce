@@ -60,6 +60,14 @@ const char *get_next_block(const char *data, size_t len, int min_len,
 	if (last_byte - block_start < min_len - 1)
 		return NULL;
 
+#ifdef _NO_SPLIT_AT_NUL
+	*block_len = len;
+	ret_val = block_start;
+	/* next block_start */
+	block_start = data + len;
+	return ret_val;
+#endif
+
 search:
 	/* look for the terminator */
 	block_end = block_next = NULL;
