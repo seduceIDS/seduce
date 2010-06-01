@@ -619,7 +619,7 @@ int cpu_exec(CPUState *env1)
 					"] %s\n",
 				(long)tb->tc_ptr, tb->pc,lookup_symbol(tb->pc));
 		}
-		*/
+               */
 #ifdef DEBUG_EXEC
                 if ((loglevel & CPU_LOG_EXEC)) {
                     fprintf(logfile, "Trace 0x%08lx [" TARGET_FMT_lx "] %s\n",

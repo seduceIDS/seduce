@@ -3305,7 +3305,7 @@ void helper_fstenv(target_ulong ptr, int data32)
         stl(ptr, env->fpuc);
         stl(ptr + 4, fpus);
         stl(ptr + 8, fptag);
-        stl(ptr + 12, 0); /* fpip */
+        stl(ptr + 12, env->fpip); /* fpip */
         stl(ptr + 16, 0); /* fpcs */
         stl(ptr + 20, 0); /* fpoo */
         stl(ptr + 24, 0); /* fpos */
@@ -3329,6 +3329,7 @@ void helper_fldenv(target_ulong ptr, int data32)
 	env->fpuc = lduw(ptr);
         fpus = lduw(ptr + 4);
         fptag = lduw(ptr + 8);
+        env->fpip = ldl(ptr + 12);
     }
     else {
 	env->fpuc = lduw(ptr);
@@ -3369,6 +3370,7 @@ void helper_fsave(target_ulong ptr, int data32)
     env->fptags[5] = 1;
     env->fptags[6] = 1;
     env->fptags[7] = 1;
+    env->fpip = 0;
 }
 
 void helper_frstor(target_ulong ptr, int data32)
@@ -3401,6 +3403,8 @@ void helper_fxsave(target_ulong ptr, int data64)
     stw(ptr + 2, fpus);
     stw(ptr + 4, fptag ^ 0xff);
 
+    stl(ptr + 8, env->fpip); /* eip */
+
     addr = ptr + 0x20;
     for(i = 0;i < 8; i++) {
         tmp = ST(i);
@@ -3431,6 +3435,8 @@ void helper_fxrstor(target_ulong ptr, int data64)
     env->fpuc = lduw(ptr);
     fpus = lduw(ptr + 2);
     fptag = lduw(ptr + 4);
+    env->fpip = ldl(ptr + 8);
+
     env->fpstt = (fpus >> 11) & 7;
     env->fpus = fpus & ~0x3800;
     fptag ^= 0xff;

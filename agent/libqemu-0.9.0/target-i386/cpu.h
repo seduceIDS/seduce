@@ -466,6 +466,7 @@ typedef struct CPUX86State {
 #endif
         MMXReg mmx;
     } fpregs[8];
+    uint32_t fpip;
 
     /* emulator internal variables */
     float_status fp_status;

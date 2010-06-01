@@ -3153,6 +3153,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     int modrm, reg, rm, mod, reg_addr, op, opreg, offset_addr, val;
     target_ulong next_eip, tval;
     int rex_w, rex_r;
+    int update_fpip;    
 
     s->pc = pc_start;
     prefixes = 0;
@@ -4350,7 +4351,8 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 
         /************************/
         /* floats */
-    case 0xd8 ... 0xdf: 
+    case 0xd8 ... 0xdf:
+        update_fpip = 1;
         if (s->flags & (HF_EM_MASK | HF_TS_MASK)) {
             /* if CR0.EM or CR0.TS are set, generate an FPU exception */
             /* XXX: what to do if illegal op ? */
@@ -4462,6 +4464,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_op_fldcw_A0();
                 break;
             case 0x0e: /* fnstenv mem */
+                update_fpip = 0;
                 gen_op_fnstenv_A0(s->dflag);
                 break;
             case 0x0f: /* fnstcw mem */
@@ -4798,6 +4801,8 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
 #ifdef USE_CODE_COPY
         s->tb->cflags |= CF_TB_FP_USED;
 #endif
+        if (update_fpip)
+            gen_op_movl_fpip_im(pc_start - s->cs_base);
         break;
         /************************/
         /* string ops */
