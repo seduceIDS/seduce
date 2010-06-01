@@ -1,7 +1,13 @@
-AM_CFLAGS = -Wall -O2 -ggdb -D_DEBUG -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
+AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
 
 # this disables the MINIMUM block length check of the detection engines
 # AM_CFLAGS += -D_NO_MIN_BLOCK_LENGTH
+
+# this disables splitting input blocks whenever a NUL character is encountered
+# AM_CFLAGS += -D_NO_SPLIT_AT_NUL
+
+# debugging stuff
+AM_CFLAGS += -ggdb -D_DEBUG
 
 bin_PROGRAMS = seduce-agent seduce
 sysconf_DATA = agent.conf
@@ -37,7 +43,7 @@ seduce_agent_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ \
 seduce_agent_LDADD = @QEMU_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@
 
 seduce_SOURCES = standalone.c detection_engine.c $(DETECTION_ENGINES)
-seduce_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@
+seduce_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@ 
 seduce_LDADD = @QEMU_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@
 
 install-exec-hook:
