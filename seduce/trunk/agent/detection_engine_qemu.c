@@ -10,6 +10,8 @@
 #include "libqemu-0.9.0/linux-user/qemu.h"
 #include "libqemu-0.9.0/exec-all.h"
 
+#include "syscalls-linux32.h"
+
 typedef struct _QemuVars {
 	struct itimerval value;
 	struct itimerval zvalue;
@@ -87,7 +89,7 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 	const char *p;
 	void *block;
 	int block_size, i, ret, block_num = 0;
-	char threat_msg[51];
+	char threat_msg[101];
 
 	if((data == NULL) || (len == 0))
 		return 0;
@@ -128,8 +130,11 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 			switch(ret) {
 			case HIGH_RISK_SYSCALL:
 				DPRINTF("block %d byte %d - High risk syscall -"
-						" %d\n", block_num, i,
-						qv.cpu->regs[R_EAX]);
+					" %d (%s)\n", 
+					block_num, 
+					i, 
+					qv.cpu->regs[R_EAX],
+					syscalls_linux32[qv.cpu->regs[R_EAX]]);
 			
 				/* we don't have to free this now, it will get
 				 * free'd once the Threat is free'd
@@ -137,8 +142,10 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 				threat->payload = block;
 				threat->length = block_size;
 				threat->severity = SEVERITY_HIGH;
-				snprintf(threat_msg, 50, "High risk syscall %d "
-					"detected", qv.cpu->regs[R_EAX]);
+				snprintf(threat_msg, 100, 
+					 "High risk syscall %d (%s) detected",
+					qv.cpu->regs[R_EAX],
+					syscalls_linux32[qv.cpu->regs[R_EAX]]);
 				threat->msg = strdup(threat_msg);
 				cleanup();
 				return 1;
