@@ -30,6 +30,9 @@ static inline target_long lshift(target_long x, int n)
         return x >> (-n);
 }
 
+/* Provides access to stored EIP of last floating point instruction */
+#define FPIP (env->fpip)
+
 /* we define the various pieces of code used by the JIT */
 
 #define REG EAX
@@ -598,6 +601,11 @@ void OPPROTO op_jmp_T0(void)
 void OPPROTO op_movl_eip_im(void)
 {
     EIP = (uint32_t)PARAM1;
+}
+
+void OPPROTO op_movl_fpip_im(void)
+{
+   FPIP = (uint32_t)PARAM1;
 }
 
 #ifdef TARGET_X86_64
@@ -2343,6 +2351,7 @@ void OPPROTO op_fninit(void)
     env->fptags[5] = 1;
     env->fptags[6] = 1;
     env->fptags[7] = 1;
+    env->fpip = 0;
 }
 
 void OPPROTO op_fnstenv_A0(void)
