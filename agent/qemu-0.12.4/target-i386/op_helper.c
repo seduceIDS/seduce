@@ -3896,6 +3896,7 @@ void helper_fninit(void)
     env->fptags[5] = 1;
     env->fptags[6] = 1;
     env->fptags[7] = 1;
+    env->fpip = 0;
 }
 
 /* BCD ops */
@@ -4263,7 +4264,7 @@ void helper_fstenv(target_ulong ptr, int data32)
         stl(ptr, env->fpuc);
         stl(ptr + 4, fpus);
         stl(ptr + 8, fptag);
-        stl(ptr + 12, 0); /* fpip */
+        stl(ptr + 12, env->fpip); /* fpip */
         stl(ptr + 16, 0); /* fpcs */
         stl(ptr + 20, 0); /* fpoo */
         stl(ptr + 24, 0); /* fpos */
@@ -4287,6 +4288,7 @@ void helper_fldenv(target_ulong ptr, int data32)
 	env->fpuc = lduw(ptr);
         fpus = lduw(ptr + 4);
         fptag = lduw(ptr + 8);
+        env->fpip = ldl(ptr + 12);
     }
     else {
 	env->fpuc = lduw(ptr);
@@ -4327,6 +4329,7 @@ void helper_fsave(target_ulong ptr, int data32)
     env->fptags[5] = 1;
     env->fptags[6] = 1;
     env->fptags[7] = 1;
+    env->fpip = 0;
 }
 
 void helper_frstor(target_ulong ptr, int data32)
@@ -4370,7 +4373,7 @@ void helper_fxsave(target_ulong ptr, int data64)
     } else 
 #endif
     {
-        stl(ptr + 0x08, 0); /* eip */
+        stl(ptr + 0x08, env->fpip); /* eip */
         stl(ptr + 0x0c, 0); /* sel  */
         stl(ptr + 0x10, 0); /* dp */
         stl(ptr + 0x14, 0); /* sel  */
@@ -4416,6 +4419,10 @@ void helper_fxrstor(target_ulong ptr, int data64)
         raise_exception(EXCP0D_GPF);
     }
 
+
+#ifndef TARGET_X86_64
+    env->fpip = ldl(ptr + 0x8);
+#endif
     env->fpuc = lduw(ptr);
     fpus = lduw(ptr + 2);
     fptag = lduw(ptr + 4);
