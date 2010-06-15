@@ -607,6 +607,12 @@ static inline void gen_jmp_im(target_ulong pc)
     tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, eip));
 }
 
+static inline void gen_save_fpip(target_ulong pc)
+{
+    tcg_gen_movi_tl(cpu_tmp0, pc);
+    tcg_gen_st_tl(cpu_tmp0, cpu_env, offsetof(CPUState, fpip));
+}
+
 static inline void gen_string_movl_A0_ESI(DisasContext *s)
 {
     int override;
@@ -4087,6 +4093,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
     int modrm, reg, rm, mod, reg_addr, op, opreg, offset_addr, val;
     target_ulong next_eip, tval;
     int rex_w, rex_r;
+    int update_fpip;
 
     if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP)))
         tcg_gen_debug_insn_start(pc_start);
@@ -5458,6 +5465,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         /************************/
         /* floats */
     case 0xd8 ... 0xdf:
+	update_fpip = 1;
         if (s->flags & (HF_EM_MASK | HF_TS_MASK)) {
             /* if CR0.EM or CR0.TS are set, generate an FPU exception */
             /* XXX: what to do if illegal op ? */
@@ -5607,6 +5615,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 gen_helper_fldcw(cpu_tmp2_i32);
                 break;
             case 0x0e: /* fnstenv mem */
+		update_fpip = 0;
                 if (s->cc_op != CC_OP_DYNAMIC)
                     gen_op_set_cc_op(s->cc_op);
                 gen_jmp_im(pc_start - s->cs_base);
@@ -5973,6 +5982,10 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 goto illegal_op;
             }
         }
+
+	if (update_fpip)
+		gen_save_fpip(pc_start - s->cs_base);
+
         break;
         /************************/
         /* string ops */

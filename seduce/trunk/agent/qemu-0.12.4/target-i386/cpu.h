@@ -614,6 +614,7 @@ typedef struct CPUX86State {
     uint16_t fpuc;
     uint8_t fptags[8];   /* 0 = valid, 1 = empty */
     FPReg fpregs[8];
+    uint32_t fpip;
 
     /* emulator internal variables */
     float_status fp_status;
