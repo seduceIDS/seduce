@@ -37,7 +37,7 @@ void *load_file(const char *filename, size_t *fsize)
 		return NULL;
 	}
 	
-	if ((buff = calloc(1, *fsize)) == NULL) {
+	if ((buff = malloc(*fsize)) == NULL) {
 		fprintf(stderr,"could not allocate buffer for file %s: %s\n",
 			filename, strerror(errno));
 		fclose(f);
