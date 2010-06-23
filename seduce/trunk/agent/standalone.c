@@ -9,8 +9,6 @@
 
 #include "detection_engine.h"
 
-DetectionEngine *engine;
-
 void *load_file(const char *filename, size_t *fsize)
 {
 	FILE *f;
@@ -58,6 +56,7 @@ void *load_file(const char *filename, size_t *fsize)
 
 int main(int argc, char **argv)
 {
+	DetectionEngine *engine;
 	void *buff;
 	size_t fsize;
 	Threat t;
@@ -120,4 +119,3 @@ int main(int argc, char **argv)
 	 
 	return 0;
 }
-
