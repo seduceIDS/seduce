@@ -173,6 +173,10 @@ int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
                     struct image_info * info);
 int load_flt_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
                     struct image_info * info);
+
+unsigned long setup_stack(void);
+int load_raw_binary(void *data, size_t len, struct image_info * info, target_ulong stack_base);
+
 #ifdef TARGET_HAS_ELFLOAD32
 int load_elf_binary_multi(struct linux_binprm *bprm,
                           struct target_pt_regs *regs,

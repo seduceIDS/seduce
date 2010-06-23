@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <sys/mman.h>
+
 #include "qemu.h"
 
 #define NGROUPS 32
@@ -161,6 +163,9 @@ int loader_exec(const char * filename, char ** argv, char ** envp,
 {
     int retval;
     int i;
+    struct stat sbuf;
+    void *data;
+    unsigned long stack_base;
 
     bprm->p = TARGET_PAGE_SIZE*MAX_ARG_PAGES-sizeof(unsigned int);
     for (i=0 ; i<MAX_ARG_PAGES ; i++)       /* clear page-table */
@@ -197,8 +202,13 @@ int loader_exec(const char * filename, char ** argv, char ** envp,
             retval = load_flt_binary(bprm,regs,infop);
 #endif
         } else {
-            fprintf(stderr, "Unknown binary format\n");
-            return -1;
+            fprintf(stderr, "trying raw binary format!\n");
+            fstat(bprm->fd, &sbuf);
+	    data = target_mmap(NULL, sbuf.st_size, 
+			       PROT_READ | PROT_WRITE | PROT_EXEC,
+                               MAP_PRIVATE | MAP_DENYWRITE, bprm->fd, 0);
+	    stack_base = setup_stack();
+            retval = load_raw_binary(data, sbuf.st_size, infop, stack_base);
         }
     }
 
