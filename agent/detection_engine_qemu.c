@@ -6,9 +6,10 @@
 #include "detection_engine.h"
 #include "utils.h"
 
-#include "libqemu-0.9.0/i386-linux-user/config.h"
-#include "libqemu-0.9.0/linux-user/qemu.h"
-#include "libqemu-0.9.0/exec-all.h"
+#include "qemu-0.12.4/config.h"
+#define NEED_CPU_H 1
+#include <linux-user/qemu.h>
+#include <exec-all.h>
 
 #include "syscalls-linux32.h"
 
@@ -16,6 +17,7 @@ typedef struct _QemuVars {
 	struct itimerval value;
 	struct itimerval zvalue;
 	unsigned long stack_base;
+        void *code;
 	CPUX86State *cpu;
 } QemuVars;
 
@@ -46,7 +48,7 @@ void clear_stack(void)
 {
 	void *stack;
 
-	stack = lock_user(qv.stack_base - x86_stack_size, x86_stack_size, 1);
+	stack = lock_user(VERIFY_WRITE, qv.stack_base - x86_stack_size, x86_stack_size, 1);
 	memset(stack, 0, x86_stack_size);
 	unlock_user(stack, qv.stack_base - x86_stack_size, x86_stack_size);
 }
@@ -67,6 +69,11 @@ static void cleanup(void)
     }
 
     memset(struct_entries, 0, sizeof(StructEntry) * 128);
+    if (qv.cpu->idt.base)
+        target_munmap(qv.cpu->idt.base,sizeof(uint64_t)*(qv.cpu->idt.limit + 1));
+
+    if (qv.cpu->gdt.base)
+        target_munmap(qv.cpu->gdt.base, sizeof(uint64_t) * TARGET_GDT_ENTRIES);
 }
 
 /*
@@ -97,12 +104,7 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 	while((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
 					block_num++))) 
 	{
-		block = malloc(block_size);
-		if (block == NULL) {
-			perror("malloc failed while building block\n");
-			return -1;
-		}
-
+		block = qv.code;
 		memcpy(block, p, block_size);
 
 		for (i = 0; i < block_size - 5; i++) {
@@ -139,7 +141,7 @@ int qemu_engine_process(char *data, size_t len, Threat *threat)
 				/* we don't have to free this now, it will get
 				 * free'd once the Threat is free'd
 				 */
-				threat->payload = block;
+				threat->payload = malloc(block_size);
 				threat->length = block_size;
 				threat->severity = SEVERITY_HIGH;
 				snprintf(threat_msg, 100, 
@@ -222,7 +224,7 @@ prepare_next_iter:
 			cleanup();
 		}
 
-		free(block);
+		// free(block);
 	}
 	
 	return 0;
@@ -252,7 +254,7 @@ int qemu_engine_init(void)
 	}
 
 	qv.value.it_interval.tv_usec =
-	qv.value.it_value.tv_usec = 1000;
+	qv.value.it_value.tv_usec = 10000;
 	qv.value.it_interval.tv_sec =
 	qv.value.it_value.tv_sec = 0;
 
@@ -261,13 +263,21 @@ int qemu_engine_init(void)
 	qv.zvalue.it_value.tv_sec =
 	qv.zvalue.it_value.tv_usec = 0;
 
-	qv.cpu = malloc(sizeof(CPUX86State));
+	cpu_exec_init_all(0);
+	qv.cpu = cpu_init("qemu32");
+
 	if (qv.cpu == NULL) {
-		perror("malloc CPUX86State");
+		perror("unable to find CPU definition");
 		return 0;
 	}
 
+	/* setup stack */
 	qv.stack_base = setup_stack();
+
+	/* setup code segment */
+	qv.code = setup_code();
+
+	syscall_init();
 
 	return 1;
 }
@@ -283,7 +293,7 @@ int qemu_engine_init(void)
  */
 void qemu_engine_destroy(void)
 {
-	free(qv.cpu);
+	// free(qv.cpu);
 
 	if (munmap((void *)qv.stack_base - x86_stack_size, x86_stack_size)
 			== -1) {

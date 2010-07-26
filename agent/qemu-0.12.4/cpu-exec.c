@@ -62,6 +62,14 @@ void cpu_loop_exit(void)
     longjmp(env->jmp_env, 1);
 }
 
+void flush_translations(CPUState *env)
+{
+	spin_lock(&tb_lock);
+	tb_flush(env);
+	tb_invalidated_flag = 1;
+	spin_unlock(&tb_lock);
+}
+
 /* exit the current TB from a signal handler. The host registers are
    restored in a state compatible with the CPU emulator
  */
@@ -580,6 +588,23 @@ int cpu_exec(CPUState *env1)
 #endif
                 spin_lock(&tb_lock);
                 tb = tb_find_fast();
+
+              /* 
+               * SEDUCE DEBUGGING
+               {
+                       extern FILE *stderr;
+                       int i;
+                       for(i=0; i<40; i++){
+                               unsigned char *p = (unsigned char *) tb->tc_ptr;
+                               fprintf(stderr, "%.2hhx ", *(p+i));
+                       }
+                       fprintf(stderr, "\n");
+                       fprintf(stderr, "SEDUCE Trace 0x%08lx [" TARGET_FMT_lx 
+                                       "] %s\n",
+                               (long)tb->tc_ptr, tb->pc,lookup_symbol(tb->pc));
+               }
+               */
+
                 /* Note: we do it here to avoid a gcc bug on Mac OS X when
                    doing it in tb_find_slow */
                 if (tb_invalidated_flag) {

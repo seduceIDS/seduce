@@ -48,7 +48,7 @@ libobj-y += op_helper.o helper.o
 libobj-$(CONFIG_NEED_MMU) += mmu.o
 libobj-$(TARGET_ARM) += neon_helper.o iwmmxt_helper.o
 libobj-$(TARGET_ALPHA) += alpha_palcode.o
-libobj-$(TARGET_I386) += rawload.o
+libobj-$(TARGET_I386) += rawload.o vm86.o main.o syscall.o mmap.o signal.o path.o osdep.o thunk.o elfload.o linuxload.o gdbstub.o uaccess.o strace.o ioport-user.o 
 
 # NOTE: the disassembler code is only needed for debugging
 libobj-y += disas.o
@@ -311,7 +311,9 @@ endif # CONFIG_SOFTMMU
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(ARLIBS)
-	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y))
+
+#	Not linking userspace emulation executable
+# $(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y))
 
 
 gdbstub-xml.c: $(TARGET_XML_FILES) feature_to_c.sh
@@ -328,10 +330,12 @@ clean:
 	rm -f *.d */*.d tcg/*.o ide/*.o
 	rm -f qemu-options.h qemu-monitor.h gdbstub-xml.c
 
-install: all
-ifneq ($(PROGS),)
-	$(INSTALL) -m 755 $(STRIP_OPT) $(PROGS) "$(DESTDIR)$(bindir)"
-endif
+# install: all
+# ifneq ($(PROGS),)
+# 	$(INSTALL) -m 755 $(STRIP_OPT) $(PROGS) "$(DESTDIR)$(bindir)"
+# endif
+
+install:
 
 # Include automatically generated dependency files
 -include $(wildcard *.d */*.d)

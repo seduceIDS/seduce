@@ -8,8 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <sys/mman.h>
-
 #include "qemu.h"
 
 #define NGROUPS 32
@@ -157,70 +155,12 @@ abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
     return sp;
 }
 
-int loader_exec(const char * filename, char ** argv, char ** envp,
-             struct target_pt_regs * regs, struct image_info *infop,
-             struct linux_binprm *bprm)
+int loader_exec(void *data, size_t len, struct target_pt_regs * regs, 
+		struct image_info *infop, unsigned long stack_base)
 {
-    int retval;
-    int i;
-    struct stat sbuf;
-    void *data;
-    unsigned long stack_base;
-
-    bprm->p = TARGET_PAGE_SIZE*MAX_ARG_PAGES-sizeof(unsigned int);
-    for (i=0 ; i<MAX_ARG_PAGES ; i++)       /* clear page-table */
-            bprm->page[i] = NULL;
-    retval = open(filename, O_RDONLY);
-    if (retval < 0)
-        return retval;
-    bprm->fd = retval;
-    bprm->filename = (char *)filename;
-    bprm->argc = count(argv);
-    bprm->argv = argv;
-    bprm->envc = count(envp);
-    bprm->envp = envp;
-
-    retval = prepare_binprm(bprm);
-
-    infop->host_argv = argv;
-
-    if(retval>=0) {
-        if (bprm->buf[0] == 0x7f
-                && bprm->buf[1] == 'E'
-                && bprm->buf[2] == 'L'
-                && bprm->buf[3] == 'F') {
-#ifndef TARGET_HAS_ELFLOAD32
-            retval = load_elf_binary(bprm,regs,infop);
-#else
-            retval = load_elf_binary_multi(bprm, regs, infop);
-#endif
-#if defined(TARGET_HAS_BFLT)
-        } else if (bprm->buf[0] == 'b'
-                && bprm->buf[1] == 'F'
-                && bprm->buf[2] == 'L'
-                && bprm->buf[3] == 'T') {
-            retval = load_flt_binary(bprm,regs,infop);
-#endif
-        } else {
-            fprintf(stderr, "trying raw binary format!\n");
-            fstat(bprm->fd, &sbuf);
-	    data = target_mmap(NULL, sbuf.st_size, 
-			       PROT_READ | PROT_WRITE | PROT_EXEC,
-                               MAP_PRIVATE | MAP_DENYWRITE, bprm->fd, 0);
-	    stack_base = setup_stack();
-            retval = load_raw_binary(data, sbuf.st_size, infop, stack_base);
-        }
-    }
-
-    if(retval>=0) {
-        /* success.  Initialize important registers */
-        do_init_thread(regs, infop);
-        return retval;
-    }
-
-    /* Something went wrong, return the inode and free the argument pages*/
-    for (i=0 ; i<MAX_ARG_PAGES ; i++) {
-        free(bprm->page[i]);
-    }
-    return(retval);
+    infop->host_argv = NULL;
+    load_raw_binary(data, len, infop, stack_base);
+    do_init_thread(regs, infop);
+    return 0;
 }
+

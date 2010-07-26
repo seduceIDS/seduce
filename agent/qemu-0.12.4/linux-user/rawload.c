@@ -7,6 +7,14 @@
 #include "qemu.h"
 #include "../cpu-all.h"
 
+void *setup_code(void)
+{
+	target_ulong size = 1 << 22; /* 4 MB code segment */
+	return target_mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC,
+			   MAP_ANONYMOUS | MAP_PRIVATE | MAP_DENYWRITE,
+			   0, 0);
+}
+
 unsigned long setup_stack(void)
 {
     target_ulong stack_base, size, mem;
