@@ -287,34 +287,38 @@ else
 BLOBS=
 endif
 
-install-doc: $(DOCS)
-	$(INSTALL_DIR) "$(DESTDIR)$(docdir)"
-	$(INSTALL_DATA) qemu-doc.html  qemu-tech.html "$(DESTDIR)$(docdir)"
-ifdef CONFIG_POSIX
-	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1"
-	$(INSTALL_DATA) qemu.1 qemu-img.1 "$(DESTDIR)$(mandir)/man1"
-	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man8"
-	$(INSTALL_DATA) qemu-nbd.8 "$(DESTDIR)$(mandir)/man8"
-endif
+# install-doc: $(DOCS)
+#	$(INSTALL_DIR) "$(DESTDIR)$(docdir)"
+#	$(INSTALL_DATA) qemu-doc.html  qemu-tech.html "$(DESTDIR)$(docdir)"
+# ifdef CONFIG_POSIX
+#	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1"
+#	$(INSTALL_DATA) qemu.1 qemu-img.1 "$(DESTDIR)$(mandir)/man1"
+#	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man8"
+#	$(INSTALL_DATA) qemu-nbd.8 "$(DESTDIR)$(mandir)/man8"
+# endif
 
-install: all $(if $(BUILD_DOCS),install-doc)
-	$(INSTALL_DIR) "$(DESTDIR)$(bindir)"
-ifneq ($(TOOLS),)
-	$(INSTALL_PROG) $(STRIP_OPT) $(TOOLS) "$(DESTDIR)$(bindir)"
-endif
-ifneq ($(BLOBS),)
-	$(INSTALL_DIR) "$(DESTDIR)$(datadir)"
-	set -e; for x in $(BLOBS); do \
-		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
-	done
-endif
-	$(INSTALL_DIR) "$(DESTDIR)$(datadir)/keymaps"
-	set -e; for x in $(KEYMAPS); do \
-		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/keymaps/$$x "$(DESTDIR)$(datadir)/keymaps"; \
-	done
-	for d in $(TARGET_DIRS); do \
-	$(MAKE) -C $$d $@ || exit 1 ; \
-        done
+install-doc:
+
+# install: all $(if $(BUILD_DOCS),install-doc)
+#	$(INSTALL_DIR) "$(DESTDIR)$(bindir)"
+# ifneq ($(TOOLS),)
+#	$(INSTALL_PROG) $(STRIP_OPT) $(TOOLS) "$(DESTDIR)$(bindir)"
+# endif
+#ifneq ($(BLOBS),)
+#	$(INSTALL_DIR) "$(DESTDIR)$(datadir)"
+#	set -e; for x in $(BLOBS); do \
+#		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
+#	done
+# endif
+#	$(INSTALL_DIR) "$(DESTDIR)$(datadir)/keymaps"
+#	set -e; for x in $(KEYMAPS); do \
+#		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/keymaps/$$x "$(DESTDIR)$(datadir)/keymaps"; \
+#	done
+#	for d in $(TARGET_DIRS); do \
+#	$(MAKE) -C $$d $@ || exit 1 ; \
+#       done
+
+install:
 
 # various test targets
 test speed: all

@@ -1,7 +1,7 @@
 SUBDIRS = sensor
 
 if HAVE_QEMU
-SUBDIRS += agent/libqemu-0.9.0
+SUBDIRS += agent/qemu-0.12.4
 endif 
 
 SUBDIRS += agent

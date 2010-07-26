@@ -110,11 +110,12 @@ AC_ARG_ENABLE(qemu,
 if test "$use_qemu" = "yes"; then
   AM_CONDITIONAL(HAVE_QEMU, true)
   AC_DEFINE(HAVE_QEMU, [1], [QEMU detection engine])
-  QEMU_CFLAGS="-Ilibqemu-0.9.0/ -Ilibqemu-0.9.0/linux-user/ -Ilibqemu-0.9.0/target-i386/ -Ilibqemu-0.9.0/i386-linux-user/ -Ilibqemu-0.9.0/fpu/ -Ilibqemu-0.9.0/linux-user/i386/"
-  QEMU_LIBS="libqemu-0.9.0/i386-linux-user/libqemu.a -lm" 
+  QEMU_DIR="qemu-0.12.4"
+  QEMU_CFLAGS="-I${QEMU_DIR}/ -I${QEMU_DIR}/linux-user/ -I${QEMU_DIR}/target-i386/ -I${QEMU_DIR}/i386-linux-user/ -I${QEMU_DIR}/fpu/ -I${QEMU_DIR}/linux-user/i386/"
+  QEMU_LIBS="${QEMU_DIR}/i386-linux-user/libqemu.a ${QEMU_DIR}/libuser/libuser.a -lm -lrt" 
   AC_SUBST(QEMU_CFLAGS)
-  AC_SUBST(QEMU_LIBS) 
-  AC_CONFIG_SUBDIRS([agent/libqemu-0.9.0])
+  AC_SUBST(QEMU_LIBS)
+  AC_CONFIG_SUBDIRS([agent/qemu-0.12.4])
 else
   AM_CONDITIONAL(HAVE_QEMU, false)
 fi

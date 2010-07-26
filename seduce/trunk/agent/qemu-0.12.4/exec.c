@@ -580,11 +580,25 @@ void cpu_exec_init(CPUState *env)
     env->next_cpu = NULL;
     penv = &first_cpu;
     cpu_index = 0;
+    /*
+     * I've commented this out because cpu_exec_init 
+     * expects to be called ONCE for EVERY CPU in the system.
+     * Thing is, this lies in the path of qemu_exec which gets called
+     * multiple times (one for each payload we wish to process).
+     *
+     * With the following commented out, each caller of cpu_exec_init
+     * is made the FIRST cpu of qemu (first_cpu) and no other CPU's
+     * are being registered.
     while (*penv != NULL) {
         penv = &(*penv)->next_cpu;
         cpu_index++;
     }
+     */
     env->cpu_index = cpu_index;
+
+    /* flush all previous translations of opcodes found in the cache */
+    flush_translations(env);
+
     env->numa_node = 0;
     QTAILQ_INIT(&env->breakpoints);
     QTAILQ_INIT(&env->watchpoints);

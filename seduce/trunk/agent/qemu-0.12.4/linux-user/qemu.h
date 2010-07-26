@@ -20,6 +20,8 @@
 #include "gdbstub.h"
 #include "qemu-queue.h"
 
+#include "seduce.h"
+
 #if defined(CONFIG_USE_NPTL)
 #define THREAD __thread
 #else
@@ -165,17 +167,17 @@ struct linux_binprm {
 void do_init_thread(struct target_pt_regs *regs, struct image_info *infop);
 abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
                               abi_ulong stringp, int push_ptr);
-int loader_exec(const char * filename, char ** argv, char ** envp,
-             struct target_pt_regs * regs, struct image_info *infop,
-             struct linux_binprm *);
+int loader_exec(void *data, size_t len, struct target_pt_regs * regs, 
+                struct image_info *infop, unsigned long stack_base);
 
 int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
                     struct image_info * info);
 int load_flt_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
                     struct image_info * info);
 
-unsigned long setup_stack(void);
 int load_raw_binary(void *data, size_t len, struct image_info * info, target_ulong stack_base);
+unsigned long setup_stack(void);
+void *setup_code(void);
 
 #ifdef TARGET_HAS_ELFLOAD32
 int load_elf_binary_multi(struct linux_binprm *bprm,
@@ -191,9 +193,10 @@ void syscall_init(void);
 abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
                     abi_long arg2, abi_long arg3, abi_long arg4,
                     abi_long arg5, abi_long arg6);
+long check_syscall_risk(int num);
 void gemu_log(const char *fmt, ...) __attribute__((format(printf,1,2)));
 extern THREAD CPUState *thread_env;
-void cpu_loop(CPUState *env);
+int cpu_loop(CPUState *env);
 char *target_strerror(int err);
 int get_osversion(void);
 void fork_start(void);

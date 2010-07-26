@@ -299,7 +299,75 @@ static void set_idt(int n, unsigned int dpl)
 }
 #endif
 
-void cpu_loop(CPUX86State *env)
+
+int cpu_loop(CPUX86State *env)
+{
+    int trapnr;
+
+    /* cpu_dump_state(env, stderr, fprintf, 0); */
+    for(;;) {
+      trapnr = cpu_x86_exec(env);
+      switch(trapnr) {
+      case 0x80:
+            /* linux syscall from int $0x80 */
+            switch (env->regs[R_EAX]) {
+              case TARGET_NR_exit:
+              return EXIT_SYSCALL;
+            case TARGET_NR_execve:
+            case TARGET_NR_setuid:
+              return HIGH_RISK_SYSCALL;
+            default:
+              fprintf(stderr,"syscall - %d\n",env->regs[R_EAX]);
+              env->regs[R_EAX] = 0;
+          }
+          //process_pending_signals(env);
+          break;
+      case EXCP_INTERRUPT:
+            //process_pending_signals(env);
+            return EXCEPTION_INTERRUPT;
+            break;
+      case EXCP0B_NOSEG:
+	    return EXCEPTION_NOSEG;
+            break;
+      case EXCP0C_STACK:
+            return EXCEPTION_STACK;
+            break;
+      case EXCP0D_GPF:
+            return EXCEPTION_GPF;
+            break;
+      case EXCP0E_PAGE:
+            return EXCEPTION_PAGE;
+            break;
+      case EXCP00_DIVZ:
+	    return EXCEPTION_DIVZ;
+            break;
+      case EXCP01_DB:
+	    return EXCEPTION_DB;
+            break;
+      case EXCP03_INT3:
+            return EXCEPTION_INT3;
+            break;
+      case EXCP04_INTO:
+            return EXCEPTION_INTO;
+	    break;
+      case EXCP05_BOUND:
+            return EXCEPTION_BOUND;
+            break;
+      case EXCP06_ILLOP:
+            return EXCEPTION_ILLOP;
+            break;
+      case EXCP_DEBUG:
+            return EXCEPTION_DEBUG;
+            break;
+      default:
+            return UNKNOWN_EXCEPTION;
+      }
+   }
+}
+
+#if 0
+
+int cpu_loop(CPUX86State *env)
 {
     int trapnr;
     abi_ulong pc;
@@ -449,6 +517,7 @@ void cpu_loop(CPUX86State *env)
         process_pending_signals(env);
     }
 }
+#endif
 #endif
 
 #ifdef TARGET_ARM
@@ -2433,6 +2502,7 @@ void cpu_loop (CPUState *env)
 }
 #endif /* TARGET_ALPHA */
 
+#if 0
 static void usage(void)
 {
     printf("qemu-" TARGET_ARCH " version " QEMU_VERSION QEMU_PKGVERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
@@ -2475,6 +2545,7 @@ static void usage(void)
            DEBUG_LOGFILE);
     exit(1);
 }
+#endif
 
 THREAD CPUState *thread_env;
 
@@ -2512,141 +2583,14 @@ void init_task_state(TaskState *ts)
     ts->sigqueue_table[i].next = NULL;
 }
  
-int main(int argc, char **argv, char **envp)
+int qemu_exec(void *data, size_t len, unsigned long stack_base,
+              CPUX86State *env)
 {
-    const char *filename;
-    const char *cpu_model;
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
     struct linux_binprm bprm;
     TaskState ts1, *ts = &ts1;
-    CPUState *env;
-    int optind;
-    const char *r;
-    int gdbstub_port = 0;
-    char **target_environ, **wrk;
-    char **target_argv;
-    int target_argc;
-    envlist_t *envlist = NULL;
-    const char *argv0 = NULL;
-    int i;
-    int ret;
 
-    if (argc <= 1)
-        usage();
-
-    qemu_cache_utils_init(envp);
-
-    /* init debug */
-    cpu_set_log_filename(DEBUG_LOGFILE);
-
-    if ((envlist = envlist_create()) == NULL) {
-        (void) fprintf(stderr, "Unable to allocate envlist\n");
-        exit(1);
-    }
-
-    /* add current environment into the list */
-    for (wrk = environ; *wrk != NULL; wrk++) {
-        (void) envlist_setenv(envlist, *wrk);
-    }
-
-    cpu_model = NULL;
-    optind = 1;
-    for(;;) {
-        if (optind >= argc)
-            break;
-        r = argv[optind];
-        if (r[0] != '-')
-            break;
-        optind++;
-        r++;
-        if (!strcmp(r, "-")) {
-            break;
-        } else if (!strcmp(r, "d")) {
-            int mask;
-            const CPULogItem *item;
-
-	    if (optind >= argc)
-		break;
-
-	    r = argv[optind++];
-            mask = cpu_str_to_log_mask(r);
-            if (!mask) {
-                printf("Log items (comma separated):\n");
-                for(item = cpu_log_items; item->mask != 0; item++) {
-                    printf("%-10s %s\n", item->name, item->help);
-                }
-                exit(1);
-            }
-            cpu_set_log(mask);
-        } else if (!strcmp(r, "E")) {
-            r = argv[optind++];
-            if (envlist_setenv(envlist, r) != 0)
-                usage();
-        } else if (!strcmp(r, "U")) {
-            r = argv[optind++];
-            if (envlist_unsetenv(envlist, r) != 0)
-                usage();
-        } else if (!strcmp(r, "0")) {
-            r = argv[optind++];
-            argv0 = r;
-        } else if (!strcmp(r, "s")) {
-            if (optind >= argc)
-                break;
-            r = argv[optind++];
-            x86_stack_size = strtol(r, (char **)&r, 0);
-            if (x86_stack_size <= 0)
-                usage();
-            if (*r == 'M')
-                x86_stack_size *= 1024 * 1024;
-            else if (*r == 'k' || *r == 'K')
-                x86_stack_size *= 1024;
-        } else if (!strcmp(r, "L")) {
-            interp_prefix = argv[optind++];
-        } else if (!strcmp(r, "p")) {
-            if (optind >= argc)
-                break;
-            qemu_host_page_size = atoi(argv[optind++]);
-            if (qemu_host_page_size == 0 ||
-                (qemu_host_page_size & (qemu_host_page_size - 1)) != 0) {
-                fprintf(stderr, "page size must be a power of two\n");
-                exit(1);
-            }
-        } else if (!strcmp(r, "g")) {
-            if (optind >= argc)
-                break;
-            gdbstub_port = atoi(argv[optind++]);
-	} else if (!strcmp(r, "r")) {
-	    qemu_uname_release = argv[optind++];
-        } else if (!strcmp(r, "cpu")) {
-            cpu_model = argv[optind++];
-            if (cpu_model == NULL || strcmp(cpu_model, "?") == 0) {
-/* XXX: implement xxx_cpu_list for targets that still miss it */
-#if defined(cpu_list)
-                    cpu_list(stdout, &fprintf);
-#endif
-                exit(1);
-            }
-#if defined(CONFIG_USE_GUEST_BASE)
-        } else if (!strcmp(r, "B")) {
-           guest_base = strtol(argv[optind++], NULL, 0);
-           have_guest_base = 1;
-#endif
-        } else if (!strcmp(r, "drop-ld-preload")) {
-            (void) envlist_unsetenv(envlist, "LD_PRELOAD");
-        } else if (!strcmp(r, "singlestep")) {
-            singlestep = 1;
-        } else if (!strcmp(r, "strace")) {
-            do_strace = 1;
-        } else
-        {
-            usage();
-        }
-    }
-    if (optind >= argc)
-        usage();
-    filename = argv[optind];
-    exec_path = argv[optind];
 
     /* Zero out regs */
     memset(regs, 0, sizeof(struct target_pt_regs));
@@ -2656,114 +2600,9 @@ int main(int argc, char **argv, char **envp)
 
     memset(&bprm, 0, sizeof (bprm));
 
-    /* Scan interp_prefix dir for replacement files. */
-    init_paths(interp_prefix);
-
-    if (cpu_model == NULL) {
-#if defined(TARGET_I386)
-#ifdef TARGET_X86_64
-        cpu_model = "qemu64";
-#else
-        cpu_model = "qemu32";
-#endif
-#elif defined(TARGET_ARM)
-        cpu_model = "any";
-#elif defined(TARGET_M68K)
-        cpu_model = "any";
-#elif defined(TARGET_SPARC)
-#ifdef TARGET_SPARC64
-        cpu_model = "TI UltraSparc II";
-#else
-        cpu_model = "Fujitsu MB86904";
-#endif
-#elif defined(TARGET_MIPS)
-#if defined(TARGET_ABI_MIPSN32) || defined(TARGET_ABI_MIPSN64)
-        cpu_model = "20Kc";
-#else
-        cpu_model = "24Kf";
-#endif
-#elif defined(TARGET_PPC)
-#ifdef TARGET_PPC64
-        cpu_model = "970fx";
-#else
-        cpu_model = "750";
-#endif
-#else
-        cpu_model = "any";
-#endif
-    }
-    cpu_exec_init_all(0);
-    /* NOTE: we need to init the CPU at this stage to get
-       qemu_host_page_size */
-    env = cpu_init(cpu_model);
-    if (!env) {
-        fprintf(stderr, "Unable to find CPU definition\n");
-        exit(1);
-    }
-#if defined(TARGET_I386) || defined(TARGET_SPARC) || defined(TARGET_PPC)
     cpu_reset(env);
-#endif
 
     thread_env = env;
-
-    if (getenv("QEMU_STRACE")) {
-        do_strace = 1;
-    }
-
-    target_environ = envlist_to_environ(envlist, NULL);
-    envlist_free(envlist);
-
-#if defined(CONFIG_USE_GUEST_BASE)
-    /*
-     * Now that page sizes are configured in cpu_init() we can do
-     * proper page alignment for guest_base.
-     */
-    guest_base = HOST_PAGE_ALIGN(guest_base);
-
-    /*
-     * Read in mmap_min_addr kernel parameter.  This value is used
-     * When loading the ELF image to determine whether guest_base
-     * is needed.
-     *
-     * When user has explicitly set the quest base, we skip this
-     * test.
-     */
-    if (!have_guest_base) {
-        FILE *fp;
-
-        if ((fp = fopen("/proc/sys/vm/mmap_min_addr", "r")) != NULL) {
-            unsigned long tmp;
-            if (fscanf(fp, "%lu", &tmp) == 1) {
-                mmap_min_addr = tmp;
-                qemu_log("host mmap_min_addr=0x%lx\n", mmap_min_addr);
-            }
-            fclose(fp);
-        }
-    }
-#endif /* CONFIG_USE_GUEST_BASE */
-
-    /*
-     * Prepare copy of argv vector for target.
-     */
-    target_argc = argc - optind;
-    target_argv = calloc(target_argc + 1, sizeof (char *));
-    if (target_argv == NULL) {
-	(void) fprintf(stderr, "Unable to allocate memory for target_argv\n");
-	exit(1);
-    }
-
-    /*
-     * If argv0 is specified (using '-0' switch) we replace
-     * argv[0] pointer with the given one.
-     */
-    i = 0;
-    if (argv0 != NULL) {
-        target_argv[i++] = strdup(argv0);
-    }
-    for (; i < target_argc; i++) {
-        target_argv[i] = strdup(argv[optind + i]);
-    }
-    target_argv[target_argc] = NULL;
 
     memset(ts, 0, sizeof(TaskState));
     init_task_state(ts);
@@ -2773,45 +2612,10 @@ int main(int argc, char **argv, char **envp)
     env->opaque = ts;
     task_settid(ts);
 
-    ret = loader_exec(filename, target_argv, target_environ, regs,
-        info, &bprm);
-    if (ret != 0) {
-        printf("Error %d while loading %s\n", ret, filename);
-        _exit(1);
-    }
-
-    for (i = 0; i < target_argc; i++) {
-        free(target_argv[i]);
-    }
-    free(target_argv);
-
-    for (wrk = target_environ; *wrk; wrk++) {
-        free(*wrk);
-    }
-
-    free(target_environ);
-
-    if (qemu_log_enabled()) {
-#if defined(CONFIG_USE_GUEST_BASE)
-        qemu_log("guest_base  0x%lx\n", guest_base);
-#endif
-        log_page_dump();
-
-        qemu_log("start_brk   0x" TARGET_ABI_FMT_lx "\n", info->start_brk);
-        qemu_log("end_code    0x" TARGET_ABI_FMT_lx "\n", info->end_code);
-        qemu_log("start_code  0x" TARGET_ABI_FMT_lx "\n",
-                 info->start_code);
-        qemu_log("start_data  0x" TARGET_ABI_FMT_lx "\n",
-                 info->start_data);
-        qemu_log("end_data    0x" TARGET_ABI_FMT_lx "\n", info->end_data);
-        qemu_log("start_stack 0x" TARGET_ABI_FMT_lx "\n",
-                 info->start_stack);
-        qemu_log("brk         0x" TARGET_ABI_FMT_lx "\n", info->brk);
-        qemu_log("entry       0x" TARGET_ABI_FMT_lx "\n", info->entry);
-    }
+    loader_exec(data, len, regs, info, stack_base);
 
     target_set_brk(info->brk);
-    syscall_init();
+    // syscall_init();
     signal_init();
 
 #if defined(TARGET_I386)
@@ -2860,7 +2664,7 @@ int main(int argc, char **argv, char **envp)
     env->eip = regs->eip;
 #endif
 
-    /* linux interrupt setup */
+
 #ifndef TARGET_ABI32
     env->idt.limit = 511;
 #else
@@ -2869,6 +2673,7 @@ int main(int argc, char **argv, char **envp)
     env->idt.base = target_mmap(0, sizeof(uint64_t) * (env->idt.limit + 1),
                                 PROT_READ|PROT_WRITE,
                                 MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+
     idt_table = g2h(env->idt.base);
     set_idt(0, 0);
     set_idt(1, 0);
@@ -2895,9 +2700,11 @@ int main(int argc, char **argv, char **envp)
     /* linux segment setup */
     {
         uint64_t *gdt_table;
+
         env->gdt.base = target_mmap(0, sizeof(uint64_t) * TARGET_GDT_ENTRIES,
                                     PROT_READ|PROT_WRITE,
                                     MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+
         env->gdt.limit = sizeof(uint64_t) * TARGET_GDT_ENTRIES - 1;
         gdt_table = g2h(env->gdt.base);
 #ifdef TARGET_ABI32
@@ -3084,11 +2891,5 @@ int main(int argc, char **argv, char **envp)
     ts->heap_limit = 0;
 #endif
 
-    if (gdbstub_port) {
-        gdbserver_start (gdbstub_port);
-        gdb_handlesig(env, 0);
-    }
-    cpu_loop(env);
-    /* never exits */
-    return 0;
+    return cpu_loop(env);
 }

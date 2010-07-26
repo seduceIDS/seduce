@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
 # AM_CFLAGS += -D_NO_SPLIT_AT_NUL
 
 # debugging stuff
-AM_CFLAGS += -ggdb -D_DEBUG
+# AM_CFLAGS += -ggdb -D_DEBUG
 
 bin_PROGRAMS = seduce-agent seduce
 sysconf_DATA = agent.conf
