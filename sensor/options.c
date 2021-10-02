@@ -54,7 +54,7 @@ static void printusage(int rc)
 	fprintf(stderr, 
 		"%s v%s sensor\n"
 		"Usage: %s [-h] [-c <config_file>] [-n<home_network>] "
-		"[-i<interface>] [-p<portlist>] [-p<password>] [-a<agent_port>]"
+		"[-i<interface>] [-p<portlist>] [-P<password>] [-a<agent_port>]"
 		" [-A<max_agents>] [-l<mem_softlimit>] [-L<mem_hardlimit>] \n\n"
 		"  h : Prints this help message.\n"
 		"  c : Specify a config file. `E.g. sensor.conf'.\n"
@@ -250,16 +250,16 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 	if (strcmp(opt->name, "portlist") == 0) {
 	
-		ret = getpts(*(char **)opt->simple_value);
+		ret = getpts(*(char **)opt->simple_value.string);
 
 	} else if (strcmp(opt->name, "home_net") == 0) {
 
-		ret = fill_network(*(char **)opt->simple_value);
+		ret = fill_network(*(char **)opt->simple_value.string);
 	
 	} else if (strcmp(opt->name, "agent_port") == 0) {
 
-		if((*(int *)opt->simple_value < MIN_PORT_LIMIT) ||
-                   (*(int *)opt->simple_value > MAX_PORT_LIMIT)) {
+		if((*(int *)opt->simple_value.number < MIN_PORT_LIMIT) ||
+                   (*(int *)opt->simple_value.number > MAX_PORT_LIMIT)) {
 
 			cfg_error(cfg,"Valid agent ports: %d-%d\n",
 					MIN_PORT_LIMIT, MAX_PORT_LIMIT);
@@ -271,7 +271,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	           (strcmp(opt->name, "mem_softlimit") == 0) ||
 	           (strcmp(opt->name, "mem_hardlimit") == 0)) {
 
-		if((*(int *)opt->simple_value < 1)) {
+		if((*(int *)opt->simple_value.number < 1)) {
 
 			cfg_error(cfg, "'%s' must be at least 1", opt->name);
 			
@@ -281,7 +281,7 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 
 	} else if (strcmp(opt->name, "password") == 0) {
 
-		if (!validate_password(*(char **)opt->simple_value)) {
+		if (!validate_password(*(char **)opt->simple_value.string)) {
 
 			cfg_error(cfg, "Password can't be longer that %d "
 					"characters", MAX_PWD_SIZE);
