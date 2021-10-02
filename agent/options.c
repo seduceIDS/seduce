@@ -434,19 +434,19 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 	int ret;
 
 	if (strcmp(opt->name, "password") == 0)
-		ret = validate_password(*(char **)opt->simple_value);
+		ret = validate_password(*(char **)opt->simple_value.string);
 	else if (strcmp(opt->name, "polling_order") == 0)
-		ret = is_selection_valid(*(int *)opt->simple_value);
+		ret = is_selection_valid(*(int *)opt->simple_value.number);
 	else if (strcmp(opt->name, "timeout") == 0)
-		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value.number < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "retries") == 0)
-		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value.number < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "no_work_wait") == 0)
-		ret = (*(int *)opt->simple_value < 0) ? 0 : 1;
+		ret = (*(int *)opt->simple_value.number < 0) ? 0 : 1;
 	else if (strcmp(opt->name, "max_polls") == 0)
-		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
+		ret = (*(int *)opt->simple_value.number < 1) ? 0 : 1;
 	else if (strcmp(opt->name, "workers") == 0)
-		ret = (*(int *)opt->simple_value < 1) ? 0 : 1;
+		ret = (*(int *)opt->simple_value.number < 1) ? 0 : 1;
 	else
 		ret = 0;
 

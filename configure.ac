@@ -134,6 +134,7 @@ if test "$use_libemu" = "yes" ; then
   LIBEMU_LIBS="./libemu/src/.libs/libemu.a"
   AC_SUBST(LIBEMU_CFLAGS)
   AC_SUBST(LIBEMU_LIBS)
+  AX_SUBDIRS_CONFIGURE([agent/libemu], [--disable-debug], [], [], [])
 else
   AM_CONDITIONAL(HAVE_LIBEMU, false)
 fi
