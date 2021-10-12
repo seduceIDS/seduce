@@ -12,6 +12,9 @@
 #ifdef HAVE_QEMU 
         extern DetectionEngine qemu_engine; 
 #endif 
+#ifdef HAVE_UNICORN
+	extern DetectionEngine uni_lx86_64_engine;
+#endif
 #ifdef HAVE_LIBEMU 
         extern DetectionEngine libemu_engine; 
 #endif 
@@ -28,6 +31,9 @@ static DetectionEngine *avail_engines[] = {
 #endif 
 #ifdef HAVE_QEMU 
         &qemu_engine, 
+#endif 
+#ifdef HAVE_UNICORN
+	&uni_lx86_64_engine,
 #endif 
 #ifdef HAVE_LIBEMU 
         &libemu_engine, 

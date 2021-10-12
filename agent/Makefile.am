@@ -4,10 +4,10 @@ AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
 # AM_CFLAGS += -D_NO_MIN_BLOCK_LENGTH
 
 # this disables splitting input blocks whenever a NUL character is encountered
-# AM_CFLAGS += -D_NO_SPLIT_AT_NUL
+AM_CFLAGS += -D_NO_SPLIT_AT_NUL
 
 # debugging stuff
-# AM_CFLAGS += -ggdb -D_DEBUG
+AM_CFLAGS += -ggdb -D_DEBUG
 
 bin_PROGRAMS = seduce-agent seduce
 sysconf_DATA = agent.conf
@@ -16,6 +16,10 @@ DETECTION_ENGINES =
 
 if HAVE_QEMU
 DETECTION_ENGINES += detection_engine_qemu.c
+endif
+
+if HAVE_UNICORN
+DETECTION_ENGINES += detection_engine_unicorn_x86_64.c
 endif
 
 if HAVE_LIBEMU
@@ -38,13 +42,13 @@ endif
 seduce_agent_SOURCES = agent.c alert.c base64.c detection_engine.c error.c \
 			item_selection.c manager_protocol.c md5.c options.c \
 			utils.c worker.c $(DETECTION_ENGINES)
-seduce_agent_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ \
+seduce_agent_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ \
 			@LIBPYTHON_CFLAGS@ @LIBCONFUSE_CFLAGS@
-seduce_agent_LDADD = @QEMU_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@
+seduce_agent_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@
 
 seduce_SOURCES = standalone.c detection_engine.c $(DETECTION_ENGINES)
-seduce_CFLAGS = $(AM_CFLAGS) @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@ 
-seduce_LDADD = @QEMU_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@
+seduce_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@ 
+seduce_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@
 
 install-exec-hook:
 	chown root:root $(DESTDIR)$(bindir)/seduce-agent

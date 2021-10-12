@@ -191,9 +191,11 @@ static int process_work(const Work *w)
 	DetectionEngine *e, **ctx = NULL;
 	int alert_ret, proc_ret, retval = 0;
 	Threat t;
+#ifdef _DEBUG
 	struct in_addr src_addr;
-
 	src_addr.s_addr = htonl(w->info.s_addr);
+#endif
+
 	DPRINTF_MD5(w->payload, w->length, 
 		    "Inspecting new work [src:%s]\n", 
 		    inet_ntoa(src_addr));

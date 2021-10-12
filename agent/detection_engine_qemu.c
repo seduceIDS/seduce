@@ -11,7 +11,7 @@
 #include <linux-user/qemu.h>
 #include <exec-all.h>
 
-#include "syscalls-linux32.h"
+#include "syscalls-linux-x86.h"
 
 typedef struct _QemuVars {
 	struct itimerval value;

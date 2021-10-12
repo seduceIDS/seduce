@@ -4,6 +4,10 @@ if HAVE_QEMU
 SUBDIRS += agent/qemu-0.12.4
 endif 
 
+if HAVE_UNICORN
+SUBDIRS += agent/unicorn
+endif
+
 if HAVE_LIBEMU
 SUBDIRS += agent/libemu
 endif
