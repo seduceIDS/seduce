@@ -99,9 +99,9 @@ AC_ARG_WITH(config-dir,
 
 # *** AND NOW FOR THE SOFT DEPS ***
 
-## our patched libqemu implementation (on by default)
+## our patched libqemu implementation (off by default)
 
-use_qemu="yes"
+use_qemu="no"
 AC_ARG_ENABLE(qemu,
  [AS_HELP_STRING([--enable-qemu],
    [Enable QEMU-based detection engine [on]])],
@@ -120,11 +120,33 @@ else
   AM_CONDITIONAL(HAVE_QEMU, false)
 fi
 
+# Unicorn-based emulation, on by default
+
+use_unicorn="yes"
+AC_ARG_ENABLE(unicorn,
+ [AS_HELP_STRING([--enable-unicorn],
+   [Enable Unicorn-based detection engine [on]])],
+   [use_unicorn=$enableval])
+
+if test "$use_unicorn" = "yes"; then
+  AM_CONDITIONAL(HAVE_UNICORN, true)
+  AC_DEFINE(HAVE_UNICORN, [1], [Unicorn detection engine])
+  UNICORN_DIR="unicorn"
+  UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
+  UNICORN_LIBS="./${UNICORN_DIR}/libunicorn.a -lpthread -lm -lrt" 
+  AC_SUBST(UNICORN_CFLAGS)
+  AC_SUBST(UNICORN_LIBS)
+#  AC_CONFIG_SUBDIRS([agent/unicorn])
+else
+  AM_CONDITIONAL(HAVE_UNICORN, false)
+fi
+
 ## embedded libemu library detector (off by default)
 
+use_libemu="no"
 AC_ARG_ENABLE(libemu,
  [AS_HELP_STRING([--enable-libemu],
-    [Enable libemu-based detection engine [off]])],
+    [Enable libemu-based detection engine [on]])],
  [use_libemu=$enableval])
 
 if test "$use_libemu" = "yes" ; then
