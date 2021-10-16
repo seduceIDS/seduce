@@ -104,7 +104,7 @@ AC_ARG_WITH(config-dir,
 use_qemu="no"
 AC_ARG_ENABLE(qemu,
  [AS_HELP_STRING([--enable-qemu],
-   [Enable QEMU-based detection engine [on]])],
+   [Enable older QEMU-based detection engine, requires a 2010 build system :) [off]])],
    [use_qemu=$enableval])
 
 if test "$use_qemu" = "yes"; then
@@ -133,8 +133,10 @@ if test "$use_unicorn" = "yes"; then
   AC_DEFINE(HAVE_UNICORN, [1], [Unicorn detection engine])
   UNICORN_DIR="unicorn"
   UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
-  UNICORN_LIBS="./${UNICORN_DIR}/libunicorn.a -lpthread -lm -lrt" 
+  UNICORN_STATIC_LIB="./${UNICORN_DIR}/libunicorn.a"
+  UNICORN_LIBS="${UNICORN_STATIC_LIB} -lpthread -lm -lrt" 
   AC_SUBST(UNICORN_CFLAGS)
+  AC_SUBST(UNICORN_STATIC_LIB)
   AC_SUBST(UNICORN_LIBS)
 #  AC_CONFIG_SUBDIRS([agent/unicorn])
 else
@@ -146,15 +148,17 @@ fi
 use_libemu="no"
 AC_ARG_ENABLE(libemu,
  [AS_HELP_STRING([--enable-libemu],
-    [Enable libemu-based detection engine [on]])],
+    [Enable libemu-based detection engine [off]])],
  [use_libemu=$enableval])
 
 if test "$use_libemu" = "yes" ; then
   AM_CONDITIONAL(HAVE_LIBEMU, true)
   AC_DEFINE(HAVE_LIBEMU, [1], [libemu detection engine])
   LIBEMU_CFLAGS="-I./libemu/include"
-  LIBEMU_LIBS="./libemu/src/.libs/libemu.a"
+  LIBEMU_STATIC_LIB="./libemu/src/.libs/libemu.a"
+  LIBEMU_LIBS="${LIBEMU_STATIC_LIB}"
   AC_SUBST(LIBEMU_CFLAGS)
+  AC_SUBST(LIBEMU_STATIC_LIB)
   AC_SUBST(LIBEMU_LIBS)
   AX_SUBDIRS_CONFIGURE([agent/libemu], [--disable-debug], [], [], [])
 else
