@@ -11,16 +11,21 @@ sensor nodes carry out the traffic collection. The '3-tier-arch' is a somewhat
 older branch that introduces a central "manager" node that passes job units to
 agents.
 
-SEDUCE detection capabilities vary depending on the built-in detection engines. Incoming traffic is inspected through all available detection engines.
+SEDUCE detection capabilities vary depending on the built-in detection engines.
+Incoming traffic is inspected through all available detection engines.
 
 Engines currently supported:
-- qemu (this is an older emulation engine based on QEMU 0.12.4 that allows detecting self modifying shellcode for linux/x86 architectures; it currently requires a build environment of circa 2010)
-- libemu (this is an emulation engine based on an old version of the libemu "GetPC" detection code)
-- unicorn (this is an emulation engine based on the Unicorn engine, that identifies linux/x86_64 shellcode, but not self-modifying code)
+- qemu (this is an older emulation engine based on QEMU 0.12.4 that allows 
+  detecting self modifying shellcode for linux/x86 architectures; it currently
+  requires a build environment of circa 2010)
+- libemu (this is an emulation engine based on an old version of the libemu 
+  "GetPC" detection code)
+- unicorn (this is an emulation engine based on the Unicorn engine, that 
+  identifies linux/x86_64 shellcode, but not self-modifying code)
 - dummy (a dummy detection engine)
 - fnord (a fnord-like signature based detection engine for x86 nop sleds)
-- pyopty2 (a python-based signature detection engine for meterpreter's opty2
-  nop sled generator)
+- pyopty2 (a python-based signature detection engine for meterpreter's 
+  opty2 nop sled generator)
 
 The 'agent/shellcodes' directory contains sample payloads to test detection
 capabilities.
@@ -41,9 +46,6 @@ $ make
 INSTALL
 -------
 # make install
-
-Latest code should be available through:
-git clone https://github.com/seduceIDS/seduce.git
 
 PROJECT HOMEPAGE
 ----------------
