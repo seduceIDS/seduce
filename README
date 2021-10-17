@@ -1,6 +1,57 @@
-SEDUCE stands for ShellcodE Detection Using CPU Emulation. 
+ABOUT
+-----
+SEDUCE stands for "ShellcodE Detection Using CPU Emulation". 
+
+SEDUCE is a tiny Network Intrusion Detection System (NIDS) that reports alerts
+to a Prelude SIEM system.
+
+The 'master' repo branch follows a simple design with 'agent' and 'sensor'
+nodes, where the agent nodes carry out the packet investigation and the
+sensor nodes carry out the traffic collection. The '3-tier-arch' is a somewhat
+older branch that introduces a central "manager" node that passes job units to
+agents.
+
+SEDUCE detection capabilities vary depending on the built-in detection engines. Incoming traffic is inspected through all available detection engines.
+
+Engines currently supported:
+- qemu (this is an older emulation engine based on QEMU 0.12.4 that allows detecting self modifying shellcode for linux/x86 architectures; it currently requires a build environment of circa 2010)
+- libemu (this is an emulation engine based on an old version of the libemu "GetPC" detection code)
+- unicorn (this is an emulation engine based on the Unicorn engine, that identifies linux/x86_64 shellcode, but not self-modifying code)
+- dummy (a dummy detection engine)
+- fnord (a fnord-like signature based detection engine for x86 nop sleds)
+- pyopty2 (a python-based signature detection engine for meterpreter's opty2
+  nop sled generator)
+
+The 'agent/shellcodes' directory contains sample payloads to test detection
+capabilities.
+
+BUILD
+-----
+With the exception of the QEMU detection engine, SEDUCE can generally be built on a modern system.
+
+To build SEDUCE from source on a Debian system you will need:
+- git gcc automake autoconf libtool autoconf-archive make
+- libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev libpreludedb-dev prelude-manager libpcap-dev libnet1-dev libnids-dev prelude-utils prelude-utils libpreludedb7-mysql
+
+Once all dependencies have been installed, do:
+$ ./autogen.sh
+$ ./configure
+$ make
+
+INSTALL
+-------
+# make install
 
 Latest code should be available through:
-svn checkout http://rainbow.cs.unipi.gr/svn/seduce 
+git clone https://github.com/seduceIDS/seduce.git
 
+PROJECT HOMEPAGE
+----------------
+Latest code is available through:
+git clone https://github.com/seduceIDS/seduce.git
+
+Bug reports / push requests are welcome on the project github page.
+
+LICENSE
+-------
 SEDUCE is available under a GPLv3 license (see COPYING).
