@@ -16,25 +16,22 @@ Incoming traffic is inspected through all available detection engines.
 
 Engines currently supported:
 - qemu (this is an older emulation engine based on QEMU 0.12.4 that allows 
-  detecting self modifying shellcode for linux/x86 architectures; it currently
-  requires a build environment of circa 2010)
-- libemu (this is an emulation engine based on an old version of the libemu 
+  detecting self-modifying shellcode on the linux/x86 architecture)
+- libemu (this is an emulation engine based on a good old version of the libemu 
   "GetPC" detection code)
 - unicorn (this is an emulation engine based on the Unicorn engine, that 
   identifies linux/x86_64 shellcode, but not self-modifying code)
 - dummy (a dummy detection engine)
-- fnord (a fnord-like signature based detection engine for x86 nop sleds)
+- fnord (a fnord-like signature detection engine for x86 NOP sleds)
 - pyopty2 (a python-based signature detection engine for meterpreter's 
   opty2 nop sled generator)
 
 The 'agent/shellcodes' directory contains sample payloads to test detection
-capabilities.
+capabilities. 
 
 BUILD
 -----
-With the exception of the QEMU detection engine, SEDUCE can generally be built on a modern system.
-
-To build SEDUCE from source on a Debian system you will need:
+To build SEDUCE from source on a Debian x86_64 system you will need:
 - git gcc automake autoconf libtool autoconf-archive make
 - libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev libpreludedb-dev prelude-manager libpcap-dev libnet1-dev libnids-dev prelude-utils prelude-utils libpreludedb7-mysql
 
@@ -43,9 +40,16 @@ $ ./autogen.sh
 $ ./configure
 $ make
 
+The configure script builds by default only the 'unicorn' engine.
+
 INSTALL
 -------
 # make install
+
+RUNNING
+-------
+If you just want to test a payload against an engine, do:
+./seduce <engine_name> <payload>
 
 PROJECT HOMEPAGE
 ----------------
