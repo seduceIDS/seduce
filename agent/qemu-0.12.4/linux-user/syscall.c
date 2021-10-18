@@ -196,9 +196,6 @@ static int gettid(void) {
     return -ENOSYS;
 }
 #endif
-#ifdef __NR_stime && !defined(stime)
-_syscall1(int, stime, const time_t *, t);
-#endif
 _syscall3(int, sys_getdents, uint, fd, struct linux_dirent *, dirp, uint, count);
 #if defined(TARGET_NR_getdents64) && defined(__NR_getdents64)
 _syscall3(int, sys_getdents64, uint, fd, struct linux_dirent64 *, dirp, uint, count);
@@ -4492,6 +4489,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #endif
 #ifdef TARGET_NR_stime /* not on alpha */
     case TARGET_NR_stime:
+	/*
         {
             time_t host_time;
             if (get_user_sal(host_time, arg1))
@@ -4499,6 +4497,8 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             ret = get_errno(stime(&host_time));
         }
         break;
+	*/
+	goto unimplemented;
 #endif
     case TARGET_NR_ptrace:
         goto unimplemented;
