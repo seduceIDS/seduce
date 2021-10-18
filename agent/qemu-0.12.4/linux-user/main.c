@@ -317,7 +317,7 @@ int cpu_loop(CPUX86State *env)
             case TARGET_NR_setuid:
               return HIGH_RISK_SYSCALL;
             default:
-              fprintf(stderr,"syscall - %d\n",env->regs[R_EAX]);
+              // fprintf(stderr,"syscall - %d\n",env->regs[R_EAX]);
               env->regs[R_EAX] = 0;
           }
           //process_pending_signals(env);
