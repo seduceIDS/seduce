@@ -189,14 +189,15 @@ static type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5,	\
 #define __NR__llseek __NR_lseek
 #endif
 
-#ifdef __NR_gettid
-_syscall0(int, gettid)
-#else
+#ifndef __NR_gettid
 /* This is a replacement for the host gettid() and must return a host
    errno. */
 static int gettid(void) {
     return -ENOSYS;
 }
+#endif
+#ifdef __NR_stime && !defined(stime)
+_syscall1(int, stime, const time_t *, t);
 #endif
 _syscall3(int, sys_getdents, uint, fd, struct linux_dirent *, dirp, uint, count);
 #if defined(TARGET_NR_getdents64) && defined(__NR_getdents64)

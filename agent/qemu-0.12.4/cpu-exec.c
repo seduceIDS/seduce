@@ -77,7 +77,7 @@ void cpu_resume_from_signal(CPUState *env1, void *puc)
 {
 #if !defined(CONFIG_SOFTMMU)
 #ifdef __linux__
-    struct ucontext *uc = puc;
+    struct ucontext_t *uc = puc;
 #elif defined(__OpenBSD__)
     struct sigcontext *uc = puc;
 #endif
@@ -869,7 +869,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #elif defined(__OpenBSD__)
     struct sigcontext *uc = puc;
 #else
-    struct ucontext *uc = puc;
+    struct ucontext_t *uc = puc;
 #endif
     unsigned long pc;
     int trapno;
@@ -924,7 +924,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #elif defined(__OpenBSD__)
     struct sigcontext *uc = puc;
 #else
-    struct ucontext *uc = puc;
+    struct ucontext_t *uc = puc;
 #endif
 
     pc = PC_sig(uc);
@@ -1144,7 +1144,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 int cpu_signal_handler(int host_signum, void *pinfo, void *puc)
 {
     siginfo_t *info = pinfo;
-    struct ucontext *uc = puc;
+    struct ucontext_t *uc = puc;
     unsigned long ip;
     int is_write = 0;
 

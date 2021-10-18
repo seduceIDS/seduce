@@ -9,6 +9,7 @@
 #include <sys/mount.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <sys/sysmacros.h>
 #include "qemu.h"
 
 int do_strace=0;
