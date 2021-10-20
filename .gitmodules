@@ -1,3 +1,6 @@
 [submodule "agent/libemu"]
 	path = agent/libemu
 	url = https://github.com/seduceIDS/libemu.git
+[submodule "agent/unicorn"]
+	path = agent/unicorn
+	url = https://github.com/seduceIDS/unicorn.git
