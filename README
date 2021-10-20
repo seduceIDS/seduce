@@ -15,16 +15,16 @@ SEDUCE detection capabilities vary depending on the built-in detection engines.
 Incoming traffic is inspected through all available detection engines.
 
 Engines currently supported:
+- unicorn (this is an emulation engine based on the Unicorn engine, that 
+  can identify potentially self-modifying linux/x86_64 shellcode)
 - qemu (this is an older emulation engine based on QEMU 0.12.4 that allows 
-  detecting self-modifying shellcode on the linux/x86 architecture)
+  detecting potentially self-modifying shellcode on the linux/x86 architecture)
 - libemu (this is an emulation engine based on a good old version of the libemu 
   "GetPC" detection code)
-- unicorn (this is an emulation engine based on the Unicorn engine, that 
-  identifies linux/x86_64 shellcode, but not self-modifying code)
 - dummy (a dummy detection engine)
 - fnord (a fnord-like signature detection engine for x86 NOP sleds)
 - pyopty2 (a python-based signature detection engine for meterpreter's 
-  opty2 nop sled generator)
+  opty2 nop-sled generator)
 
 The 'agent/shellcodes' directory contains sample payloads to test detection
 capabilities. 
