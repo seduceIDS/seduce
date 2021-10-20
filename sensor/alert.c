@@ -20,7 +20,7 @@
 
 #define ANALYZER_CLASS "NIDS"
 #define ANALYZER_MODEL PACKAGE_STRING
-#define ANALYZER_MANUFACTURER "http://rainbow.cs.unipi.gr/projects/seduce"
+#define ANALYZER_MANUFACTURER "http://github.com/SeduceIDS/seduce"
 #define DEFAULT_ANALYZER_NAME PACKAGE
 
 static AlertList alertlist;

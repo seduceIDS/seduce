@@ -1,7 +1,7 @@
 #include "utils.h"
 #include "md5.h"
 
-void compute_md5(void *data, int len, char md5str[33])
+void compute_md5(const void *data, int len, char md5str[33])
 {
 	char md5res[16];
 	struct md5_ctx tmp_hash;

@@ -26,7 +26,7 @@
 
 #endif /* _DEBUG */
 
-void compute_md5(void *data, int data_len, char md5str[33]);
+void compute_md5(const void *data, int data_len, char md5str[33]);
 
 #endif /* _UTILS_H */
 
