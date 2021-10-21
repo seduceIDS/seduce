@@ -318,14 +318,12 @@ int submit_alert(const ManagerSession *s, const ConnectionInfo *c,
 
 	/* TODO: I need to check if some threat fields are missing */
 
-	DPRINTF("Connecting to the manager...");
-	
 	sock = tcp_connect(s);
 	if(sock == 0) {
 		fprintf(stderr, "connection to manager failed\n");
 		return 0;
 	} else
-		DPRINTF("done\n");
+		DPRINTF("Connected to the manager\n");
 
 	//sock = 1;
 
@@ -341,10 +339,14 @@ int submit_alert(const ManagerSession *s, const ConnectionInfo *c,
 	if(!ret)
 		goto err;
 
+	DPRINTF("Sent password succesfully\n");
+
 	uint_to_str(arg, c->proto);
 	ret = do_request_response(sock, "PROTO", arg);
 	if(!ret)
 		goto err;
+
+	DPRINTF("Sent PROTO succesfully\n");
 
 	addr_to_str(arg, c->s_addr, c->s_port);
 	ret = do_request_response(sock, "SRC_ADDR", arg);
@@ -404,6 +406,8 @@ int submit_alert(const ManagerSession *s, const ConnectionInfo *c,
 		fprintf(stderr, "Unable to send QUIT command");
 		goto err;
 	}
+
+	DPRINTF("Finished alert submission succesfully\n");
 
 	close(sock);
 	return 1;

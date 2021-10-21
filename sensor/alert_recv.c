@@ -847,23 +847,24 @@ again:
 	}
 
 	if(longline) {
-		proto_reply(sock, "I request a password, "
-				"you send back malakies :-(\n");
+		proto_reply(sock, "line was too long\n");
 		goto end;
 	}
 
 	/* remove the new line in the end of the password */
 	buf[numbytes - 1] = '\0';
 
-	/* fuck you microsoft */
+	/* ...taking care of a carriage return */
 	if((numbytes > 1) && (buf[numbytes - 2] == '\r'))
 		buf[numbytes -2] = '\0';
 
 
 	if(!check_password(buf)) {
+		DPRINTF("wrong password supplied to alert receiver\n");
 		proto_reply(sock, "Authentication Failed\n");
 		goto end;
 	} else {
+		DPRINTF("correct password supplied to alert receiver\n");
 		if(proto_reply(sock, "OK\n"))
 			goto end;
 	}
