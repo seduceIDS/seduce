@@ -6,7 +6,7 @@ SEDUCE is a tiny Network Intrusion Detection System (NIDS) that reports alert
 to a Prelude SIEM system (see https://www.prelude-siem.org/). 
 
 The project was initially developed by Nikos Skalkotos, Haris Andrianakis, 
-Spyros Panagiotopoulos and Dimitrios Glynos as part of their academic thesis
+Spyros Panagiotopoulos and Dimitrios Glynos as part of their thesis work
 at the University of Piraeus. Development started in 2006 and was paused in 
 2010, however recent academic interest in final-year-project work on SEDUCE 
 contributed to a revival in 2021.
@@ -36,17 +36,13 @@ Engines currently supported:
 See 'configure' options on how to configure specific engines to be built
 into the 'seduce-agent' binary.
 
-For a quick test of the detection capabilities of an engine, one can use the 
-standalone 'seduce' binary (which does not involve NIDS work).
-
-The 'agent/shellcodes' directory contains sample payloads to test detection
-capabilities. 
-
 BUILD
 -----
 To build SEDUCE from source on a Debian system you will need:
 - git gcc automake autoconf libtool autoconf-archive make
-- libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev libpreludedb-dev libpcap-dev libnet1-dev libnids-dev prelude-utils libpreludedb7-mysql prelude-manager
+- libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev 
+  libpreludedb-dev libpcap-dev libnet1-dev libnids-dev prelude-utils 
+  libpreludedb7-mysql prelude-manager
 
 Once all dependencies have been installed, do:
 $ ./autogen.sh
@@ -62,8 +58,8 @@ INSTALL
 Configuration files for agents and sensors are by default under 
 '/usr/local/etc/seduce/'. Please edit these to suit your needs.
 
-CONFIGURING PRELUDE FOR SEDUCE
-------------------------------
+PRELUDE REGISTRATION
+--------------------
 You'll need two console sessions to configure prelude for SEDUCE.
 
 [On the first console do]
@@ -96,9 +92,13 @@ On another console start an agent:
 
 # /usr/local/bin/seduce-agent -c /usr/local/etc/seduce/agent
 
-If you wish to test a payload against a detection engine do:
+For a quick test of the detection capabilities of an engine, one can use the 
+standalone 'seduce' binary (which does not involve NIDS work).
 
 $ /usr/local/bin/seduce <engine> <payload_file>
+
+To test the detection capabilities of an engine, you may find sample payloads 
+in the 'agent/shellcodes' directory of this repository.
 
 PROJECT HOMEPAGE
 ----------------
