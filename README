@@ -2,7 +2,7 @@ ABOUT
 -----
 SEDUCE stands for "ShellcodE Detection Using CPU Emulation". 
 
-SEDUCE is a tiny Network Intrusion Detection System (NIDS) that reports alert
+SEDUCE is a tiny Network Intrusion Detection System (NIDS) that reports alerts
 to a Prelude SIEM system (see https://www.prelude-siem.org/). 
 
 The project was initially developed by Nikos Skalkotos, Haris Andrianakis, 
@@ -86,11 +86,11 @@ Make sure prelude is running:
 
 Then start a SEDUCE sensor:
 
-# /usr/local/sbin/seduce-sensor -c /usr/local/etc/seduce/sensor
+# /usr/local/sbin/seduce-sensor -c /usr/local/etc/seduce/sensor.conf
 
 On another console start an agent:
 
-# /usr/local/bin/seduce-agent -c /usr/local/etc/seduce/agent
+# /usr/local/bin/seduce-agent -c /usr/local/etc/seduce/agent.conf
 
 For a quick test of the detection capabilities of an engine, one can use the 
 standalone 'seduce' binary (which does not involve NIDS work).
