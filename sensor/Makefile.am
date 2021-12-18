@@ -1,4 +1,4 @@
-AM_CFLAGS = -Wall -O2 -D_BSD_SOURCE -DCONF_DIR="${sysconfdir}"
+AM_CFLAGS = -Wall -O2 -Werror -D_DEFAULT_SOURCE -DCONF_DIR="${sysconfdir}"
 
 # Enable debugging if you need it
 # AM_CFLAGS += -ggdb -D_DEBUG

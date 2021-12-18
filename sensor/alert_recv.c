@@ -598,7 +598,6 @@ static int exec_print(int sock, Alert *a, char *arg)
 {
 	char buf[75];
 	struct in_addr tmp_addr;
-	int ret;
 
 	if(proto_reply(sock, "\nCurrent Alert Data\n")) return -1;
 
@@ -622,7 +621,7 @@ static int exec_print(int sock, Alert *a, char *arg)
 	sprintf(buf, "Severity:\t%d\n", a->severity);
 	if(proto_reply(sock, buf)) return -1;
 
-	ret = snprintf(buf, 70, "Message:\t%s\n", a->msg);
+	snprintf(buf, 70, "Message:\t%s\n", a->msg);
 	if(buf[69] == '\0') {
 		buf[69] = buf[70] = buf[71] = '.';
 		buf[72] = '\n';

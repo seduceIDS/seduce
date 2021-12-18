@@ -119,7 +119,7 @@ static int fill_source_target(Alert *p, idmef_alert_t *alert)
                 return ret;
 
         ret = idmef_target_new_service(target, &service);
-        if ( ! ret < 0 )
+        if ( ret < 0 )
                 return ret;
         
         idmef_service_set_port(service, p->addr.dest);

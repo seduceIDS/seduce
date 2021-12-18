@@ -6,10 +6,10 @@
 /* Program variables */
 typedef struct _ProgVars {
 	char *prog_name;
-	int agent_port;
-	int max_agents;
-	int mem_softlimit;
-	int mem_hardlimit;
+	long agent_port;
+	long max_agents;
+	long mem_softlimit;
+	long mem_hardlimit;
 	char *password;
 	uint8_t port_table[65536];
 } PV;

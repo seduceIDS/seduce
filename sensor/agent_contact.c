@@ -159,7 +159,6 @@ static void remove_agent(Agents *agents, unsigned id)
 	AgentInfo *this_agent;
 	u_int8_t mask;
 	int i;
-	int ret;
 	unsigned short *index;
 
 	DPRINTF("\n");
@@ -178,9 +177,9 @@ static void remove_agent(Agents *agents, unsigned id)
 	if(this_agent->history.data.tcp) {
 
 		mutex_lock(&sensor.mutex);
-		ret = destroy_datagroup(&sensor.proto_lost,
+		destroy_datagroup(&sensor.proto_lost,
 					&this_agent->history);
-		/* TODO: Do I need to check about ret ? */
+		/* TODO: Do I need to check about return value of above ? */
 		mutex_unlock(&sensor.mutex);
 	}
 
@@ -472,8 +471,9 @@ static int recv_udp_packet(UDPPacket *pck)
 	pck->seq  = ntohl(*(uint32_t *) (buf +  8));
 	pck->id   = ntohl(*(uint32_t *) (buf + 12));
 
-	if(numbytes == max_pck_size)
-		strncpy(pck->pwd,buf + UDP_HDR_SIZE, UDP_INFO_SIZE - 1);
+	if(numbytes == max_pck_size) {
+		memcpy(pck->pwd, buf + UDP_HDR_SIZE, UDP_INFO_SIZE);
+	}
 
 	DPRINTF("Received: %u,%u,%u,%u\n",pck->size, pck->seq,
 							pck->type, pck->id);
@@ -599,7 +599,7 @@ static void init_agents(Agents *agents)
  */
 void *agents_contact(void *thread_params)
 {
-	int newfd,maxfd, one;
+	long int newfd,maxfd, one;
 	fd_set readset, allset;
 	int nready;
 	struct sockaddr_in my_addr, his_addr;
@@ -665,7 +665,7 @@ select_restart:
 				errno_cont("accept");
 			else 
 				create_thread((void *)alert_receiver, 
-								(void *) newfd);
+						     (void *) newfd);
 			
 			if(--nready <= 0)
 				continue;

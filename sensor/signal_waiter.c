@@ -63,11 +63,11 @@ static void compute_stats(void)
 
 	printf("Sensor Statistics:\n");
 	printf("                     Packets\tBytes\n");
-	printf("Input:               %llu   \t%llu\n", in.pcks, in.bytes);
-	printf("Consumed by Agents:  %llu   \t%llu\n", out.pcks, out.bytes);
-	printf("Discarded by Agents: %llu   \t%llu\n", proto.pcks, proto.bytes);
-	printf("Consumed by OOM:     %llu   \t%llu\n", oom.pcks, oom.bytes);
-	printf("Left inside:         %llu   \t%llu\n", left.pcks, left.bytes); 
+	printf("Input:               %lu   \t%lu\n", in.pcks, in.bytes);
+	printf("Consumed by Agents:  %lu   \t%lu\n", out.pcks, out.bytes);
+	printf("Discarded by Agents: %lu   \t%lu\n", proto.pcks, proto.bytes);
+	printf("Consumed by OOM:     %lu   \t%lu\n", oom.pcks, oom.bytes);
+	printf("Left inside:         %lu   \t%lu\n", left.pcks, left.bytes); 
 }
 
 void init_signal_waiter(void)

@@ -64,8 +64,8 @@ static void printusage(int rc)
 		"  P : Password for the agents (default: seduce).\n"
 		"  a : Port to listen for agent requests (default: 28001).\n"
 		"  A : Maximum number of agents allowed (default: 256).\n"
-		"  l : Memory usage soft limit in Mb. E.g. `400'.\n"
-		"  L : Memory usage hard limit in Mb. E.g. `390'.\n\n",
+		"  l : Memory usage soft limit in Mb. E.g. `350'.\n"
+		"  L : Memory usage hard limit in Mb. E.g. `400'.\n\n",
 		PACKAGE_NAME, PACKAGE_VERSION, pv.prog_name);
 	exit(rc);
 }
@@ -80,9 +80,9 @@ static void printusage(int rc)
  */
 static int getpts(char *origexpr)
 {
-	int portwarning = 0; /* have we warned idiot about dup ports yet? */
+	int portwarning = 0; /* have we warned about dup ports yet? */
   	long rangestart = -2343242, rangeend = -9324423;
-	char * current_range;
+	char *current_range;
 	char *endptr;
 	int range_type =0;
 	int tcpportcount = 0, udpportcount = 0;
@@ -268,10 +268,10 @@ static int cfg_validate(cfg_t *cfg, cfg_opt_t *opt)
 			ret = 1;
 		
 	} else if ((strcmp(opt->name, "max_agents") == 0)    ||
-	           (strcmp(opt->name, "mem_softlimit") == 0) ||
-	           (strcmp(opt->name, "mem_hardlimit") == 0)) {
+	           (strcmp(opt->name, "mem_hardlimit") == 0) ||
+	           (strcmp(opt->name, "mem_softlimit") == 0)) {
 
-		if((*(int *)opt->simple_value.number < 1)) {
+		if(*(int *)opt->simple_value.number < 1) {
 
 			cfg_error(cfg, "'%s' must be at least 1", opt->name);
 			
@@ -304,6 +304,18 @@ static int parse_file(char *filename)
 	char *home_net = NULL;
 	char *portlist = NULL;
 	int ret;
+	struct {
+		long n_tcp_streams;
+		long n_hosts;
+		long sk_buff_size;
+		long dev_addon;
+		long promisc;
+		long one_loop_less;
+		long pcap_timeout;
+		long multiproc;
+		long queue_limit;
+		long tcp_workarounds;
+	} long2int; // libconfuse wants long values, libnids wants int values
 
 	cfg_opt_t opts[] = {
 		CFG_SIMPLE_STR("interface", &nids_params.device),
@@ -311,23 +323,23 @@ static int parse_file(char *filename)
 		CFG_SIMPLE_STR("portlist",&portlist),
 		CFG_SIMPLE_INT("agent_port", &pv.agent_port),
 		CFG_SIMPLE_INT("max_agents", &pv.max_agents),
-		CFG_SIMPLE_INT("mem_softlimit", &pv.mem_softlimit),
 		CFG_SIMPLE_INT("mem_hardlimit", &pv.mem_hardlimit),
+		CFG_SIMPLE_INT("mem_softlimit", &pv.mem_softlimit),
 		CFG_SIMPLE_STR("password", &pv.password),
 	
 		/* libnids params */
-		CFG_SIMPLE_INT("n_tcp_streams", &nids_params.n_tcp_streams),
-		CFG_SIMPLE_INT("n_hosts", &nids_params.n_hosts),
+		CFG_SIMPLE_INT("n_tcp_streams", &long2int.n_tcp_streams),
+		CFG_SIMPLE_INT("n_hosts", &long2int.n_hosts),
 		CFG_SIMPLE_STR("filename", &nids_params.filename),
-		CFG_SIMPLE_INT("sk_buff_size", &nids_params.sk_buff_size),
-		CFG_SIMPLE_INT("dev_addon", &nids_params.dev_addon),
-		CFG_SIMPLE_BOOL("promisc", &nids_params.promisc),
-		CFG_SIMPLE_BOOL("one_loop_less", &nids_params.one_loop_less),
-		CFG_SIMPLE_INT("pcap_timeout", &nids_params.pcap_timeout),
+		CFG_SIMPLE_INT("sk_buff_size", &long2int.sk_buff_size),
+		CFG_SIMPLE_INT("dev_addon", &long2int.dev_addon),
+		CFG_SIMPLE_INT("promisc", &long2int.promisc),
+		CFG_SIMPLE_INT("one_loop_less", &long2int.one_loop_less),
+		CFG_SIMPLE_INT("pcap_timeout", &long2int.pcap_timeout),
 #if (NIDS_MINOR > 20)
-		CFG_SIMPLE_BOOL("multiproc", &nids_params.multiproc),
-		CFG_SIMPLE_INT("queue_limit", &nids_params.queue_limit),
-		CFG_SIMPLE_BOOL("tcp_workarounds",&nids_params.tcp_workarounds),
+		CFG_SIMPLE_INT("multiproc", &long2int.multiproc),
+		CFG_SIMPLE_INT("queue_limit", &long2int.queue_limit),
+		CFG_SIMPLE_INT("tcp_workarounds",&long2int.tcp_workarounds),
 #endif
 		CFG_END()
 	};
@@ -340,10 +352,11 @@ static int parse_file(char *filename)
 	cfg_set_validate_func(cfg, "agent_port", cfg_validate);
 	cfg_set_validate_func(cfg, "max_agents", cfg_validate);
 	cfg_set_validate_func(cfg, "password", cfg_validate);
-	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
 	cfg_set_validate_func(cfg, "mem_hardlimit", cfg_validate);
+	cfg_set_validate_func(cfg, "mem_softlimit", cfg_validate);
 
 	ret = cfg_parse(cfg,filename);
+
 	if(ret != CFG_SUCCESS) {
 		if (ret == CFG_FILE_ERROR)
 			fprintf(stderr, "Can't open config file for reading. "
@@ -351,6 +364,17 @@ static int parse_file(char *filename)
 		cfg_free(cfg);
 		return 0;
 	}
+
+	nids_params.n_tcp_streams = (int) (0xffffffff & long2int.n_tcp_streams);
+	nids_params.n_hosts = (int) (0xffffffff & long2int.n_hosts);
+	nids_params.sk_buff_size = (int) (0xffffffff & long2int.sk_buff_size);
+	nids_params.dev_addon = (int) (0xffffffff & long2int.dev_addon);
+	nids_params.promisc = (int) (0xffffffff & long2int.promisc);
+	nids_params.one_loop_less = (int) (0xffffffff & long2int.one_loop_less);
+	nids_params.pcap_timeout = (int) (0xffffffff & long2int.pcap_timeout);
+	nids_params.multiproc = (int) (0xffffffff & long2int.multiproc);
+	nids_params.queue_limit = (int) (0xffffffff & long2int.queue_limit);
+	nids_params.tcp_workarounds = (int) (0xffffffff & long2int.tcp_workarounds);
 
 	if(home_net)
 		free(home_net);
