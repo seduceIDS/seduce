@@ -13,6 +13,13 @@
 #include "sensor.h"
 #include "../config.h"
 
+#define LIBCONFUSE_OVERRIDE(parm, defaultval) do { \
+		if (long2int.parm) \
+			nids_params.parm = (int) (0xffffffff & long2int.parm); \
+		else \
+			nids_params.parm = defaultval; \
+	} while(0)
+
 /* struct filled with command-line arguments */
 typedef struct _CommandLineOptions {
 	char *portlist_expr;
@@ -32,7 +39,7 @@ typedef struct _CommandLineOptions {
  * range 1-1024 you need root permission and manager is not supposed to be
  * running with root priveleges. On the other hand at least for the 2.6 version
  * of the linux kernel, the ephemeral port range is 32768-61000, so we picked
- * the inbetween to be the acceptable port range. Feel free to change the bellow
+ * the inbetween to be the acceptable port range. Feel free to change the below
  * values.
  */
 #define MIN_PORT_LIMIT 1025
@@ -317,6 +324,8 @@ static int parse_file(char *filename)
 		long tcp_workarounds;
 	} long2int; // libconfuse wants long values, libnids wants int values
 
+	memset(&long2int, 0, sizeof(long2int));
+
 	cfg_opt_t opts[] = {
 		CFG_SIMPLE_STR("interface", &nids_params.device),
 		CFG_SIMPLE_STR("home_net",&home_net),
@@ -365,16 +374,17 @@ static int parse_file(char *filename)
 		return 0;
 	}
 
-	nids_params.n_tcp_streams = (int) (0xffffffff & long2int.n_tcp_streams);
-	nids_params.n_hosts = (int) (0xffffffff & long2int.n_hosts);
-	nids_params.sk_buff_size = (int) (0xffffffff & long2int.sk_buff_size);
-	nids_params.dev_addon = (int) (0xffffffff & long2int.dev_addon);
-	nids_params.promisc = (int) (0xffffffff & long2int.promisc);
-	nids_params.one_loop_less = (int) (0xffffffff & long2int.one_loop_less);
-	nids_params.pcap_timeout = (int) (0xffffffff & long2int.pcap_timeout);
-	nids_params.multiproc = (int) (0xffffffff & long2int.multiproc);
-	nids_params.queue_limit = (int) (0xffffffff & long2int.queue_limit);
-	nids_params.tcp_workarounds = (int) (0xffffffff & long2int.tcp_workarounds);
+	// establish libconfuse defaults
+	LIBCONFUSE_OVERRIDE(n_tcp_streams, 1024);
+	LIBCONFUSE_OVERRIDE(n_hosts, 256);
+	LIBCONFUSE_OVERRIDE(sk_buff_size, 168);
+	LIBCONFUSE_OVERRIDE(dev_addon, -1);
+	LIBCONFUSE_OVERRIDE(promisc, 1);
+	LIBCONFUSE_OVERRIDE(one_loop_less, 0);
+	LIBCONFUSE_OVERRIDE(pcap_timeout, 1024);
+	LIBCONFUSE_OVERRIDE(multiproc, 0);
+	LIBCONFUSE_OVERRIDE(queue_limit, 20000);
+	LIBCONFUSE_OVERRIDE(tcp_workarounds, 0);
 
 	if(home_net)
 		free(home_net);
@@ -596,11 +606,14 @@ void fill_progvars(int argc, char *argv[])
 		goto err;
 	}
 
-	if(!pv.mem_softlimit || !pv.mem_hardlimit) {
-		fprintf(stderr, "Memory limits are not set. ");
-		goto err;
+	if(!pv.mem_softlimit) {
+		pv.mem_softlimit = 350;
 	}
-
+	       
+	if(!pv.mem_hardlimit) {
+		pv.mem_hardlimit = 400;
+	}
+	
 	if(pv.mem_softlimit > pv.mem_hardlimit) {
 		fprintf(stderr, "Memory soft limit cannot be greater than the "
 			        "memory hard limit\n");
