@@ -120,20 +120,20 @@ else
   AM_CONDITIONAL(HAVE_QEMU, false)
 fi
 
-# Unicorn-based emulation, on by default
+# Unicorn-based linux/x64 emulation, on by default
 
-use_unicorn="yes"
-AC_ARG_ENABLE(unicorn,
- [AS_HELP_STRING([--enable-unicorn],
-   [Enable Unicorn-based detection engine [on]])],
-   [use_unicorn=$enableval])
+use_linux64="yes"
+AC_ARG_ENABLE(linux64,
+ [AS_HELP_STRING([--enable-linux64],
+   [Enable Unicorn-based linux/x64 detection engine [on]])],
+   [use_linux64=$enableval])
 
-if test "$use_unicorn" = "yes"; then
+if test "$use_linux64" = "yes"; then
   PKG_PROG_PKG_CONFIG([0.29])
   AC_CHECK_PROG(CMAKE,[cmake],[cmake],[no])
   test "$CMAKE" == "no" && AC_MSG_ERROR([Required program 'cmake' not found.])
-  AM_CONDITIONAL(HAVE_UNICORN, true)
-  AC_DEFINE(HAVE_UNICORN, [1], [Unicorn detection engine])
+  AM_CONDITIONAL(HAVE_LINUX64, true)
+  AC_DEFINE(HAVE_LINUX64, [1], [Unicorn-based linux/x64 detection engine])
   UNICORN_DIR="unicorn"
   UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
   UNICORN_STATIC_LIB="./${UNICORN_DIR}/build/libunicorn.a"
@@ -143,8 +143,9 @@ if test "$use_unicorn" = "yes"; then
   AC_SUBST(UNICORN_LIBS)
 #  AC_CONFIG_SUBDIRS([agent/unicorn])
 else
-  AM_CONDITIONAL(HAVE_UNICORN, false)
+  AM_CONDITIONAL(HAVE_LINUX64, false)
 fi
+
 
 ## embedded libemu library detector (off by default)
 

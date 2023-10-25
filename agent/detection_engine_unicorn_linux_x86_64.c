@@ -27,7 +27,7 @@ static void uni_engine_reset(void);
 static void uni_engine_destroy(void);
 
 DetectionEngine uni_lx86_64_engine = {
-	.name = "uni_linux_x86_64",
+	.name = "linux64",
 	.descr = "Unicorn-based Linux x86_64 Detection Engine",
 	.init = &uni_engine_init,
 	.destroy = &uni_engine_destroy,
@@ -76,7 +76,7 @@ static void hook_syscall(uc_engine *uc, void *user_data)
  *            1 => Threat detected
  *           -1 => An error occured
  */
-int uni_engine_process(char *data, size_t len, Threat *threat)
+static int uni_engine_process(char *data, size_t len, Threat *threat)
 {
 	void *code_segment;
 	const char *p;
@@ -166,7 +166,7 @@ static int uni_engine_init(void)
 	uc_err err;
 	err = uc_open(UC_ARCH_X86, UC_MODE_64, &uc);
 	if (err != UC_ERR_OK) {
-		perror("could not initialize unicorn engine");
+		perror("could not initialize unicorn engine for x86_64");
 		return 0;
 	}
 	

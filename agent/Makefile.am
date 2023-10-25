@@ -20,8 +20,8 @@ DETECTION_ENGINES += detection_engine_qemu.c
 SUBDIRS += qemu-0.12.4
 endif
 
-if HAVE_UNICORN
-DETECTION_ENGINES += detection_engine_unicorn_x86_64.c
+if HAVE_LINUX64
+DETECTION_ENGINES += detection_engine_unicorn_linux_x86_64.c
 SUBDIRS += unicorn
 endif
 

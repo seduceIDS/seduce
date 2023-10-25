@@ -22,7 +22,7 @@ Incoming traffic is inspected through all available (built-in) detection
 engines.
 
 Engines currently supported:
-- unicorn (this is an emulation engine based on the Unicorn engine, that 
+- linux64 (this is an emulation engine based on the Unicorn engine, that 
   can identify potentially self-modifying linux/x86_64 shellcode)
 - qemu (this is an older emulation engine based on QEMU 0.12.4 that allows 
   detecting potentially self-modifying shellcode on the linux/x86 architecture)
@@ -49,7 +49,7 @@ $ ./autogen.sh
 $ ./configure
 $ make
 
-The 'configure' script builds by default only the 'unicorn' engine.
+The 'configure' script builds by default only the 'linux64' engine.
 
 INSTALL
 -------
