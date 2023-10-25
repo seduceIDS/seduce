@@ -129,11 +129,14 @@ AC_ARG_ENABLE(unicorn,
    [use_unicorn=$enableval])
 
 if test "$use_unicorn" = "yes"; then
+  PKG_PROG_PKG_CONFIG([0.29])
+  AC_CHECK_PROG(CMAKE,[cmake],[cmake],[no])
+  test "$CMAKE" == "no" && AC_MSG_ERROR([Required program 'cmake' not found.])
   AM_CONDITIONAL(HAVE_UNICORN, true)
   AC_DEFINE(HAVE_UNICORN, [1], [Unicorn detection engine])
   UNICORN_DIR="unicorn"
   UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
-  UNICORN_STATIC_LIB="./${UNICORN_DIR}/libunicorn.a"
+  UNICORN_STATIC_LIB="./${UNICORN_DIR}/build/libunicorn.a"
   UNICORN_LIBS="${UNICORN_STATIC_LIB} -lpthread -lm -lrt" 
   AC_SUBST(UNICORN_CFLAGS)
   AC_SUBST(UNICORN_STATIC_LIB)
