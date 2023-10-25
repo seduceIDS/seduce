@@ -42,7 +42,7 @@ To build SEDUCE from source on a Debian system you will need:
 - git gcc automake autoconf libtool autoconf-archive make
 - libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev 
   libpreludedb-dev libpcap-dev libnet1-dev libnids-dev prelude-utils 
-  libpreludedb7-mysql prelude-manager
+  libpreludedb7-mysql prelude-manager pkg-config cmake
 
 Once all dependencies have been installed, do:
 $ ./autogen.sh
