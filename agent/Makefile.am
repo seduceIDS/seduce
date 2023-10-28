@@ -7,7 +7,7 @@ AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
 AM_CFLAGS += -D_NO_SPLIT_AT_NUL
 
 # debugging stuff
-# AM_CFLAGS += -ggdb -D_DEBUG
+#AM_CFLAGS += -ggdb -D_DEBUG
 
 bin_PROGRAMS = seduce-agent seduce
 sysconf_DATA = agent.conf
@@ -43,6 +43,10 @@ DETECTION_ENGINES += detection_engine_pyopty2.c
 python_PYTHON = detection_engine_pyopty2.py
 endif
 
+DETECTION_ENGINES += detection_engine_unicorn_windows_x86.c
+SUBDIRSwindows = windows_helper_functions
+
+
 seduce_agent_SOURCES = agent.c alert.c base64.c detection_engine.c error.c \
 			item_selection.c manager_protocol.c md5.c options.c \
 			utils.c worker.c $(DETECTION_ENGINES)
@@ -51,10 +55,14 @@ seduce_agent_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS
 			@LIBPYTHON_CFLAGS@ @LIBCONFUSE_CFLAGS@
 seduce_agent_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@
 
+seduce_agent_LDADD += -lpe
+
 seduce_SOURCES = standalone.c utils.c md5.c detection_engine.c $(DETECTION_ENGINES)
 seduce_DEPENDENCIES = @UNICORN_STATIC_LIB@ @LIBEMU_STATIC_LIB@
 seduce_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@
 seduce_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@
+
+seduce_LDADD += -lpe
 
 # do not recurse further for installation
 install installdirs: SUBDIRS =

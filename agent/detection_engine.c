@@ -14,6 +14,7 @@
 #endif 
 #ifdef HAVE_LINUX64
 	extern DetectionEngine uni_lx86_64_engine;
+	extern DetectionEngine uni_windows_x86_engine;
 #endif
 #ifdef HAVE_LIBEMU 
         extern DetectionEngine libemu_engine; 
@@ -34,6 +35,7 @@ static DetectionEngine *avail_engines[] = {
 #endif 
 #ifdef HAVE_LINUX64
 	&uni_lx86_64_engine,
+	&uni_windows_x86_engine,
 #endif 
 #ifdef HAVE_LIBEMU 
         &libemu_engine, 
