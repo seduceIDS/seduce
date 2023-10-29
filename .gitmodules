@@ -4,3 +4,7 @@
 [submodule "unicorn2"]
 	path = agent/unicorn
 	url = https://github.com/seduceIDS/unicorn2.git
+[submodule "agent/readpe"]
+	path = agent/readpe
+	url = https://github.com/SeduceIDS/readpe
+	branch = make-lib-and-static-lib
