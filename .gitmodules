@@ -4,6 +4,3 @@
 [submodule "unicorn2"]
 	path = agent/unicorn
 	url = https://github.com/seduceIDS/unicorn2.git
-[submodule "agent/libpe"]
-	path = agent/libpe
-	url = https://github.com/merces/libpe.git
