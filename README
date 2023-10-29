@@ -98,7 +98,7 @@ standalone 'seduce' binary (which does not involve NIDS work).
 $ /usr/local/bin/seduce <engine> <payload_file>
 
 To test the detection capabilities of an engine, you may find sample payloads 
-in the 'agent/shellcodes' directory of this repository.
+in the 'agent/shellcode' directory of this repository.
 
 PROJECT HOMEPAGE
 ----------------
