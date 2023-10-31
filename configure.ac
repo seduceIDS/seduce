@@ -93,7 +93,7 @@ AC_SUBST(LIBPRELUDE_CFLAGS)
 AC_SUBST(LIBPRELUDE_LIBS)
 
 AC_ARG_WITH(config-dir,
-  [AS_HELP_STRING([  --with-config-dir=DIR],
+  [AS_HELP_STRING([--with-config-dir=DIR],
     [Directory for config files])],
   sysconfdir="${withval}", sysconfdir="${sysconfdir}/seduce")
 
@@ -132,8 +132,8 @@ if test "$use_linux64" = "yes"; then
   PKG_PROG_PKG_CONFIG([0.29])
   AC_CHECK_PROG(CMAKE,[cmake],[cmake],[no])
   test "$CMAKE" == "no" && AC_MSG_ERROR([Required program 'cmake' not found.])
-  AM_CONDITIONAL(HAVE_LINUX64, true)
-  AC_DEFINE(HAVE_LINUX64, [1], [Unicorn-based linux/x64 detection engine])
+  AM_CONDITIONAL(HAVE_LINUX_X86_64, true)
+  AC_DEFINE(HAVE_LINUX_X86_64, [1], [Unicorn-based linux/x64 detection engine])
   UNICORN_DIR="unicorn"
   UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
   UNICORN_STATIC_LIB="./${UNICORN_DIR}/build/libunicorn.a"
@@ -143,9 +143,43 @@ if test "$use_linux64" = "yes"; then
   AC_SUBST(UNICORN_LIBS)
 #  AC_CONFIG_SUBDIRS([agent/unicorn])
 else
-  AM_CONDITIONAL(HAVE_LINUX64, false)
+  AM_CONDITIONAL(HAVE_LINUX_X86_64, false)
 fi
 
+use_win32="no"
+AC_ARG_ENABLE(win32,
+ [AS_HELP_STRING([--enable-win32],
+   [Enable Unicorn-based windows/x86 detection engine [off]])],
+   [use_win32=$enableval])
+
+if test "$use_win32" = "yes"; then
+  PKG_PROG_PKG_CONFIG([0.29])
+  AC_CHECK_PROG(CMAKE,[cmake],[cmake],[no])
+  test "$CMAKE" == "no" && AC_MSG_ERROR([Required program 'cmake' not found.])
+  AC_SEARCH_LIBS(OPENSSL_init_ssl, ssl,, AC_MSG_ERROR([missing ssl library (openssl)]))
+  AC_SEARCH_LIBS(EVP_DigestInit_ex, crypto,, AC_MSG_ERROR([missing crypto library (openssl)]))
+  AC_CHECK_HEADERS(openssl/evp.h,, AC_MSG_ERROR([openssl/evp.h header file needed but not found!]))
+  AC_CHECK_HEADERS(openssl/md5.h,, AC_MSG_ERROR([openssl/md5.h header file needed but not found!]))
+  AM_CONDITIONAL(HAVE_WINDOWS_X86, true)
+  AC_DEFINE(HAVE_WINDOWS_X86, [1], [Unicorn-based windows/x86 detection engine])
+  UNICORN_DIR="unicorn"
+  UNICORN_CFLAGS="-I./${UNICORN_DIR}/include"
+  UNICORN_STATIC_LIB="./${UNICORN_DIR}/build/libunicorn.a"
+  UNICORN_LIBS="${UNICORN_STATIC_LIB} -lpthread -lm -lrt" 
+  READPE_DIR="readpe"
+  LIBPE_CFLAGS="-I./${READPE_DIR}/lib/libpe/include"
+  LIBPE_STATIC_LIB="./${READPE_DIR}/lib/libpe/build/libpe.a"
+  LIBPE_LIBS="${LIBPE_STATIC_LIB} -lssl -lcrypto -lm"
+  AC_SUBST(UNICORN_CFLAGS)
+  AC_SUBST(UNICORN_STATIC_LIB)
+  AC_SUBST(UNICORN_LIBS)
+  AC_SUBST(LIBPE_CFLAGS)
+  AC_SUBST(LIBPE_STATIC_LIB)
+  AC_SUBST(LIBPE_LIBS)
+#  AC_CONFIG_SUBDIRS([agent/unicorn])
+else
+  AM_CONDITIONAL(HAVE_WINDOWS_X86, false)
+fi
 
 ## embedded libemu library detector (off by default)
 

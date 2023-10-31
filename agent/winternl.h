@@ -1,9 +1,8 @@
-#ifndef LDR_MODULE_H
-#define LDR_MODULE_H
+#ifndef WINTERNL_H
+#define WINTERNL_H 1
 
 #include <stdint.h>
 #include <stdbool.h>
-
 
 typedef struct _LIST_ENTRY {
   uint32_t Flink;
@@ -295,4 +294,4 @@ typedef struct __PEB {
     uint32_t WaitOnAddressHashTable[128];
 } PEB, * PPEB;
 
-#endif  // HEADER1_H
+#endif // WINTERNL_H

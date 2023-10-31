@@ -1,4 +1,4 @@
-AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="${sysconfdir}"
+AM_CFLAGS = -Wall -O2 -D_GNU_SOURCE -DCONF_DIR="\"${sysconfdir}\""
 
 # this disables the MINIMUM block length check of the detection engines
 # AM_CFLAGS += -D_NO_MIN_BLOCK_LENGTH
@@ -12,6 +12,7 @@ AM_CFLAGS += -D_NO_SPLIT_AT_NUL
 bin_PROGRAMS = seduce-agent seduce
 sysconf_DATA = agent.conf
 
+libexec_PROGRAMS =
 SUBDIRS =
 DETECTION_ENGINES =
 
@@ -20,9 +21,17 @@ DETECTION_ENGINES += detection_engine_qemu.c
 SUBDIRS += qemu-0.12.4
 endif
 
-if HAVE_LINUX64
+if HAVE_LINUX_X86_64
 DETECTION_ENGINES += detection_engine_unicorn_linux_x86_64.c
 SUBDIRS += unicorn
+endif
+
+if HAVE_WINDOWS_X86
+DETECTION_ENGINES += detection_engine_unicorn_windows_x86.c
+dlldir = $(pkgdatadir)/DLL/windows-x86/system32
+dll_DATA = ./DLL/windows-x86/system32/kernel32.dll
+AM_CFLAGS += -DDLL_DIR="\"${dlldir}\""
+SUBDIRS += unicorn readpe
 endif
 
 if HAVE_LIBEMU
@@ -43,26 +52,18 @@ DETECTION_ENGINES += detection_engine_pyopty2.c
 python_PYTHON = detection_engine_pyopty2.py
 endif
 
-DETECTION_ENGINES += detection_engine_unicorn_windows_x86.c
-SUBDIRSwindows = windows_helper_functions
-
-
 seduce_agent_SOURCES = agent.c alert.c base64.c detection_engine.c error.c \
 			item_selection.c manager_protocol.c md5.c options.c \
 			utils.c worker.c $(DETECTION_ENGINES)
-seduce_agent_DEPENDENCIES = @UNICORN_STATIC_LIB@ @LIBEMU_STATIC_LIB@
+seduce_agent_DEPENDENCIES = @UNICORN_STATIC_LIB@ @LIBEMU_STATIC_LIB@ @LIBPE_STATIC_LIB@
 seduce_agent_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ \
-			@LIBPYTHON_CFLAGS@ @LIBCONFUSE_CFLAGS@
-seduce_agent_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@
-
-seduce_agent_LDADD += -lpe
+			@LIBPYTHON_CFLAGS@ @LIBCONFUSE_CFLAGS@ @LIBPE_CFLAGS@
+seduce_agent_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBCONFUSE_LIBS@ @LIBPE_LIBS@
 
 seduce_SOURCES = standalone.c utils.c md5.c detection_engine.c $(DETECTION_ENGINES)
-seduce_DEPENDENCIES = @UNICORN_STATIC_LIB@ @LIBEMU_STATIC_LIB@
-seduce_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@
-seduce_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@
-
-seduce_LDADD += -lpe
+seduce_DEPENDENCIES = @UNICORN_STATIC_LIB@ @LIBEMU_STATIC_LIB@ @LIBPE_STATIC_LIB@
+seduce_CFLAGS = $(AM_CFLAGS) @UNICORN_CFLAGS@ @QEMU_CFLAGS@ @LIBEMU_CFLAGS@ @LIBPYTHON_CFLAGS@ @LIBPE_CFLAGS@
+seduce_LDADD = @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHON_LIBS@ @LIBPE_LIBS@
 
 # do not recurse further for installation
 install installdirs: SUBDIRS =
@@ -74,3 +75,4 @@ install-exec-hook:
 	chmod 0755 $(DESTDIR)$(bindir)/seduce
 	chown root:root $(DESTDIR)$(sysconfdir)/agent.conf
 	chmod 0600 $(DESTDIR)$(sysconfdir)/agent.conf
+
