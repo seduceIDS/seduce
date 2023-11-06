@@ -16,17 +16,36 @@
 #include <libpe/pe.h>
 #include "winternl.h"
 
-#define DLL_BASE 0x70000000
-#define HEAP_BASE 0xD50000
+/* The following memory zones are missing PROT_WRITE so we don't need to 
+ * re-init them on each loop
+ *
+ * PEB_LDR_ADDR (PROT_READ)
+ * PEB_ADDR (PROT_READ)
+ * TEB_ADDR (PROT_READ)
+ * GDT_BASE (PROT_READ)
+ * DLL_BASE (PROT_READ | PROT_EXEC)
+ * 
+ * The following memory zones are mapped with PROT_WRITE so we need to re-init 
+ * them on each loop
+ *
+ * HEAP_BASE (PROT_READ | PROT_WRITE | PROT_EXEC)
+ * BASE_ADDR (PROT_READ | PROT_WRITE | PROT_EXEC)
+ * stack_top (PROT_READ | PROT_WRITE | PROT_EXEC)
+ */
+
+#define BASE_ADDR      0x400000
+#define EXEC_SIZE      0x600000
+#define STACK_BASE     0xD00000
+#define STACK_SIZE     0x010000
+#define HEAP_BASE      0xD50000
+#define HEAP_SIZE      0x010000
+
+#define DLL_BASE     0x70000000
 #define PEB_LDR_ADDR 0x77dff000
-#define TEB_ADDR 0x00b7d000
-#define PEB_ADDR 0x00b2f000
-#define BASE_ADDR 0x400000
-#define EXEC_SIZE 6 * 1024 * 1024
-#define STACK_BASE 0x00d00000
-#define STACK_SIZE 0x10000
-#define GDT_BASE 0x80000000
-#define GDT_SIZE  0x1000
+#define TEB_ADDR     0x79000000 /* was 0x00b7d000 */
+#define PEB_ADDR     0x7A000000 /* was 0x00b2f000 */
+#define GDT_BASE     0x80000000
+#define GDT_SIZE         0x1000
 
 typedef struct {
 	int gotcha; 	// 1: detected, 0: no luck, -1: allocation error, 
@@ -37,6 +56,8 @@ typedef struct {
 static uc_engine *uc;
 static pe_exports_t *pe_exported_functions;
 static size_t raw_pe_size;
+static void *disposable_mem;
+static pe_ctx_t ctx;
 
 static inline size_t align4k(size_t size)
 {
@@ -166,7 +187,7 @@ static int setup_PEB_LDR(uc_engine * uc)
 	_dataPEB_LDR.InInitializationOrderModuleList.Blink =
 	    (uint32_t) HEAP_BASE + 0x10;
 	size = align4k(sizeof(_dataPEB_LDR));
-	err = uc_mem_map(uc, PEB_LDR_ADDR, size, UC_PROT_ALL);
+	err = uc_mem_map(uc, PEB_LDR_ADDR, size, UC_PROT_READ);
 	if (err != UC_ERR_OK)
 		return 0;
 
@@ -203,7 +224,7 @@ static int create_PEB_TEB(uc_engine * uc)
 
 	size = align4k(sizeof(_PEB));
 
-	err = uc_mem_map(uc, PEB_ADDR, size, UC_PROT_ALL);
+	err = uc_mem_map(uc, PEB_ADDR, size, UC_PROT_READ);
 	if (err != UC_ERR_OK)
 		return 0;
 
@@ -214,7 +235,7 @@ static int create_PEB_TEB(uc_engine * uc)
 	}
 
 	size = align4k(sizeof(TEB));
-	err = uc_mem_map(uc, TEB_ADDR, size, UC_PROT_ALL);
+	err = uc_mem_map(uc, TEB_ADDR, size, UC_PROT_READ);
 	if (err != UC_ERR_OK) {
 		uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
 		return 0;
@@ -237,7 +258,7 @@ static int create_GDT(uc_engine * uc)
 	uc_x86_mmr gdtr;
 	uc_err err;
 
-	err = uc_mem_map(uc, GDT_BASE, GDT_SIZE, UC_PROT_ALL);
+	err = uc_mem_map(uc, GDT_BASE, GDT_SIZE, UC_PROT_READ);
 	if (err != UC_ERR_OK)
 		return 0;
 
@@ -500,7 +521,6 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
  */
 static int uni_engine_init(void)
 {
-	pe_ctx_t ctx;
 	uc_err err;
 	const void *raw_data;
 	char *path = DLL_DIR "/kernel32.dll";
@@ -512,14 +532,19 @@ static int uni_engine_init(void)
 		fprintf(stderr, "could not open unicorn engine in x86 mode\n");
 		return 0;
 	}
-	// Allocate heap memory in unicorn
-	err = uc_mem_map(uc, HEAP_BASE, 0x10000, UC_PROT_ALL);
-	if (err != UC_ERR_OK) {
-		fprintf(stderr,
-			"could not create heap space in emulated system\n");
-		uc_close(uc);
-		return 0;
+
+	disposable_mem = mmap(NULL, HEAP_BASE + HEAP_SIZE - BASE_ADDR, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (disposable_mem == MAP_FAILED) {
+		perror("could not allocate disposable emulation memory");
+		goto err_mmap;
 	}
+
+	err = uc_mem_map_ptr(uc, BASE_ADDR, HEAP_BASE + HEAP_SIZE - BASE_ADDR, UC_PROT_ALL, disposable_mem);
+	if (err != UC_ERR_OK) {
+		perror("could not map host disposable memory to emulator");
+		goto err_uc_mem_map_ptr;
+	}
+
 	// Parsing kernel32.dll
 	pe_err_e err_loading = pe_load_file(&ctx, path);
 	// if we don't find the file in the standard place, search 
@@ -531,17 +556,14 @@ static int uni_engine_init(void)
 	}
 	if (err_loading != LIBPE_E_OK) {
 		pe_error_print(stderr, err_loading);
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_pe_load_file;
 	}
+
 	// parse the loaded PE file(e.g. kernel32.dll) from previous step
 	err_loading = pe_parse(&ctx);
 	if (err_loading != LIBPE_E_OK) {
 		pe_error_print(stderr, err_loading);
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_pe_parse;
 	}
 	// Pointer to raw data of PE file
 	raw_data = ctx.map_addr;
@@ -554,88 +576,63 @@ static int uni_engine_init(void)
 	// Load parsed file in memory
 	// size of memory block; MUST be 4 KB (4 * 1024) aligned (size=1,2,… otherwise will cause fail) --> In our case raw_pe_size
 
-	err = uc_mem_map(uc, DLL_BASE, align4k(raw_pe_size), UC_PROT_ALL);
+	err = uc_mem_map(uc, DLL_BASE, align4k(raw_pe_size), UC_PROT_READ | UC_PROT_EXEC);
 	if (err != UC_ERR_OK) {
 		fprintf(stderr, "could not create space for loaded DLLs\n");
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_uc_mem_map_dll;
 	}
 
 	err = uc_mem_write(uc, DLL_BASE, raw_data, raw_pe_size);
 	if (err != UC_ERR_OK) {
 		fprintf(stderr,
-			"could not write DLL data to emulater memory\n");
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+			"could not write DLL data to emulator memory\n");
+		goto err_uc_mem_write_dll;
 	}
+
 	// Creating the LDR_Module struct for the dll
 	if (create_LDR_Module(uc, ctx, DLL_BASE, HEAP_BASE) == 0) {
 		fprintf(stderr, "failed to create LDR module\n");
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_create_ldr_module;
 	}
 
 	if (setup_PEB_LDR(uc) == 0) {
 		fprintf(stderr, "failed to setup PEB and LDR\n");
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_setup_peb_ldr;
 	}
 
 	if (create_PEB_TEB(uc) == 0) {
 		fprintf(stderr, "failed to create PEB and TEB\n");
-		uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_create_peb_teb;
 	}
 
 	if (create_GDT(uc) == 0) {
 		fprintf(stderr, "failed to create GDT\n");
-		uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
-		uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
-		uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
+		goto err_create_gdt;
 	}
 
-	err = uc_mem_map(uc, BASE_ADDR, align4k(EXEC_SIZE), UC_PROT_ALL);
-	if (err != UC_ERR_OK) {
-		fprintf(stderr, "failed to map memory for shellcode\n");
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
-		uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
-		uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
-		uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
-	}
-
-	err = uc_mem_map(uc, stack_top, align4k(STACK_SIZE), UC_PROT_ALL);
-	if (err != UC_ERR_OK) {
-		fprintf(stderr, "failed to map stack memory\n");
-		uc_mem_unmap(uc, BASE_ADDR, align4k(EXEC_SIZE));
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
-		uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
-		uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
-		uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
-		uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
-		uc_mem_unmap(uc, HEAP_BASE, 0x10000);
-		uc_close(uc);
-		return 0;
-	}
-
+	// we don't pe_unload as we need the structures (functions) 
+	// exported by libpe for later
 	return 1;
+
+  err_create_gdt:
+	uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
+	uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
+  err_create_peb_teb:
+	uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
+  err_setup_peb_ldr:
+  err_create_ldr_module:
+  err_uc_mem_write_dll:
+	uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
+  err_uc_mem_map_dll:
+  err_pe_parse:
+	pe_unload(&ctx);
+  err_pe_load_file:
+	uc_mem_unmap(uc, BASE_ADDR, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
+  err_uc_mem_map_ptr:
+	munmap(disposable_memory, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
+  err_mmap:
+	uc_close(uc);
+	return 0;
 }
 
 /*
@@ -649,16 +646,14 @@ static int uni_engine_init(void)
  */
 static void uni_engine_destroy(void)
 {
-	uint32_t stack_top = STACK_BASE - STACK_SIZE;
-
-	uc_mem_unmap(uc, BASE_ADDR, align4k(EXEC_SIZE));
-	uc_mem_unmap(uc, stack_top, align4k(STACK_SIZE));
-	uc_mem_unmap(uc, HEAP_BASE, 0x10000);
+	munmap(disposable_mem, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
+	uc_mem_unmap(uc, BASE_ADDR, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
 	uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
 	uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
 	uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
 	uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 	uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
+	pe_unload(&ctx);
 	uc_close(uc);
 	return;
 }

@@ -181,7 +181,7 @@ static int uni_engine_init(void)
 	if (err != UC_ERR_OK) {
 		perror("could not map host memory to emulator");
 		uc_close(uc);
-		free(emu_memory);
+		munmap(emu_memory, MEM_SPACE);
 		return 0;
 	}
 	return 1;
