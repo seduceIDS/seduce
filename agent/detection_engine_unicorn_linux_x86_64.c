@@ -115,12 +115,12 @@ static int uni_engine_process(char *data, size_t len, Threat *threat)
 
 		memcpy(code_segment, p, block_size);
 
-		for (i = 0; i < block_size - 5; i++) {
+		for (i = 0; i < block_size; i++) {
 			uc_reg_write(uc, UC_X86_REG_RSP, &stack_top);
 			uc_reg_write(uc, UC_X86_REG_RBP, &rbp);
 
 			err = uc_emu_start(uc, 
-				  MEM_LOW + STACK_SIZE + 4096,
+				  MEM_LOW + STACK_SIZE + 4096+i,
 				  MEM_LOW + STACK_SIZE + 4096 + block_size,
 				  0, 0);
 

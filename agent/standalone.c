@@ -6,8 +6,6 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
-
-#include "libpe/include/libpe/pe.h"
 #include "detection_engine.h"
 
 void *load_file(const char *filename, size_t *fsize)
