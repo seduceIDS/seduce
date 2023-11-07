@@ -433,7 +433,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	const char *p;
 	int block_size, i, block_num = 0;
 	int ret = 0;
-	uint32_t stack_base, stack_top, rbp;
+	uint32_t stack_top, ebp;
 
 	if ((data == NULL) || (len == 0))
 		return 0;
@@ -441,9 +441,8 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	er.gotcha = 0;
 	er.threat = threat;
 
-	stack_base = STACK_BASE;
-	stack_top = stack_base - STACK_SIZE;
-	rbp = stack_top + sizeof(void *);
+	stack_top = STACK_BASE; // that's where it starts off from
+	ebp = stack_top + sizeof(void *);
 
 	/* let's only hook within the loaded DLL space */
 	err = uc_hook_add(uc, &trace_handle, UC_HOOK_CODE, hook_dll_functions,
@@ -464,25 +463,25 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 			goto exit_loop;
 		}
 
-		// Start of disposable_mem is BASE_ADDR in emulator.
-		// This is where we copy the payload.
-		memcpy(disposable_mem, p, block_size);
-
 		for (i = 0; i < block_size; i++) {
+			// Start of disposable_mem is BASE_ADDR in emulator.
+			// This is where we copy the payload.
+			memcpy(disposable_mem, p+i, block_size-i);
+			fprintf(stderr, "trying out offset %d\n", i);
 			// zero out rest of TEXT, stack and heap
-			memset(disposable_mem + block_size, 0, 
-			       HEAP_BASE + HEAP_SIZE - BASE_ADDR - block_size);
+			memset(disposable_mem + block_size - i, 0, 
+			  HEAP_BASE + HEAP_SIZE - BASE_ADDR - block_size + i);
 
-			err = uc_reg_write(uc, UC_X86_REG_RSP, &stack_top);
+			err = uc_reg_write(uc, UC_X86_REG_ESP, &stack_top);
 			if (err != UC_ERR_OK) {
-				fprintf(stderr, "could not set RSP\n");
+				fprintf(stderr, "could not set ESP\n");
 				ret = -1;
 				goto exit_loop;
 			}
 
-			err = uc_reg_write(uc, UC_X86_REG_RBP, &rbp);
+			err = uc_reg_write(uc, UC_X86_REG_EBP, &ebp);
 			if (err != UC_ERR_OK) {
-				fprintf(stderr, "could not set RBP\n");
+				fprintf(stderr, "could not set EBP\n");
 				ret = -1;
 				goto exit_loop;
 			}
@@ -495,8 +494,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 			}
 
 			err =
-			    uc_emu_start(uc, BASE_ADDR + i,
-					 BASE_ADDR + block_size -1, 0, 0);
+			    uc_emu_start(uc, BASE_ADDR, block_size - i, 0, 0);
 			if (er.gotcha <= -1) {	// callback internal error
 				ret = -1;
 				goto exit_loop;
