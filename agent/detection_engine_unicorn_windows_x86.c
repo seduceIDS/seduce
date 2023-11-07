@@ -24,6 +24,7 @@
  * TEB_ADDR (PROT_READ)
  * GDT_BASE (PROT_READ)
  * DLL_BASE (PROT_READ | PROT_EXEC)
+ * DLL_META (PROT_READ)
  * 
  * The following memory zones are mapped with PROT_WRITE so we need to re-init 
  * them on each loop
@@ -40,6 +41,8 @@
 #define HEAP_BASE      0xD50000
 #define HEAP_SIZE      0x010000
 
+#define DLL_META     0x60000000
+#define DLL_META_SZ  0x00010000
 #define DLL_BASE     0x70000000
 #define PEB_LDR_ADDR 0x77dff000
 #define TEB_ADDR     0x79000000 /* was 0x00b7d000 */
@@ -58,6 +61,7 @@ static pe_exports_t *pe_exported_functions;
 static size_t raw_pe_size;
 static void *disposable_mem;
 static pe_ctx_t ctx;
+static uc_x86_mmr gdtr;
 
 static inline size_t align4k(size_t size)
 {
@@ -69,7 +73,7 @@ static inline size_t align4k(size_t size)
 /* return value: 1 everything ok
  *               0 an error occured */
 static int create_LDR_Module(uc_engine * uc, pe_ctx_t ctx,
-			     uint64_t dll_base_address, uint64_t heap_address)
+			     uint64_t dll_base_address, uint64_t dll_meta_addr)
 {
 	uc_err err;
 	char *dll_name;
@@ -125,12 +129,12 @@ static int create_LDR_Module(uc_engine * uc, pe_ctx_t ctx,
 	_dataDLL.FullDllName.Length = (uint16_t) full_dll_name_wide_len;
 	_dataDLL.FullDllName.MaximumLength =
 	    (uint16_t) full_dll_name_wide_len + 2;
-	_dataDLL.FullDllName.Buffer = heap_address + sizeof(_dataDLL);
+	_dataDLL.FullDllName.Buffer = dll_meta_addr + sizeof(_dataDLL);
 	_dataDLL.BaseDllName.Length = (uint16_t) base_dll_name_wide_len;
 	_dataDLL.BaseDllName.MaximumLength =
 	    (uint16_t) base_dll_name_wide_len + 2;
 	_dataDLL.BaseDllName.Buffer =
-	    heap_address + sizeof(_dataDLL) +
+	    dll_meta_addr + sizeof(_dataDLL) +
 	    _dataDLL.FullDllName.MaximumLength;
 
 	_dataDLL.InInitializationOrderModuleList.Flink =
@@ -143,6 +147,7 @@ static int create_LDR_Module(uc_engine * uc, pe_ctx_t ctx,
 	    (uint32_t) PEB_LDR_ADDR + 0x1c;
 	_dataDLL.InInitializationOrderModuleList.Blink =
 	    (uint32_t) PEB_LDR_ADDR + 0x1c;
+
 	err = uc_mem_write(uc, _dataDLL.FullDllName.Buffer,
 			   wideString_full_dll_name, full_dll_name_wide_len);
 	if (err != UC_ERR_OK) {
@@ -157,7 +162,7 @@ static int create_LDR_Module(uc_engine * uc, pe_ctx_t ctx,
 		goto exit;
 	}
 
-	err = uc_mem_write(uc, heap_address, &_dataDLL, sizeof(_dataDLL));
+	err = uc_mem_write(uc, dll_meta_addr, &_dataDLL, sizeof(_dataDLL));
 	if (err != UC_ERR_OK) {
 		retval = 0;
 	}
@@ -177,15 +182,15 @@ static int setup_PEB_LDR(uc_engine * uc)
 
 	memset(&_dataPEB_LDR, 0, sizeof(PEB_LDR_DATA));
 	_dataPEB_LDR.InInitializationOrderModuleList.Flink =
-	    (uint32_t) HEAP_BASE;
+	    (uint32_t) DLL_META;
 	_dataPEB_LDR.InInitializationOrderModuleList.Blink =
-	    (uint32_t) HEAP_BASE;
-	_dataPEB_LDR.InMemoryOrderModuleList.Flink = (uint32_t) HEAP_BASE + 0x8;
-	_dataPEB_LDR.InMemoryOrderModuleList.Blink = (uint32_t) HEAP_BASE + 0x8;
+	    (uint32_t) DLL_META;
+	_dataPEB_LDR.InMemoryOrderModuleList.Flink = (uint32_t) DLL_META + 0x8;
+	_dataPEB_LDR.InMemoryOrderModuleList.Blink = (uint32_t) DLL_META + 0x8;
 	_dataPEB_LDR.InInitializationOrderModuleList.Flink =
-	    (uint32_t) HEAP_BASE + 0x10;
+	    (uint32_t) DLL_META + 0x10;
 	_dataPEB_LDR.InInitializationOrderModuleList.Blink =
-	    (uint32_t) HEAP_BASE + 0x10;
+	    (uint32_t) DLL_META + 0x10;
 	size = align4k(sizeof(_dataPEB_LDR));
 	err = uc_mem_map(uc, PEB_LDR_ADDR, size, UC_PROT_READ);
 	if (err != UC_ERR_OK)
@@ -255,89 +260,97 @@ static int create_PEB_TEB(uc_engine * uc)
  *               1 everything OK */
 static int create_GDT(uc_engine * uc)
 {
-	uc_x86_mmr gdtr;
 	uc_err err;
 
 	err = uc_mem_map(uc, GDT_BASE, GDT_SIZE, UC_PROT_READ);
-	if (err != UC_ERR_OK)
-		return 0;
-
-	gdtr.base = 2147483648;
-	gdtr.flags = 0;
-	gdtr.limit = 4096;
-	gdtr.selector = 0;
-
-	err = uc_reg_write(uc, UC_X86_REG_GDTR, &gdtr);
 	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not memory map GDT\n");
+		return 0;
+	}
+	/* relevant registers are init by setup_segment_registers */
+
+	const uint8_t a[] = "\xff\xff\x00\x00\x00\xfb\xcf\x00";
+	err = uc_mem_write(uc, GDT_BASE + 4 * 8, a, sizeof(a));
+	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not write at offset 32 of GDT\n");
 		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
-	const uint8_t a[] = "\xff\xff\x00\x00\x00\xfb\xcf\x00";
-	err = uc_mem_write(uc, gdtr.base + 4 * 8, a, sizeof(a));
+	const uint8_t a1[] = "\xff\xff\x00\x00\x00\xf3\xcf\x00";
+	err = uc_mem_write(uc, GDT_BASE + 5 * 8, a1, sizeof(a1));
 	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not write at offset 40 of GDT\n");
 		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
+		return 0;
+	}
+
+	const uint8_t a2[] = "\xff\xff\x00\x00\x00\x97\xcf\x00";
+	err = uc_mem_write(uc, GDT_BASE + 6 * 8, a2, sizeof(a2));
+	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not write at offset 48 of GDT\n");
+		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
+		return 0;
+	}
+
+	/* was const uint8_t a3[] = "\xff\x0f\x00\xd0\xb7\xf3\x40\x00"; */
+	const uint8_t a3[] = "\xff\x0f\x00\x00\x00\xf3\x40\x79"; 
+	err = uc_mem_write(uc, GDT_BASE + 10 * 8, a3, sizeof(a3));
+	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not write at offset 80 of GDT\n");
+		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
+		return 0;
+	}
+
+	return 1;
+}
+
+static inline int setup_segment_registers(void)
+{
+	uc_err err;
+
+	memset(&gdtr, 0, sizeof(uc_x86_mmr));
+	gdtr.base = GDT_BASE;
+	gdtr.flags = 0;
+	gdtr.limit = GDT_SIZE;
+	gdtr.selector = 0;
+
+	err = uc_reg_write(uc, UC_X86_REG_GDTR, &gdtr);
+	if (err != UC_ERR_OK) {
 		return 0;
 	}
 
 	int b = 35;
 	err = uc_reg_write(uc, UC_X86_REG_CS, &b);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
-		return 0;
-	}
-
-	const uint8_t a1[] = "\xff\xff\x00\x00\x00\xf3\xcf\x00";
-	err = uc_mem_write(uc, gdtr.base + 5 * 8, a1, sizeof(a1));
-	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
 	int b1 = 43;
 	err = uc_reg_write(uc, UC_X86_REG_DS, &b1);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
 	err = uc_reg_write(uc, UC_X86_REG_ES, &b1);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
 	err = uc_reg_write(uc, UC_X86_REG_GS, &b1);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
-	const uint8_t a2[] = "\xff\xff\x00\x00\x00\x97\xcf\x00";
 	int b2 = 48;
-	err = uc_mem_write(uc, gdtr.base + 6 * 8, a2, sizeof(a2));
-	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
-		return 0;
-	}
-
 	err = uc_reg_write(uc, UC_X86_REG_SS, &b2);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
-		return 0;
-	}
-
-	const uint8_t a3[] = "\xff\x0f\x00\xd0\xb7\xf3\x40\x00";
-	err = uc_mem_write(uc, gdtr.base + 10 * 8, a3, sizeof(a3));
-	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
 	int b3 = 83;
 	err = uc_reg_write(uc, UC_X86_REG_FS, &b3);
 	if (err != UC_ERR_OK) {
-		uc_mem_unmap(uc, GDT_BASE, GDT_SIZE);
 		return 0;
 	}
 
@@ -420,7 +433,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	const char *p;
 	int block_size, i, block_num = 0;
 	int ret = 0;
-	uint32_t addr_start_exec, stack_base, stack_top, rbp;
+	uint32_t stack_base, stack_top, rbp;
 
 	if ((data == NULL) || (len == 0))
 		return 0;
@@ -428,10 +441,6 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	er.gotcha = 0;
 	er.threat = threat;
 
-	addr_start_exec = BASE_ADDR;	/* the PE base address is reused
-					   as the address to copy the
-					   shellcode, as there is no 
-					   program text there. */
 	stack_base = STACK_BASE;
 	stack_top = stack_base - STACK_SIZE;
 	rbp = stack_top + sizeof(void *);
@@ -439,6 +448,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	/* let's only hook within the loaded DLL space */
 	err = uc_hook_add(uc, &trace_handle, UC_HOOK_CODE, hook_dll_functions,
 			  &er, DLL_BASE, DLL_BASE + raw_pe_size - 1);
+
 	if (err != UC_ERR_OK) {
 		fprintf(stderr,
 			"could not add windows x86 kernel32.dll function hook");
@@ -448,21 +458,21 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	while ((p = get_next_block(data, len, MIN_BLOCK_LENGTH, &block_size,
 				   block_num++))) {
 		if (block_size > EXEC_SIZE) {
-			fprintf(stderr,
-				"block size larger than available memory for emulation\n");
+			fprintf(stderr, "block size larger than available "
+				 	"memory for emulation\n");
 			ret = -1;
 			goto exit_loop;
 		}
 
-		err = uc_mem_write(uc, addr_start_exec, p, block_size);
-		if (err != UC_ERR_OK) {
-			fprintf(stderr,
-				"could not copy block to emulated system\n");
-			ret = -1;
-			goto exit_loop;
-		}
+		// Start of disposable_mem is BASE_ADDR in emulator.
+		// This is where we copy the payload.
+		memcpy(disposable_mem, p, block_size);
 
 		for (i = 0; i < block_size; i++) {
+			// zero out rest of TEXT, stack and heap
+			memset(disposable_mem + block_size, 0, 
+			       HEAP_BASE + HEAP_SIZE - BASE_ADDR - block_size);
+
 			err = uc_reg_write(uc, UC_X86_REG_RSP, &stack_top);
 			if (err != UC_ERR_OK) {
 				fprintf(stderr, "could not set RSP\n");
@@ -477,10 +487,17 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 				goto exit_loop;
 			}
 
+			if (setup_segment_registers() == 0) {
+				fprintf(stderr, "error at setting up segment"
+						" registers\n");
+				ret = -1;
+				goto exit_loop;
+			}
+
 			err =
-			    uc_emu_start(uc, addr_start_exec + i,
-					 addr_start_exec + block_size, 0, 0);
-			if (er.gotcha <= -1) {	// callback error
+			    uc_emu_start(uc, BASE_ADDR + i,
+					 BASE_ADDR + block_size -1, 0, 0);
+			if (er.gotcha <= -1) {	// callback internal error
 				ret = -1;
 				goto exit_loop;
 			}
@@ -500,9 +517,11 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 				ret = 1;
 				goto exit_loop;
 			}
+
 			// in all other cases do nothing
-		}		// for-loop for offsets
-	}			// while-loop for blocks
+			 
+		}	// for-loop for offsets
+	}		// while-loop for blocks
 
  exit_loop:
 	uc_hook_del(uc, trace_handle);
@@ -524,7 +543,6 @@ static int uni_engine_init(void)
 	uc_err err;
 	const void *raw_data;
 	char *path = DLL_DIR "/kernel32.dll";
-	uint32_t stack_top = STACK_BASE - STACK_SIZE;
 
 	// Initialize engine
 	err = uc_open(UC_ARCH_X86, UC_MODE_32, &uc);
@@ -589,8 +607,14 @@ static int uni_engine_init(void)
 		goto err_uc_mem_write_dll;
 	}
 
-	// Creating the LDR_Module struct for the dll
-	if (create_LDR_Module(uc, ctx, DLL_BASE, HEAP_BASE) == 0) {
+	err = uc_mem_map(uc, DLL_META, DLL_META_SZ, UC_PROT_READ);
+	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not map memory for DLL metadata\n");
+		goto err_uc_mem_map_dll_meta;
+	}
+
+	// Creating the LDR_Module struct for the DLL
+	if (create_LDR_Module(uc, ctx, DLL_BASE, DLL_META) == 0) {
 		fprintf(stderr, "failed to create LDR module\n");
 		goto err_create_ldr_module;
 	}
@@ -621,6 +645,8 @@ static int uni_engine_init(void)
 	uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
   err_setup_peb_ldr:
   err_create_ldr_module:
+  	uc_mem_unmap(uc, DLL_META, DLL_META_SZ);
+  err_uc_mem_map_dll_meta:
   err_uc_mem_write_dll:
 	uc_mem_unmap(uc, DLL_BASE, align4k(raw_pe_size));
   err_uc_mem_map_dll:
@@ -629,7 +655,7 @@ static int uni_engine_init(void)
   err_pe_load_file:
 	uc_mem_unmap(uc, BASE_ADDR, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
   err_uc_mem_map_ptr:
-	munmap(disposable_memory, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
+	munmap(disposable_mem, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
   err_mmap:
 	uc_close(uc);
 	return 0;
@@ -646,8 +672,8 @@ static int uni_engine_init(void)
  */
 static void uni_engine_destroy(void)
 {
+	uc_mem_unmap(uc, DLL_META, DLL_META_SZ);
 	munmap(disposable_mem, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
-	uc_mem_unmap(uc, BASE_ADDR, HEAP_BASE + HEAP_SIZE - BASE_ADDR);
 	uc_mem_unmap(uc, PEB_LDR_ADDR, align4k(sizeof(PEB_LDR_DATA)));
 	uc_mem_unmap(uc, PEB_ADDR, align4k(sizeof(PEB)));
 	uc_mem_unmap(uc, TEB_ADDR, align4k(sizeof(TEB)));
