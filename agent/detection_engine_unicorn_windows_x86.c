@@ -1,18 +1,12 @@
 #include <unicorn/unicorn.h>
 #include "detection_engine.h"
-#include <unicorn/x86.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include "utils.h"
-#include <string.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <dirent.h>
 #include <libpe/pe.h>
 #include "winternl.h"
 
