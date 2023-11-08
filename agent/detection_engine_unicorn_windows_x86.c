@@ -56,13 +56,6 @@ static size_t raw_pe_size;
 static void *disposable_mem;
 static pe_ctx_t ctx;
 static uc_x86_mmr gdtr;
-/*
-static inline void dump_registers(uc_engine *uc)
-{
-	uint32_t eip, esp, ebp, eax, ebx, ecx, edx;
-
-}
-*/
 
 static inline size_t align4k(size_t size)
 {
@@ -377,27 +370,20 @@ DetectionEngine uni_windows_x86_engine = {
 static void hook_dll_functions(uc_engine * uc, uint64_t address, uint32_t size,
 			       void *user_data)
 {
-	uc_err err;
-	uint32_t eip;
 	EmulationResult *er;
 	Threat *threat;
 	char threat_msg[400];
 
+	if ((uint32_t) address < (uint32_t) DLL_BASE)
+		return;
+
 	er = (EmulationResult *) user_data;
 	threat = er->threat;
-
-	err = uc_reg_read(uc, UC_X86_REG_EIP, &eip);
-	if (err != UC_ERR_OK) {
-		fprintf(stderr, "could not read EIP in DLL hook\n");
-		er->gotcha = -2;
-		uc_emu_stop(uc);
-		return;
-	}
 
 	for (int i = 0; i < pe_exported_functions->functions_count; i++) {
 		uint32_t funcAddress =
 		    (uint32_t) pe_exported_functions->functions[i].address;
-		if ((uint32_t) funcAddress == eip) {
+		if ((uint32_t) funcAddress == (uint32_t) address) {
 			er->gotcha = 1;
 			threat->severity = SEVERITY_HIGH;
 			snprintf(threat_msg, sizeof(threat_msg),
@@ -529,7 +515,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 			
 			// flush QEMU translations just before the next round
 
-			err = uc_ctl_flush_tlb(uc);
+			err = uc_ctl_remove_cache(uc, BASE_ADDR, BASE_ADDR + block_size - 1);
 			if (err != UC_ERR_OK) {
 				ret = -1;
 				goto exit_loop;
