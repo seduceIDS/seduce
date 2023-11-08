@@ -62,6 +62,13 @@ static size_t raw_pe_size;
 static void *disposable_mem;
 static pe_ctx_t ctx;
 static uc_x86_mmr gdtr;
+/*
+static inline void dump_registers(uc_engine *uc)
+{
+	uint32_t eip, esp, ebp, eax, ebx, ecx, edx;
+
+}
+*/
 
 static inline size_t align4k(size_t size)
 {
@@ -387,7 +394,9 @@ static void hook_dll_functions(uc_engine * uc, uint64_t address, uint32_t size,
 
 	err = uc_reg_read(uc, UC_X86_REG_EIP, &eip);
 	if (err != UC_ERR_OK) {
+		fprintf(stderr, "could not read EIP in DLL hook\n");
 		er->gotcha = -2;
+		uc_emu_stop(uc);
 		return;
 	}
 
@@ -402,6 +411,7 @@ static void hook_dll_functions(uc_engine * uc, uint64_t address, uint32_t size,
 				 pe_exported_functions->functions[i].name);
 			threat->msg = strdup(threat_msg);
 			if (!threat->msg) {
+				fprintf(stderr, "could not allocate memory for threat string\n");
 				er->gotcha = -1;
 			}
 			uc_emu_stop(uc);
@@ -444,10 +454,16 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 	stack_top = STACK_BASE; // that's where it starts off from
 	ebp = stack_top + sizeof(void *);
 
-	/* let's only hook within the loaded DLL space */
-	err = uc_hook_add(uc, &trace_handle, UC_HOOK_CODE, hook_dll_functions,
-			  &er, DLL_BASE, DLL_BASE + raw_pe_size - 1);
+	/* when the payload is in some offset (e.g. we have leading garbage)
+	 * QEMU will only detect this if we hook ALL instructions and 
+	 * not just the DLL instructions (i.e. s/BASE_ADDR,/DLL_BASE,/) 
+	 * doesn't work ?! */
 
+	err = uc_hook_add(uc, &trace_handle, UC_HOOK_CODE, hook_dll_functions,
+			  &er, BASE_ADDR, DLL_BASE + raw_pe_size - 1);
+/*
+			  &er, DLL_BASE, DLL_BASE + raw_pe_size - 1);
+*/
 	if (err != UC_ERR_OK) {
 		fprintf(stderr,
 			"could not add windows x86 kernel32.dll function hook");
@@ -463,15 +479,11 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 			goto exit_loop;
 		}
 
-		for (i = 0; i < block_size; i++) {
-			// Start of disposable_mem is BASE_ADDR in emulator.
-			// This is where we copy the payload.
-			memcpy(disposable_mem, p+i, block_size-i);
-			fprintf(stderr, "trying out offset %d\n", i);
-			// zero out rest of TEXT, stack and heap
-			memset(disposable_mem + block_size - i, 0, 
-			  HEAP_BASE + HEAP_SIZE - BASE_ADDR - block_size + i);
+		// Start of disposable_mem is BASE_ADDR in emulator.
+		// This is where we copy the payload.
+		memcpy(disposable_mem, p, block_size);
 
+		for (i = 0; i < block_size; i++) {
 			err = uc_reg_write(uc, UC_X86_REG_ESP, &stack_top);
 			if (err != UC_ERR_OK) {
 				fprintf(stderr, "could not set ESP\n");
@@ -493,20 +505,23 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 				goto exit_loop;
 			}
 
+			DPRINTF_MD5(disposable_mem+i, block_size-i,
+					    "checking offset %d\n", i);
+
+			// emulate with 200000 microseconds timeout	
 			err =
-			    uc_emu_start(uc, BASE_ADDR, block_size - i, 0, 0);
+			    uc_emu_start(uc, BASE_ADDR+i, 0, 200000, 0);
 			if (er.gotcha <= -1) {	// callback internal error
 				ret = -1;
 				goto exit_loop;
 			}
 
-			if (er.gotcha == 1) {
+			if (er.gotcha == 1) { // found shellcode
 				DPRINTF_MD5(p, block_size,
 					    "detection at offset %d\n", i);
 				threat->payload = malloc(block_size);
 				if (!threat->payload) {
-					perror
-					    ("could not allocate memory for malicious payload");
+					perror("could not allocate memory for malicious payload");
 					ret = -1;
 					goto exit_loop;
 				}
@@ -516,8 +531,16 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 				goto exit_loop;
 			}
 
-			// in all other cases do nothing
-			 
+			// In all other emulation errors do nothing
+			
+			// flush QEMU translations just before the next round
+
+			err = uc_ctl_flush_tlb(uc);
+			if (err != UC_ERR_OK) {
+				ret = -1;
+				goto exit_loop;
+			}
+		 
 		}	// for-loop for offsets
 	}		// while-loop for blocks
 
