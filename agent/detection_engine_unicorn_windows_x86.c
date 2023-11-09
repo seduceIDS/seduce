@@ -10,6 +10,8 @@
 #include <libpe/pe.h>
 #include "winternl.h"
 
+/* Based on the MSc dissertation code of Dimitrios Tsilis (c) 2023 */
+
 /* The following memory zones are missing PROT_WRITE so we don't need to 
  * re-init them on each loop
  *
