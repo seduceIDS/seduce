@@ -22,16 +22,18 @@ Incoming traffic is inspected through all available (built-in) detection
 engines.
 
 Engines currently supported:
-- linux64 (this is an emulation engine based on the Unicorn engine, that 
-  can identify potentially self-modifying linux/x86_64 shellcode)
-- qemu (this is an older emulation engine based on QEMU 0.12.4 that allows 
-  detecting potentially self-modifying shellcode on the linux/x86 architecture)
-- libemu (this is an emulation engine based on a good old version of the libemu 
-  "GetPC" detection code)
-- dummy (a dummy detection engine)
-- fnord (a fnord-like signature detection engine for x86 NOP sleds)
-- pyopty2 (a python-based signature detection engine for meterpreter's 
-  opty2 nop-sled generator)
+- linux64: this is an emulation engine based on the Unicorn engine, that 
+  can identify potentially self-modifying linux/x86_64 shellcode
+- win32: this is an emulation engine based on the Unicorn engine, that
+  can identify potentially self-modifying windows/x86 shellcode
+- qemu: this is an older emulation engine based on QEMU 0.12.4 that allows 
+  detecting potentially self-modifying shellcode on the linux/x86 architecture
+- libemu: this is an emulation engine based on a good old version of the 
+  libemu "GetPC" detection code for x86 shellcode
+- fnord: a signature detection engine for x86 fnord-based NOP sleds
+- pyopty2: a python-based signature detection engine for meterpreter's 
+  opty2 x86 NOP-sleds
+- dummy: a dummy detection engine
 
 See 'configure' options on how to configure specific engines to be built
 into the 'seduce-agent' binary.
@@ -50,6 +52,15 @@ $ ./configure
 $ make
 
 The 'configure' script builds by default only the 'linux64' engine.
+To enable another engine simply use --enable-<engine> in the configure
+parameters. 
+
+For example:
+
+$ ./configure --enable-win32 --disable-linux64
+
+The above will configure the build for the Windows x86 detection engine, 
+and will remove the default Linux x86_64 detection engine.
 
 INSTALL
 -------
