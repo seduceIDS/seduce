@@ -30,7 +30,7 @@ void qemu_engine_destroy(void);
 
 DetectionEngine qemu_engine = {
 	.name = "qemu",
-	.descr = "QEMU-based Detection Engine",
+	.descr = "QEMU-based shellcode Detection Engine for Linux x86",
 	.init = &qemu_engine_init,
 	.destroy = &qemu_engine_destroy,
 	.reset = &qemu_engine_reset,

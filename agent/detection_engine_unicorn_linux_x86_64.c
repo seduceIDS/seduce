@@ -27,8 +27,8 @@ static void uni_engine_reset(void);
 static void uni_engine_destroy(void);
 
 DetectionEngine uni_lx86_64_engine = {
-	.name = "linux_x86_64",
-	.descr = "Unicorn-based Linux x86_64 Detection Engine",
+	.name = "linux64",
+	.descr = "Unicorn-based shellcode Detection Engine for Linux x86_64",
 	.init = &uni_engine_init,
 	.destroy = &uni_engine_destroy,
 	.reset = &uni_engine_reset,

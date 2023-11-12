@@ -20,7 +20,7 @@ void pyopty2_engine_destroy(void);
 
 DetectionEngine pyopty2_engine = {
 	.name = "pyopty2",
-	.descr = "Opty2 Detection Engine (uses Python)",
+	.descr = "Opty2 NOP Detection Engine (uses Python) for x86",
 	.init = &pyopty2_engine_init,
 	.destroy = &pyopty2_engine_destroy,
 	.reset = &pyopty2_engine_reset,

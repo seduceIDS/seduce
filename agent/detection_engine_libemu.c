@@ -18,7 +18,7 @@ void libemu_engine_destroy(void);
 
 DetectionEngine libemu_engine = {
 	.name = "libemu",
-	.descr = "Libemu Detection Engine",
+	.descr = "Libemu shellcode Detection Engine for x86",
 	.init = &libemu_engine_init,
 	.destroy = &libemu_engine_destroy,
 	.reset = &libemu_engine_reset,

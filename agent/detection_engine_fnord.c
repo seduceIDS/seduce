@@ -24,7 +24,7 @@ void fnord_engine_destroy(void);
 
 DetectionEngine fnord_engine = {
 	.name = "fnord",
-	.descr = "Fnord NOP Detection Engine",
+	.descr = "Fnord NOP Detection Engine for x86",
 	.init = &fnord_engine_init,
 	.destroy = &fnord_engine_destroy,
 	.reset = &fnord_engine_reset,

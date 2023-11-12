@@ -361,8 +361,8 @@ static void uni_engine_reset(void);
 static void uni_engine_destroy(void);
 
 DetectionEngine uni_windows_x86_engine = {
-	.name = "windows_x86",
-	.descr = "Unicorn-based Windows x86 Detection Engine",
+	.name = "win32",
+	.descr = "Unicorn-based shellcode Detection Engine for Windows x86",
 	.init = &uni_engine_init,
 	.destroy = &uni_engine_destroy,
 	.reset = &uni_engine_reset,
