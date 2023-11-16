@@ -514,15 +514,7 @@ static int uni_engine_process(char *data, size_t len, Threat * threat)
 			}
 
 			// In all other emulation errors do nothing
-			
-			// flush QEMU translations just before the next round
-
-			err = uc_ctl_remove_cache(uc, BASE_ADDR, BASE_ADDR + block_size - 1);
-			if (err != UC_ERR_OK) {
-				ret = -1;
-				goto exit_loop;
-			}
-		 
+				 
 		}	// for-loop for offsets
 	}		// while-loop for blocks
 
