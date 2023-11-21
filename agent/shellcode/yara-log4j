@@ -1,0 +1,1 @@
+${jndi:ldap://localhost:8888}
