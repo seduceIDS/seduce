@@ -203,6 +203,25 @@ else
   AM_CONDITIONAL(HAVE_LIBEMU, false)
 fi
 
+## yara detector 
+
+use_yara="no"
+AC_CHECK_HEADER(yara.h,, 
+    AC_MSG_ERROR([yara.h header file needed but not found]))
+AC_ARG_ENABLE(yara,
+ [AS_HELP_STRING([--enable-yara],
+   [Enable yara detection engine [off]])],
+ [use_yara=$enableval])
+
+if test "$use_yara" = "yes" ; then
+  AM_CONDITIONAL(HAVE_YARA, true)
+  AC_DEFINE(HAVE_YARA, [1], [yara detection engine])
+  LIBYARA_LIBS="-lyara" 
+  AC_SUBST(LIBYARA_LIBS)
+else
+  AM_CONDITIONAL(HAVE_YARA, false)
+fi
+
 ## fnord nop detector (off by default) 
 
 use_fnord="no"
@@ -277,7 +296,7 @@ fi
 LIBS=
 
 AC_CONFIG_FILES([Makefile
-                 sensor/Makefile
-		 agent/Makefile
-		 doc/Makefile])
+                sensor/Makefile
+     		agent/Makefile
+     		doc/Makefile])
 AC_OUTPUT
