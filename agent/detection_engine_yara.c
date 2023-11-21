@@ -38,7 +38,8 @@ int scan_callback_function(
    if (message == CALLBACK_MSG_RULE_MATCHING) {
       sp->id = strdup(yr->identifier);
       sp->gotcha = 1;
-      return CALLBACK_ABORT;
+      // we've got one matching candidate, no need to search for more
+      return CALLBACK_ABORT; 
    }
 
    return CALLBACK_CONTINUE;
@@ -79,7 +80,6 @@ int yara_engine_process(char *data, size_t len, Threat *threat)
       }
 
       memcpy(block, p, block_size);
-      scan_params.id = NULL;
       scan_params.gotcha = 0;
 
       int error_scan_mem;
@@ -92,8 +92,10 @@ int yara_engine_process(char *data, size_t len, Threat *threat)
          snprintf(threat_msg, 500, 
             "yara detected suspicious payload at block %i (%s)",
             block_num, scan_params.id);
+	 threat_msg[499] = '\0';
          threat->msg = strdup(threat_msg);
 	 free(scan_params.id);
+         scan_params.id = NULL;
          return 1;
       } else if (error_scan_mem  != ERROR_SUCCESS){ // yara scanning errors
 	 free(block);
@@ -122,6 +124,8 @@ int yara_engine_init(void)
 {
    YR_COMPILER* compiler = NULL;
    int error_compiler;
+
+   rules = NULL;
 
    if(yr_initialize() !=ERROR_SUCCESS){ 
    	fprintf(stderr, "error in initializing yara library\n");
@@ -198,6 +202,14 @@ void yara_engine_reset(void)
  */
 void yara_engine_destroy(void)
 {
+	if (scan_params.id) {
+		free(scan_params.id);
+	}
+
+	if (rules) {
+		yr_rules_destroy(rules);
+	}
+
 	if (yr_finalize() != ERROR_SUCCESS) {
 		fprintf(stderr, "error while destroying yara engine\n");
 	}
