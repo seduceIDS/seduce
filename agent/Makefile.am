@@ -41,6 +41,9 @@ endif
 
 if HAVE_YARA
 DETECTION_ENGINES += detection_engine_yara.c
+yaradir = $(pkgdatadir)/yara
+yara_DATA = ./yara/dummy.yar ./yara/expl_log4j_cve_2021_44228.yar ./yara/yara_rules.yar
+AM_CFLAGS += -DYARA_RULES_INDEX="\"${yaradir}\""
 endif
 
 if HAVE_DUMMY

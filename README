@@ -9,7 +9,10 @@ The project was initially developed by Nikos Skalkotos, Haris Andrianakis,
 Spyros Panagiotopoulos and Dimitrios Glynos as part of their thesis work
 at the University of Piraeus. Development started in 2006 and was paused in 
 2010, however recent academic interest in final-year-project work on SEDUCE 
-contributed to a revival in 2021.
+contributed to a revival in 2021. During this time Katerina Androni developed
+a yara-based signature detection engine for her Final Year Project, 
+while in 2023 Dimitris Tsilis developed a win32 shellcode detection 
+engine (based on the unicorn2 emulation framework) for his MSc thesis.
 
 The 'master' repo branch follows a simple design with 'agent' and 'sensor'
 nodes, where the agent nodes carry out the packet analysis and the
@@ -30,6 +33,7 @@ Engines currently supported:
   detecting potentially self-modifying shellcode on the linux/x86 architecture
 - libemu: this is an emulation engine based on a good old version of the 
   libemu "GetPC" detection code for x86 shellcode
+- yara: this is a yara-based signature detection engine
 - fnord: a signature detection engine for x86 fnord-based NOP sleds
 - pyopty2: a python-based signature detection engine for meterpreter's 
   opty2 x86 NOP-sleds
@@ -44,7 +48,7 @@ To build SEDUCE from source on a Debian system you will need:
 - git gcc automake autoconf libtool autoconf-archive make
 - libglib2.0-dev libconfuse-dev default-mysql-server libprelude-dev 
   libpreludedb-dev libpcap-dev libnet1-dev libnids-dev prelude-utils 
-  libpreludedb7-mysql prelude-manager pkg-config cmake
+  libpreludedb7-mysql prelude-manager libyara-dev pkg-config cmake
 
 Once all dependencies have been installed, do:
 $ ./autogen.sh
@@ -109,7 +113,7 @@ standalone 'seduce' binary (which does not involve NIDS work).
 $ /usr/local/bin/seduce <engine> <payload_file>
 
 To test the detection capabilities of an engine, you may find sample payloads 
-in the 'agent/shellcode' directory of this repository.
+in the 'agent/payloads' directory of this repository.
 
 PROJECT HOMEPAGE
 ----------------
