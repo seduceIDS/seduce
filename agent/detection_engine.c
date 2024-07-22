@@ -30,6 +30,9 @@
 #ifdef HAVE_PYOPTY2 
         extern DetectionEngine pyopty2_engine; 
 #endif 
+#ifdef HAVE_PYML
+    extern DetectionEngine pyml_engine;
+#endif
  
 static DetectionEngine *avail_engines[] = { 
 #ifdef HAVE_DUMMY 
@@ -56,6 +59,9 @@ static DetectionEngine *avail_engines[] = {
 #ifdef HAVE_PYOPTY2
         &pyopty2_engine, 
 #endif 
+#ifdef HAVE_PYML
+    &pyml_engine,
+#endif
         NULL 
 }; 
 
