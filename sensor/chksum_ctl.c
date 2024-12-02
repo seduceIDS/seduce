@@ -13,7 +13,7 @@ static unsigned int get_addr_from_ifreq(struct ifreq *);
 
 int all_local_ipaddrs_chksum_disable(void)
 {
-	struct ifreq *ifaces;
+	struct ifreq *ifaces = (struct ifreq *ifaces) NULL;
 	int ifaces_count;
 	int i, ind = 0;
 	struct nids_chksum_ctl *ctlp;
