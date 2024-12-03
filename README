@@ -122,6 +122,18 @@ git clone https://github.com/seduceIDS/seduce.git
 
 Bug reports / push requests are welcome on the project github page.
 
+## Datasets for PyML Detection Engine
+
+The datasets used to train models for the PyML Detection Engine are listed below:
+
+- [XSS Payload List](https://github.com/payloadbox/xss-payload-list)
+- [SQL Injection Payload List](https://github.com/payloadbox/sql-injection-payload-list)
+- [Command Injection Payload List](https://github.com/payloadbox/command-injection-payload-list)
+- [Command Injection Wordlist](https://github.com/carlospolop/Auto_Wordlists/blob/main/wordlists/command_injection.txt)
+- [HTTP Parameters Dataset](https://www.kaggle.com/datasets/evg3n1j/httpparamsdataset/?select=payload_full.csv)
+- [SQL Injection Dataset](https://www.kaggle.com/datasets/sajid576/sql-injection-dataset)
+
+
 LICENSE
 -------
 SEDUCE is available under a GPLv3 license (see COPYING).

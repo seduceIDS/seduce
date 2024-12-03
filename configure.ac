@@ -275,6 +275,53 @@ else
   AM_CONDITIONAL(HAVE_PYOPTY2, false)
 fi
 
+## pyml detection engine (off by default)
+use_pyml="no"
+AC_ARG_ENABLE([pyml],
+  [AS_HELP_STRING([--enable-pyml],
+    [Enable PYML detection engine [off]])],
+  [use_pyml=$enableval])
+
+AC_ARG_WITH([max-anomalies],
+  [AS_HELP_STRING([--with-max-anomalies],
+    [Specify the maximum number of anomalies the detection engine can detect [default=2]])],
+  [max_anomalies=${withval}],
+  [max_anomalies=2])  # Default value if not specified
+
+if test "$use_pyml" = "yes" ; then
+  AC_CHECK_PROG(PYTHON3_CONFIG, [python3-config], here, absent)
+
+  if test "$PYTHON3_CONFIG" = "here" ; then
+    LIBPYTHON_CFLAGS=`python3-config --cflags --embed`
+    LIBPYTHON_LIBS=`python3-config --embed --libs`
+    CPPFLAGS=`python3-config --includes`
+  else
+    AC_MSG_ERROR([python3-config not found!])
+  fi
+
+  # Check for Python version 3.10 or higher
+  AC_MSG_CHECKING([for Python version >= 3.10])
+  PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+  PYTHON_MAJOR_VERSION=$(echo $PYTHON_VERSION | cut -d. -f1)
+  PYTHON_MINOR_VERSION=$(echo $PYTHON_VERSION | cut -d. -f2)
+  if test $PYTHON_MAJOR_VERSION -lt 3 || (test $PYTHON_MAJOR_VERSION -eq 3 && test $PYTHON_MINOR_VERSION -lt 10); then
+    AC_MSG_ERROR([Python version 3.10 or higher is required])
+  else
+    AC_MSG_RESULT([$PYTHON_VERSION])
+  fi
+
+  AC_DEFINE([HAVE_PYML], [1], [Define if PYML engine is enabled])
+  AC_DEFINE_UNQUOTED([MAX_ANOMALIES], [$max_anomalies], [Define the maximum number of anomalies])
+  AC_SUBST(max_anomalies)
+  AM_CONDITIONAL([HAVE_PYML], [true])
+  AC_SUBST(LIBPYTHON_CFLAGS)
+  AC_SUBST(LIBPYTHON_LIBS)
+  # reset it back to normal
+  CPPFLAGS=
+else
+  AM_CONDITIONAL([HAVE_PYML], [false])
+fi
+
 ## dummy detection engine (off by default) 
 
 use_dummy="no"

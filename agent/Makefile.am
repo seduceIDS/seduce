@@ -59,6 +59,12 @@ DETECTION_ENGINES += detection_engine_pyopty2.c
 python_PYTHON = detection_engine_pyopty2.py
 endif
 
+if HAVE_PYML
+DETECTION_ENGINES += detection_engine_pyml.c
+python_PYTHON = behaviour/main.py behaviour/pipeline/process_pipe.py behaviour/core/config.py
+PYML_VENV_DIR = behaviour/pyml_venv
+endif
+
 seduce_agent_SOURCES = agent.c alert.c base64.c detection_engine.c error.c \
 			item_selection.c manager_protocol.c md5.c options.c \
 			utils.c worker.c $(DETECTION_ENGINES)
@@ -75,7 +81,7 @@ seduce_LDADD = @LIBYARA_LIBS@ @QEMU_LIBS@ @UNICORN_LIBS@ @LIBEMU_LIBS@ @LIBPYTHO
 # do not recurse further for installation
 install installdirs: SUBDIRS =
 
-install-exec-hook:
+install-exec-hook: setup-pyml-venv download-models
 	chown root:root $(DESTDIR)$(bindir)/seduce-agent
 	chmod 0700 $(DESTDIR)$(bindir)/seduce-agent
 	chown root:root	$(DESTDIR)$(bindir)/seduce
@@ -83,3 +89,15 @@ install-exec-hook:
 	chown root:root $(DESTDIR)$(sysconfdir)/agent.conf
 	chmod 0600 $(DESTDIR)$(sysconfdir)/agent.conf
 
+setup-pyml-venv:
+if HAVE_PYML
+	mkdir -p $(PYML_VENV_DIR)
+	python3 -m venv $(PYML_VENV_DIR)
+	source $(PYML_VENV_DIR)/bin/activate
+	$(PYML_VENV_DIR)/bin/pip install -r behaviour/requirements.txt
+endif
+
+download-models:
+if HAVE_PYML
+	cd behaviour && ./download_models.sh $(max_anomalies)
+endif
